@@ -25,10 +25,14 @@ SECRET_KEY = 'django-insecure-xu21^&_=i8f10x#x0u68@*%#gmcoz-($i@e8v$c_jo*)03tdy^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['loreto-pacs.onrender.com', 'localhost', '127.0.0.1']
+
+# Configuración necesaria para Render / HTTPS y CSRF
 CSRF_TRUSTED_ORIGINS = [
     'https://loreto-pacs.onrender.com',
 ]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
