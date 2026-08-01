@@ -26,7 +26,9 @@ SECRET_KEY = 'django-insecure-xu21^&_=i8f10x#x0u68@*%#gmcoz-($i@e8v$c_jo*)03tdy^
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-
+CSRF_TRUSTED_ORIGINS = [
+    'https://loreto-pacs.onrender.com',
+]
 
 # Application definition
 
