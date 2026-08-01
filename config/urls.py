@@ -12,4 +12,3 @@ urlpatterns = [
     path('recepcion/', views.panel_recepcion, name='panel_recepcion'),
     path('configuracion/', views.panel_config, name='panel_config'),
 ]
-]
