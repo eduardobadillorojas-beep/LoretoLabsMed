@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from .models import Paciente, Estudio
 
 def inicio(request):
     return render(request, 'core/inicio.html')
@@ -36,7 +37,8 @@ def logout_view(request):
 
 @login_required
 def panel_medico(request):
-    return render(request, 'core/panel_medico.html')
+    estudios = Estudio.objects.select_related('paciente').all().order_by('-fecha_creacion')
+    return render(request, 'core/panel_medico.html', {'estudios': estudios})
 
 @login_required
 def panel_radiologo(request):

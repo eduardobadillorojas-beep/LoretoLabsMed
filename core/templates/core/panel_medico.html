@@ -1,20 +1,63 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8"><title>Panel Médico - Loreto Labs Med</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; padding: 30px; }
-        .card { background: #1E293B; padding: 20px; border-radius: 10px; border-left: 5px solid #38BDF8; margin-top: 20px; }
-        a { color: #CBD5E1; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <a href="/">← Inicio</a>
-    <h1>👨‍⚕️ Panel de Médicos</h1>
-    <p>Bienvenido al módulo de consulta e historial clínico.</p>
-    <div class="card">
-        <h3>📋 Órdenes y Expedientes</h3>
-        <p>Aquí se listarán los pacientes asignados y sus expedientes médicos.</p>
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-light">👨‍⚕️ Panel de Médicos</h2>
+            <p class="text-secondary mb-0">Consulta de pacientes y órdenes médicas de estudios radiológicos.</p>
+        </div>
     </div>
-</body>
-</html>
+
+    <div class="card bg-dark border-secondary text-light shadow-sm">
+        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">📋 Órdenes y Expedientes Activos</h5>
+            <span class="badge bg-primary">{{ estudios.count }} Registros</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 align-middle">
+                    <thead>
+                        <tr class="table-active text-secondary">
+                            <th>ID / Cédula</th>
+                            <th>Paciente</th>
+                            <th>Estudio</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for estudio in estudios %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ estudio.paciente.identificacion }}</span></td>
+                            <td class="fw-bold">{{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }}</td>
+                            <td>{{ estudio.tipo_estudio }}</td>
+                            <td>
+                                {% if estudio.estado == 'COMPLETADO' %}
+                                    <span class="badge bg-success">Completado</span>
+                                {% elif estudio.estado == 'EN_PROCESO' %}
+                                    <span class="badge bg-warning text-dark">En Proceso</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ estudio.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-info">Ver Expediente</button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <em>No hay órdenes de estudios registradas aún.</em>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
