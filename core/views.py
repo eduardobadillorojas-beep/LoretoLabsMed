@@ -51,3 +51,28 @@ def panel_recepcion(request):
 @login_required
 def panel_config(request):
     return render(request, 'core/panel_config.html')
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .forms import PacienteForm, EstudioForm
+
+@login_required
+def registrar_estudio_recepcion(request):
+    if request.method == 'POST':
+        paciente_form = PacienteForm(request.POST)
+        estudio_form = EstudioForm(request.POST)
+        
+        if paciente_form.is_valid() and estudio_form.is_valid():
+            paciente = paciente_form.save()
+            estudio = estudio_form.save(commit=False)
+            estudio.paciente = paciente  # Asegura la relación
+            estudio.save()
+            return redirect('recepcion')  # Redirige a la vista de recepción
+    else:
+        paciente_form = PacienteForm()
+        estudio_form = EstudioForm()
+
+    context = {
+        'paciente_form': paciente_form,
+        'estudio_form': estudio_form,
+    }
+    return render(request, 'core/registrar_recepcion.html', context)

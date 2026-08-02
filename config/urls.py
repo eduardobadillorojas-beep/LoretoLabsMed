@@ -11,4 +11,5 @@ urlpatterns = [
     path('radiologia/', views.panel_radiologo, name='panel_radiologo'),
     path('recepcion/', views.panel_recepcion, name='panel_recepcion'),
     path('configuracion/', views.panel_config, name='panel_config'),
+    path('recepcion/registrar/', views.registrar_estudio_recepcion, name='registrar_recepcion'),
 ]
