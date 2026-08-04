@@ -2,78 +2,507 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loreto PACS</title>
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Loreto One, plataforma de software para la gestión médica, hospitalaria e imagenología."
+    >
+
+    <title>Loreto One</title>
+
     <style>
+        :root {
+            --fondo: #0F172A;
+            --fondo-secundario: #111C31;
+            --azul: #2563EB;
+            --azul-claro: #38BDF8;
+            --turquesa: #22D3EE;
+            --blanco: #FFFFFF;
+            --texto-secundario: #CBD5E1;
+            --texto-suave: #94A3B8;
+            --borde: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            min-height: 100%;
+        }
+
         body {
+            min-height: 100vh;
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
-            background: #0F172A;
-            color: white;
+            padding: 24px;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-            box-sizing: border-box;
+            overflow-x: hidden;
+            font-family:
+                Inter,
+                Arial,
+                Helvetica,
+                sans-serif;
+            color: var(--blanco);
+            background:
+                radial-gradient(
+                    circle at 50% 20%,
+                    rgba(37, 99, 235, 0.16),
+                    transparent 32%
+                ),
+                radial-gradient(
+                    circle at 80% 80%,
+                    rgba(34, 211, 238, 0.08),
+                    transparent 30%
+                ),
+                var(--fondo);
         }
-        .contenedor {
+
+        .decoracion {
+            position: fixed;
+            width: 420px;
+            height: 420px;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.12;
+            pointer-events: none;
+        }
+
+        .decoracion-uno {
+            top: -220px;
+            left: -180px;
+            background: var(--azul);
+        }
+
+        .decoracion-dos {
+            right: -220px;
+            bottom: -240px;
+            background: var(--turquesa);
+        }
+
+        .pagina {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 900px;
+            min-height: calc(100vh - 48px);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .principal {
+            width: 100%;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .contenido {
+            width: 100%;
+            max-width: 720px;
+            padding: 40px 24px;
             text-align: center;
-            max-width: 600px;
+            animation: aparecer 0.7s ease-out;
         }
-        h1 { font-size: 45px; margin-bottom: 10px; }
-        h2 { color: #38BDF8; font-weight: normal; margin-bottom: 25px; }
-        .grid-modulos {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 25px;
+
+        .logo-simbolo {
+            width: 124px;
+            height: 124px;
+            margin: 0 auto 26px;
+            filter:
+                drop-shadow(
+                    0 18px 30px rgba(37, 99, 235, 0.22)
+                );
         }
-        .btn-modulo {
+
+        .logo-simbolo svg {
             display: block;
-            padding: 15px;
-            background: #1E293B;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            border: 1px solid #334155;
-            font-weight: bold;
-            transition: all 0.2s ease;
+            width: 100%;
+            height: 100%;
         }
-        .btn-modulo:hover {
-            background: #0284C7;
-            border-color: #38BDF8;
-            transform: translateY(-2px);
+
+        .marca {
+            margin: 0;
+            font-size: clamp(44px, 8vw, 72px);
+            line-height: 1;
+            letter-spacing: -3px;
+            font-weight: 750;
         }
+
+        .marca-loreto {
+            color: var(--blanco);
+        }
+
+        .marca-one {
+            background: linear-gradient(
+                100deg,
+                var(--turquesa),
+                var(--azul-claro),
+                var(--azul)
+            );
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .descripcion {
+            max-width: 620px;
+            margin: 24px auto 0;
+            color: var(--texto-secundario);
+            font-size: clamp(17px, 2.5vw, 21px);
+            line-height: 1.65;
+        }
+
+        .acciones {
+            margin-top: 36px;
+            display: flex;
+            justify-content: center;
+        }
+
         .btn-login {
-            display: inline-block;
-            margin-bottom: 15px;
-            padding: 10px 20px;
-            background: #0284C7;
-            color: white;
+            min-width: 190px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 24px;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            border-radius: 9px;
+            color: var(--blanco);
+            background: linear-gradient(
+                135deg,
+                var(--azul),
+                #0284C7
+            );
+            box-shadow:
+                0 14px 32px rgba(37, 99, 235, 0.25);
             text-decoration: none;
-            border-radius: 6px;
-            font-weight: bold;
+            font-size: 16px;
+            font-weight: 700;
+            transition:
+                transform 0.2s ease,
+                box-shadow 0.2s ease,
+                filter 0.2s ease;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow:
+                0 18px 38px rgba(37, 99, 235, 0.35);
+            filter: brightness(1.08);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-icono {
+            width: 19px;
+            height: 19px;
+            flex-shrink: 0;
+        }
+
+        .pie {
+            width: 100%;
+            padding: 22px 12px 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: var(--texto-suave);
+            font-size: 13px;
+            text-align: center;
+        }
+
+        .separador {
+            color: var(--borde);
+        }
+
+        @keyframes aparecer {
+            from {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 16px;
+            }
+
+            .pagina {
+                min-height: calc(100vh - 32px);
+            }
+
+            .contenido {
+                padding: 30px 5px;
+            }
+
+            .logo-simbolo {
+                width: 102px;
+                height: 102px;
+                margin-bottom: 22px;
+            }
+
+            .marca {
+                letter-spacing: -2px;
+            }
+
+            .descripcion {
+                font-size: 17px;
+            }
+
+            .btn-login {
+                width: 100%;
+                max-width: 320px;
+            }
+
+            .separador {
+                display: none;
+            }
+
+            .pie {
+                flex-direction: column;
+                gap: 4px;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .contenido {
+                animation: none;
+            }
+
+            .btn-login {
+                transition: none;
+            }
         }
     </style>
 </head>
+
 <body>
 
-<div class="contenedor">
-    <h1>🩺 Loreto PACS</h1>
-    <h2>Sistema Integral de Gestión Clínica</h2>
+    <div class="decoracion decoracion-uno"></div>
+    <div class="decoracion decoracion-dos"></div>
 
-    <a href="/login/" class="btn-login">🔐 Iniciar Sesión</a>
+    <div class="pagina">
 
-    <div class="grid-modulos">
-        <a href="/medicos/" class="btn-modulo">👨‍⚕️ Panel Médicos</a>
-        <a href="/radiologia/" class="btn-modulo">🩻 Panel Radiólogos</a>
-        <a href="/recepcion/" class="btn-modulo">👩‍💼 Panel Recepción</a>
-        <a href="/configuracion/" class="btn-modulo">⚙️ Configuración</a>
+        <main class="principal">
+
+            <section class="contenido">
+
+                <div
+                    class="logo-simbolo"
+                    aria-label="Logotipo de Loreto One"
+                >
+                    <svg
+                        viewBox="0 0 160 160"
+                        xmlns="http://www.w3.org/2000/svg"
+                        role="img"
+                        aria-labelledby="titulo-logo"
+                    >
+                        <title id="titulo-logo">
+                            Loreto One
+                        </title>
+
+                        <defs>
+                            <linearGradient
+                                id="gradiente-logo"
+                                x1="15%"
+                                y1="10%"
+                                x2="85%"
+                                y2="90%"
+                            >
+                                <stop
+                                    offset="0%"
+                                    stop-color="#22D3EE"
+                                />
+
+                                <stop
+                                    offset="45%"
+                                    stop-color="#0891B2"
+                                />
+
+                                <stop
+                                    offset="72%"
+                                    stop-color="#2563EB"
+                                />
+
+                                <stop
+                                    offset="100%"
+                                    stop-color="#1E3A8A"
+                                />
+                            </linearGradient>
+
+                            <linearGradient
+                                id="brillo-logo"
+                                x1="0%"
+                                y1="0%"
+                                x2="100%"
+                                y2="100%"
+                            >
+                                <stop
+                                    offset="0%"
+                                    stop-color="#5EEAD4"
+                                    stop-opacity="0.9"
+                                />
+
+                                <stop
+                                    offset="100%"
+                                    stop-color="#38BDF8"
+                                    stop-opacity="0"
+                                />
+                            </linearGradient>
+                        </defs>
+
+                        <path
+                            d="
+                                M80 10
+                                C86 10 91 12 96 15
+                                L131 35
+                                C141 41 147 51 147 63
+                                L147 98
+                                C147 110 141 120 131 126
+                                L96 146
+                                C86 152 74 152 64 146
+                                L29 126
+                                C19 120 13 110 13 98
+                                L13 63
+                                C13 51 19 41 29 35
+                                L64 15
+                                C69 12 74 10 80 10
+                                Z
+
+                                M80 47
+                                C76 47 72 48 69 50
+                                L54 59
+                                C48 62 45 68 45 75
+                                L45 87
+                                C45 94 48 100 54 103
+                                L69 112
+                                C76 116 84 116 91 112
+                                L106 103
+                                C112 100 115 94 115 87
+                                L115 75
+                                C115 68 112 62 106 59
+                                L91 50
+                                C88 48 84 47 80 47
+                                Z
+                            "
+                            fill="url(#gradiente-logo)"
+                            fill-rule="evenodd"
+                        />
+
+                        <path
+                            d="
+                                M45 23
+                                C57 16 67 11 80 10
+                                C91 10 101 15 110 20
+                                C106 33 97 42 85 47
+                                C74 51 61 50 50 44
+                                C43 40 38 35 35 31
+                                Z
+                            "
+                            fill="url(#brillo-logo)"
+                            opacity="0.65"
+                        />
+
+                        <path
+                            d="
+                                M21 112
+                                C33 103 45 99 57 101
+                                C68 103 77 109 82 118
+                                C86 126 87 136 84 149
+                                C77 150 70 149 64 146
+                                L29 126
+                                C24 123 21 119 18 115
+                                Z
+                            "
+                            fill="#2563EB"
+                            opacity="0.75"
+                        />
+                    </svg>
+                </div>
+
+                <h1 class="marca">
+                    <span class="marca-loreto">Loreto</span><span class="marca-one">One</span>
+                </h1>
+
+                <p class="descripcion">
+                    Plataforma de software para la gestión médica,
+                    hospitalaria e imagenología.
+                </p>
+
+                <div class="acciones">
+                    <a
+                        href="{% url 'login' %}"
+                        class="btn-login"
+                    >
+                        <svg
+                            class="btn-icono"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            aria-hidden="true"
+                        >
+                            <path
+                                d="M8 11V8a4 4 0 1 1 8 0v3"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+
+                            <rect
+                                x="5"
+                                y="11"
+                                width="14"
+                                height="10"
+                                rx="2"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            />
+
+                            <path
+                                d="M12 15v2"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+
+                        Iniciar sesión
+                    </a>
+                </div>
+
+            </section>
+
+        </main>
+
+        <footer class="pie">
+            <span>Versión 0.1.0</span>
+
+            <span class="separador">•</span>
+
+            <span>
+                © 2026 Loreto Labs
+            </span>
+        </footer>
+
     </div>
-
-    <p style="margin-top:30px; color:#CBD5E1; font-size: 14px;">Versión 0.0.1 | Proyecto desarrollado por Loreto Labs.</p>
-</div>
 
 </body>
 </html>
