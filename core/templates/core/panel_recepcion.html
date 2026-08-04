@@ -20,7 +20,7 @@
             font-family: Arial, sans-serif;
             background: #0F172A;
             color: white;
-            padding: 30px;
+            padding: 20px;
         }
 
         a {
@@ -28,54 +28,86 @@
             text-decoration: none;
         }
 
-        .card {
-            background: #1E293B;
-            padding: 20px;
-            border-radius: 10px;
-            border-left: 5px solid #22C55E;
-            margin-top: 20px;
+        h1 {
+            margin-bottom: 6px;
+        }
+
+        .subtitulo {
+            margin-top: 0;
+            color: #CBD5E1;
+        }
+
+        .barra-acciones {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 24px 0 18px;
+            flex-wrap: wrap;
         }
 
         .btn-principal {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             background: #3B82F6;
             color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin-top: 10px;
-            text-decoration: none;
+            padding: 11px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            white-space: nowrap;
         }
 
         .btn-principal:hover {
             background: #2563EB;
         }
 
-        .buscador {
+        .form-busqueda {
             display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            margin-bottom: 20px;
+            align-items: center;
+            flex: 1;
+            min-width: 260px;
+            max-width: 620px;
+            gap: 8px;
         }
 
-        .buscador input {
+        .campo-busqueda {
+            position: relative;
             flex: 1;
-            padding: 12px;
+        }
+
+        .campo-busqueda span {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            pointer-events: none;
+        }
+
+        .campo-busqueda input {
+            width: 100%;
+            padding: 11px 12px 11px 38px;
             border: 1px solid #475569;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 15px;
+            outline: none;
         }
 
-        .buscador button {
+        .campo-busqueda input:focus {
+            border-color: #3B82F6;
+        }
+
+        .btn-buscar {
             background: #22C55E;
             color: white;
             border: none;
             border-radius: 6px;
-            padding: 12px 20px;
+            padding: 11px 18px;
             cursor: pointer;
             font-size: 15px;
         }
 
-        .buscador button:hover {
+        .btn-buscar:hover {
             background: #16A34A;
         }
 
@@ -84,8 +116,27 @@
             align-items: center;
             background: #64748B;
             color: white;
-            padding: 12px 18px;
+            padding: 11px 15px;
             border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .lista {
+            background: #1E293B;
+            padding: 18px;
+            border-radius: 10px;
+            border-left: 4px solid #22C55E;
+        }
+
+        .lista h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+        }
+
+        .contador {
+            color: #94A3B8;
+            margin-top: 0;
+            margin-bottom: 16px;
         }
 
         .tabla-contenedor {
@@ -95,7 +146,6 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
             background: #0F172A;
         }
 
@@ -129,23 +179,32 @@
             color: #CBD5E1;
         }
 
-        .contador {
-            color: #94A3B8;
-            margin-top: 5px;
-        }
-
-        @media (max-width: 700px) {
+        @media (max-width: 750px) {
             body {
                 padding: 15px;
             }
 
-            .buscador {
-                flex-direction: column;
+            .barra-acciones {
+                align-items: stretch;
             }
 
-            .buscador button,
-            .btn-limpiar {
+            .btn-principal,
+            .form-busqueda {
                 width: 100%;
+                max-width: none;
+            }
+
+            .form-busqueda {
+                flex-wrap: wrap;
+            }
+
+            .campo-busqueda {
+                min-width: 100%;
+            }
+
+            .btn-buscar,
+            .btn-limpiar {
+                flex: 1;
                 justify-content: center;
             }
         }
@@ -158,42 +217,34 @@
 
     <h1>👩‍💼 Panel de Recepción</h1>
 
-    <p>
-        Bienvenido al módulo de registro y atención al paciente.
+    <p class="subtitulo">
+        Registro y atención al paciente.
     </p>
 
-    <div class="card">
-        <h3>📅 Registro de pacientes</h3>
-
-        <p>
-            Registra nuevos pacientes y sus estudios solicitados.
-        </p>
+    <div class="barra-acciones">
 
         <a
             href="{% url 'registrar_recepcion' %}"
             class="btn-principal"
         >
-            + Registrar Nuevo Paciente y Estudio
+            + Registrar nuevo paciente
         </a>
-    </div>
 
-    <div class="card">
-        <h3>🔎 Buscar pacientes</h3>
+        <form method="get" class="form-busqueda">
 
-        <p>
-            Busca por registro interno, nombre, apellido o teléfono.
-        </p>
+            <div class="campo-busqueda">
+                <span>🔎</span>
 
-        <form method="get" class="buscador">
-            <input
-                type="text"
-                name="buscar"
-                value="{{ busqueda }}"
-                placeholder="Ej. 100000, Juan Pérez o teléfono"
-                autocomplete="off"
-            >
+                <input
+                    type="text"
+                    name="buscar"
+                    value="{{ busqueda }}"
+                    placeholder="Buscar paciente"
+                    autocomplete="off"
+                >
+            </div>
 
-            <button type="submit">
+            <button type="submit" class="btn-buscar">
                 Buscar
             </button>
 
@@ -205,14 +256,17 @@
                     Limpiar
                 </a>
             {% endif %}
+
         </form>
+
     </div>
 
-    <div class="card">
-        <h3>📋 Lista de pacientes</h3>
+    <section class="lista">
+
+        <h3>📋 Pacientes</h3>
 
         <p class="contador">
-            Pacientes encontrados: {{ pacientes|length }}
+            Registros encontrados: {{ pacientes|length }}
         </p>
 
         {% if pacientes %}
@@ -275,7 +329,8 @@
             </div>
 
         {% endif %}
-    </div>
+
+    </section>
 
 </body>
 </html>
