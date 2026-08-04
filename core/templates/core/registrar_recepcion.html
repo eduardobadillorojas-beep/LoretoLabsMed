@@ -1,18 +1,27 @@
 {% extends 'core/base.html' %}
+
 {% block content %}
 <div class="container mt-4 mb-5">
+
     <h2>Registro de Paciente y Estudio</h2>
+
     <form method="post" class="mt-3">
         {% csrf_token %}
-        
+
         <h4>Datos del Paciente</h4>
         {{ paciente_form.as_p }}
 
         <h4 class="mt-4">Datos del Estudio</h4>
         {{ estudio_form.as_p }}
 
-        <button type="submit" class="btn btn-success mt-3">Guardar Registro</button>
-        <a href="{% url 'recepcion' %}" class="btn btn-secondary mt-3">Cancelar</a>
+        <button type="submit" class="btn btn-success mt-3">
+            Guardar Registro
+        </button>
+
+        <a href="{% url 'panel_recepcion' %}" class="btn btn-secondary mt-3">
+            Cancelar
+        </a>
     </form>
+
 </div>
 {% endblock %}
