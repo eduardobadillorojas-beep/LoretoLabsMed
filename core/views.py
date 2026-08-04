@@ -1,10 +1,11 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import render, redirect
 
 from .forms import PacienteForm, EstudioForm
-from .models import Estudio
+from .models import Paciente, Estudio
 
 
 def inicio(request):
@@ -75,7 +76,28 @@ def panel_radiologo(request):
 
 @login_required
 def panel_recepcion(request):
-    return render(request, 'core/panel_recepcion.html')
+    busqueda = request.GET.get('buscar', '').strip()
+
+    pacientes = Paciente.objects.all().order_by('-creado_el')
+
+    if busqueda:
+        pacientes = pacientes.filter(
+            Q(identificacion__icontains=busqueda) |
+            Q(nombre__icontains=busqueda) |
+            Q(apellido__icontains=busqueda) |
+            Q(telefono__icontains=busqueda)
+        )
+
+    context = {
+        'pacientes': pacientes,
+        'busqueda': busqueda,
+    }
+
+    return render(
+        request,
+        'core/panel_recepcion.html',
+        context
+    )
 
 
 @login_required

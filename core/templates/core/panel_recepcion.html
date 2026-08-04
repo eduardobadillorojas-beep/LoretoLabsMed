@@ -1,23 +1,281 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8"><title>Panel Recepción - Loreto Labs Med</title>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Panel Recepción - Loreto Labs Med</title>
+
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; padding: 30px; }
-        .card { background: #1E293B; padding: 20px; border-radius: 10px; border-left: 5px solid #22C55E; margin-top: 20px; }
-        a { color: #CBD5E1; text-decoration: none; }
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0F172A;
+            color: white;
+            padding: 30px;
+        }
+
+        a {
+            color: #CBD5E1;
+            text-decoration: none;
+        }
+
+        .card {
+            background: #1E293B;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #22C55E;
+            margin-top: 20px;
+        }
+
+        .btn-principal {
+            display: inline-block;
+            background: #3B82F6;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-top: 10px;
+            text-decoration: none;
+        }
+
+        .btn-principal:hover {
+            background: #2563EB;
+        }
+
+        .buscador {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .buscador input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .buscador button {
+            background: #22C55E;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        .buscador button:hover {
+            background: #16A34A;
+        }
+
+        .btn-limpiar {
+            display: inline-flex;
+            align-items: center;
+            background: #64748B;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 6px;
+        }
+
+        .tabla-contenedor {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: #0F172A;
+        }
+
+        th,
+        td {
+            padding: 13px;
+            border-bottom: 1px solid #334155;
+            text-align: left;
+        }
+
+        th {
+            background: #334155;
+            color: white;
+        }
+
+        tr:hover {
+            background: #1E293B;
+        }
+
+        .registro {
+            font-weight: bold;
+            color: #38BDF8;
+        }
+
+        .sin-resultados {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            color: #CBD5E1;
+        }
+
+        .contador {
+            color: #94A3B8;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 15px;
+            }
+
+            .buscador {
+                flex-direction: column;
+            }
+
+            .buscador button,
+            .btn-limpiar {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
+
 <body>
+
     <a href="/">← Inicio</a>
+
     <h1>👩‍💼 Panel de Recepción</h1>
-    <p>Bienvenido al módulo de registro y atención al paciente.</p>
+
+    <p>
+        Bienvenido al módulo de registro y atención al paciente.
+    </p>
+
     <div class="card">
-    <h3>📅 Agenda del Día</h3>
-    <p>Aquí podrás registrar nuevos pacientes, agendar citas y gestionar cobros.</p>
-    
-    <!-- Pega el botón aquí abajo -->
-    <a href="{% url 'registrar_recepcion' %}" style="display: inline-block; background: #3b82f6; color: white; padding: 10px 15px; border-radius: 5px; margin-top: 10px; text-decoration: none;">+ Registrar Nuevo Paciente y Estudio</a>
-</div>
+        <h3>📅 Registro de pacientes</h3>
+
+        <p>
+            Registra nuevos pacientes y sus estudios solicitados.
+        </p>
+
+        <a
+            href="{% url 'registrar_recepcion' %}"
+            class="btn-principal"
+        >
+            + Registrar Nuevo Paciente y Estudio
+        </a>
+    </div>
+
+    <div class="card">
+        <h3>🔎 Buscar pacientes</h3>
+
+        <p>
+            Busca por registro interno, nombre, apellido o teléfono.
+        </p>
+
+        <form method="get" class="buscador">
+            <input
+                type="text"
+                name="buscar"
+                value="{{ busqueda }}"
+                placeholder="Ej. 100000, Juan Pérez o teléfono"
+                autocomplete="off"
+            >
+
+            <button type="submit">
+                Buscar
+            </button>
+
+            {% if busqueda %}
+                <a
+                    href="{% url 'panel_recepcion' %}"
+                    class="btn-limpiar"
+                >
+                    Limpiar
+                </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>📋 Lista de pacientes</h3>
+
+        <p class="contador">
+            Pacientes encontrados: {{ pacientes|length }}
+        </p>
+
+        {% if pacientes %}
+
+            <div class="tabla-contenedor">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Registro</th>
+                            <th>Nombre</th>
+                            <th>Fecha de nacimiento</th>
+                            <th>Género</th>
+                            <th>Teléfono</th>
+                            <th>Fecha de registro</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for paciente in pacientes %}
+                            <tr>
+                                <td class="registro">
+                                    {{ paciente.identificacion }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.nombre }}
+                                    {{ paciente.apellido }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.fecha_nacimiento|date:"d/m/Y" }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.get_genero_display }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.telefono|default:"Sin teléfono" }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.creado_el|date:"d/m/Y H:i" }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        {% else %}
+
+            <div class="sin-resultados">
+                {% if busqueda %}
+                    No se encontraron pacientes para
+                    “{{ busqueda }}”.
+                {% else %}
+                    Todavía no hay pacientes registrados.
+                {% endif %}
+            </div>
+
+        {% endif %}
+    </div>
+
 </body>
 </html>
