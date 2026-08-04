@@ -1,11 +1,13 @@
+from datetime import date
+
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import PacienteForm, EstudioForm
-from .models import Paciente, Estudio
+from .forms import EstudioForm, PacienteForm
+from .models import Estudio, Paciente
 
 
 def inicio(request):
@@ -82,10 +84,10 @@ def panel_recepcion(request):
 
     if busqueda:
         pacientes = pacientes.filter(
-            Q(identificacion__icontains=busqueda) |
-            Q(nombre__icontains=busqueda) |
-            Q(apellido__icontains=busqueda) |
-            Q(telefono__icontains=busqueda)
+            Q(identificacion__icontains=busqueda)
+            | Q(nombre__icontains=busqueda)
+            | Q(apellido__icontains=busqueda)
+            | Q(telefono__icontains=busqueda)
         )
 
     context = {
@@ -96,6 +98,42 @@ def panel_recepcion(request):
     return render(
         request,
         'core/panel_recepcion.html',
+        context
+    )
+
+
+@login_required
+def detalle_paciente(request, paciente_id):
+    paciente = get_object_or_404(Paciente, pk=paciente_id)
+
+    estudios = (
+        paciente.estudios
+        .all()
+        .order_by('-fecha_creacion')
+    )
+
+    hoy = date.today()
+    edad = (
+        hoy.year
+        - paciente.fecha_nacimiento.year
+        - (
+            (hoy.month, hoy.day)
+            < (
+                paciente.fecha_nacimiento.month,
+                paciente.fecha_nacimiento.day,
+            )
+        )
+    )
+
+    context = {
+        'paciente': paciente,
+        'estudios': estudios,
+        'edad': edad,
+    }
+
+    return render(
+        request,
+        'core/detalle_paciente.html',
         context
     )
 
@@ -119,7 +157,10 @@ def registrar_estudio_recepcion(request):
                 estudio.paciente = paciente
                 estudio.save()
 
-            return redirect('panel_recepcion')
+            return redirect(
+                'detalle_paciente',
+                paciente_id=paciente.id
+            )
 
     else:
         paciente_form = PacienteForm()

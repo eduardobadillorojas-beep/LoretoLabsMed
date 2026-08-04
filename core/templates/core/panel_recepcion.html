@@ -170,6 +170,17 @@
             color: #38BDF8;
         }
 
+        .enlace-registro {
+            color: #38BDF8;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .enlace-registro:hover {
+            color: #7DD3FC;
+            text-decoration: underline;
+        }
+
         .sin-resultados {
             background: #0F172A;
             border: 1px solid #334155;
@@ -288,7 +299,12 @@
                         {% for paciente in pacientes %}
                             <tr>
                                 <td class="registro">
-                                    {{ paciente.identificacion }}
+                                    <a
+                                        href="{% url 'detalle_paciente' paciente.id %}"
+                                        class="enlace-registro"
+                                    >
+                                        {{ paciente.identificacion }}
+                                    </a>
                                 </td>
 
                                 <td>
@@ -321,8 +337,7 @@
 
             <div class="sin-resultados">
                 {% if busqueda %}
-                    No se encontraron pacientes para
-                    “{{ busqueda }}”.
+                    No se encontraron pacientes para “{{ busqueda }}”.
                 {% else %}
                     Todavía no hay pacientes registrados.
                 {% endif %}
