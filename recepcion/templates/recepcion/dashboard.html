@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Recepción - Loreto One</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: auto; background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h1 { color: #f8fafc; margin-top: 0; }
+        p { color: #94a3b8; }
+        .card { background: #0f172a; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; margin-bottom: 25px; }
+        form { margin-top: 15px; display: flex; gap: 10px; }
+        input[type="text"] { padding: 10px; width: 75%; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: white; font-size: 14px; }
+        button { padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        button:hover { background-color: #2563eb; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #0f172a; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #334155; text-align: left; }
+        th { background-color: #1e293b; color: #cbd5e1; font-weight: 600; }
+        td { color: #e2e8f0; }
+        tr:hover { background-color: #1e293b; }
+        .back-link { display: inline-block; margin-bottom: 15px; color: #3b82f6; text-decoration: none; font-weight: bold; }
+        .back-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/configuracion/" class="back-link">← Volver a Configuración</a>
+        <h1>👩‍💻 Panel de Recepción</h1>
+        <p>Bienvenido al módulo de registro y atención al paciente.</p>
+
+        <div class="card">
+            <h3>📅 Gestión de Pacientes</h3>
+            <p>Busca pacientes registrados previamente o añade nuevos.</p>
+
+            <!-- Formulario de Búsqueda -->
+            <form method="GET" action="">
+                <input type="text" name="q" value="{{ query }}" placeholder="Buscar por nombre o apellido...">
+                <button type="submit">Buscar</button>
+            </form>
+        </div>
+
+        <!-- Tabla de Resultados -->
+        <h3>Resultados de la Búsqueda</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Apellidos</th>
+                    <th>Teléfono</th>
+                    <th>Correo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in pacientes %}
+                <tr>
+                    <td>{{ p.nombre }}</td>
+                    <td>{{ p.apellidos }}</td>
+                    <td>{{ p.telefono }}</td>
+                    <td>{{ p.correo }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #94a3b8;">No se encontraron pacientes registrados.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
