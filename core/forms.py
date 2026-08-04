@@ -52,7 +52,6 @@ class EstudioForm(forms.ModelForm):
         model = Estudio
 
         fields = [
-            'paciente',
             'medico_solicitante',
             'tipo_estudio',
             'descripcion',
@@ -60,27 +59,23 @@ class EstudioForm(forms.ModelForm):
         ]
 
         widgets = {
-            'paciente': forms.Select(
+            'medico_solicitante': forms.TextInput(
                 attrs={
                     'class': 'form-control',
-                }
-            ),
-            'medico_solicitante': forms.Select(
-                attrs={
-                    'class': 'form-control',
+                    'placeholder': 'Ej. Dr. José Martínez López',
                 }
             ),
             'tipo_estudio': forms.TextInput(
                 attrs={
                     'class': 'form-control',
-                    'placeholder': 'Ej. RX Tórax',
+                    'placeholder': 'Ej. RX de tórax PA',
                 }
             ),
             'descripcion': forms.Textarea(
                 attrs={
                     'class': 'form-control',
                     'rows': 3,
-                    'placeholder': 'Observaciones',
+                    'placeholder': 'Diagnóstico u observaciones',
                 }
             ),
             'estado': forms.Select(
