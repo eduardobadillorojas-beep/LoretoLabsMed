@@ -104,7 +104,10 @@ def panel_recepcion(request):
 
 @login_required
 def detalle_paciente(request, paciente_id):
-    paciente = get_object_or_404(Paciente, pk=paciente_id)
+    paciente = get_object_or_404(
+        Paciente,
+        pk=paciente_id
+    )
 
     estudios = (
         paciente.estudios
@@ -113,6 +116,7 @@ def detalle_paciente(request, paciente_id):
     )
 
     hoy = date.today()
+
     edad = (
         hoy.year
         - paciente.fecha_nacimiento.year
@@ -139,8 +143,46 @@ def detalle_paciente(request, paciente_id):
 
 
 @login_required
+def nuevo_estudio_paciente(request, paciente_id):
+    paciente = get_object_or_404(
+        Paciente,
+        pk=paciente_id
+    )
+
+    if request.method == 'POST':
+        estudio_form = EstudioForm(request.POST)
+
+        if estudio_form.is_valid():
+            estudio = estudio_form.save(commit=False)
+            estudio.paciente = paciente
+            estudio.save()
+
+            return redirect(
+                'detalle_paciente',
+                paciente_id=paciente.id
+            )
+
+    else:
+        estudio_form = EstudioForm()
+
+    context = {
+        'paciente': paciente,
+        'estudio_form': estudio_form,
+    }
+
+    return render(
+        request,
+        'core/nuevo_estudio.html',
+        context
+    )
+
+
+@login_required
 def panel_config(request):
-    return render(request, 'core/panel_config.html')
+    return render(
+        request,
+        'core/panel_config.html'
+    )
 
 
 @login_required

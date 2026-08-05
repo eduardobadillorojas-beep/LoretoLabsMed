@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -71,8 +72,16 @@
             background: #3B82F6;
         }
 
+        .btn-azul:hover {
+            background: #2563EB;
+        }
+
         .btn-gris {
             background: #64748B;
+        }
+
+        .btn-gris:hover {
+            background: #475569;
         }
 
         .grid {
@@ -188,13 +197,21 @@
         </div>
 
         <div class="acciones">
-            <a href="#" class="btn btn-azul">
+
+            <a
+                href="{% url 'nuevo_estudio_paciente' paciente.id %}"
+                class="btn btn-azul"
+            >
                 + Nuevo estudio
             </a>
 
-            <a href="#" class="btn btn-gris">
+            <a
+                href="#"
+                class="btn btn-gris"
+            >
                 Editar paciente
             </a>
+
         </div>
 
     </header>
@@ -206,14 +223,20 @@
             <h2>Datos del paciente</h2>
 
             <div class="dato">
-                <div class="etiqueta">Registro interno</div>
+                <div class="etiqueta">
+                    Registro interno
+                </div>
+
                 <div class="valor">
                     {{ paciente.identificacion }}
                 </div>
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Nombre completo</div>
+                <div class="etiqueta">
+                    Nombre completo
+                </div>
+
                 <div class="valor">
                     {{ paciente.nombre }}
                     {{ paciente.apellido }}
@@ -221,35 +244,50 @@
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Fecha de nacimiento</div>
+                <div class="etiqueta">
+                    Fecha de nacimiento
+                </div>
+
                 <div class="valor">
                     {{ paciente.fecha_nacimiento|date:"d/m/Y" }}
                 </div>
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Edad</div>
+                <div class="etiqueta">
+                    Edad
+                </div>
+
                 <div class="valor">
                     {{ edad }} años
                 </div>
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Género</div>
+                <div class="etiqueta">
+                    Género
+                </div>
+
                 <div class="valor">
                     {{ paciente.get_genero_display }}
                 </div>
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Teléfono</div>
+                <div class="etiqueta">
+                    Teléfono
+                </div>
+
                 <div class="valor">
                     {{ paciente.telefono|default:"Sin teléfono" }}
                 </div>
             </div>
 
             <div class="dato">
-                <div class="etiqueta">Fecha de registro</div>
+                <div class="etiqueta">
+                    Fecha de registro
+                </div>
+
                 <div class="valor">
                     {{ paciente.creado_el|date:"d/m/Y H:i" }}
                 </div>
@@ -289,10 +327,12 @@
                         </div>
 
                         {% if estudio.descripcion %}
+
                             <div class="detalle">
                                 <strong>Descripción:</strong>
                                 {{ estudio.descripcion }}
                             </div>
+
                         {% endif %}
 
                     </article>

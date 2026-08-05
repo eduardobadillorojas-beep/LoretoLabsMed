@@ -43,6 +43,12 @@ urlpatterns = [
     ),
 
     path(
+        'recepcion/paciente/<int:paciente_id>/nuevo-estudio/',
+        views.nuevo_estudio_paciente,
+        name='nuevo_estudio_paciente'
+    ),
+
+    path(
         'configuracion/',
         views.panel_config,
         name='panel_config'

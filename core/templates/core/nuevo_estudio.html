@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Nuevo estudio - {{ paciente.identificacion }} - Loreto One
+    </title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: #0F172A;
+            color: white;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        .contenedor {
+            width: 100%;
+            max-width: 820px;
+            margin: 0 auto;
+        }
+
+        .volver {
+            display: inline-block;
+            margin-bottom: 22px;
+            color: #CBD5E1;
+        }
+
+        .encabezado {
+            margin-bottom: 22px;
+        }
+
+        .registro {
+            margin-bottom: 6px;
+            color: #38BDF8;
+            font-weight: bold;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+        }
+
+        .paciente {
+            margin: 0;
+            color: #CBD5E1;
+        }
+
+        .card {
+            padding: 24px;
+            border-left: 4px solid #22C55E;
+            border-radius: 10px;
+            background: #1E293B;
+        }
+
+        .campo {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 7px;
+            font-weight: bold;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            background: white;
+            color: #0F172A;
+            font-size: 15px;
+        }
+
+        textarea {
+            min-height: 110px;
+            resize: vertical;
+        }
+
+        .ayuda {
+            display: block;
+            margin-top: 5px;
+            color: #94A3B8;
+            font-size: 13px;
+        }
+
+        .errores {
+            margin-top: 6px;
+            color: #FCA5A5;
+            font-size: 14px;
+        }
+
+        .acciones {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 11px 18px;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-guardar {
+            background: #2563EB;
+        }
+
+        .btn-guardar:hover {
+            background: #1D4ED8;
+        }
+
+        .btn-cancelar {
+            background: #64748B;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 15px;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="contenedor">
+
+        <a
+            href="{% url 'detalle_paciente' paciente.id %}"
+            class="volver"
+        >
+            ← Volver al expediente
+        </a>
+
+        <header class="encabezado">
+
+            <div class="registro">
+                Registro {{ paciente.identificacion }}
+            </div>
+
+            <h1>Nuevo estudio</h1>
+
+            <p class="paciente">
+                Paciente:
+                <strong>
+                    {{ paciente.nombre }}
+                    {{ paciente.apellido }}
+                </strong>
+            </p>
+
+        </header>
+
+        <section class="card">
+
+            <form method="post">
+
+                {% csrf_token %}
+
+                {% for field in estudio_form %}
+
+                    <div class="campo">
+
+                        <label for="{{ field.id_for_label }}">
+                            {{ field.label }}
+                        </label>
+
+                        {{ field }}
+
+                        {% if field.help_text %}
+                            <span class="ayuda">
+                                {{ field.help_text }}
+                            </span>
+                        {% endif %}
+
+                        {% if field.errors %}
+                            <div class="errores">
+                                {{ field.errors }}
+                            </div>
+                        {% endif %}
+
+                    </div>
+
+                {% endfor %}
+
+                <div class="acciones">
+
+                    <button
+                        type="submit"
+                        class="btn btn-guardar"
+                    >
+                        Guardar estudio
+                    </button>
+
+                    <a
+                        href="{% url 'detalle_paciente' paciente.id %}"
+                        class="btn btn-cancelar"
+                    >
+                        Cancelar
+                    </a>
+
+                </div>
+
+            </form>
+
+        </section>
+
+    </main>
+
+</body>
+</html>
