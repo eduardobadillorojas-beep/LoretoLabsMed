@@ -1,319 +1,543 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
+{% extends 'core/base.html' %}
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+{% block title %}
+Recepción | Loreto One
+{% endblock %}
 
-    <title>Panel Recepción - Loreto Labs Med</title>
+{% block content %}
 
-    <style>
-        * {
-            box-sizing: border-box;
+<style>
+
+    .recepcion-wrap {
+        padding: 0 22px 35px;
+    }
+
+    .recepcion-top {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 22px;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+
+    .recepcion-titulo {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.7rem;
+        white-space: nowrap;
+    }
+
+    .recepcion-subtitulo {
+        color: #94a3b8;
+        font-size: .78rem;
+        margin-top: 2px;
+    }
+
+    .busqueda-superior {
+        max-width: 470px;
+        width: 100%;
+        justify-self: center;
+    }
+
+    .busqueda-superior .form-control {
+        background: #f8fafc;
+        font-size: .8rem;
+        min-height: 34px;
+    }
+
+    .acciones-top {
+        white-space: nowrap;
+    }
+
+    /* INDICADORES MUY COMPACTOS */
+
+    .indicadores {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .indicador {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 8px 12px;
+        min-height: 55px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .indicador-label {
+        color: #94a3b8;
+        font-size: .68rem;
+        margin-bottom: 2px;
+    }
+
+    .indicador-valor {
+        font-size: 1.25rem;
+        line-height: 1;
+        font-weight: 700;
+    }
+
+    .indicador-icono {
+        font-size: 1rem;
+        opacity: .75;
+    }
+
+    /* PANELES */
+
+    .panel-loreto {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 9px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .panel-loreto-header {
+        padding: 10px 14px;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .panel-loreto-header h5 {
+        font-size: .92rem;
+        margin: 0;
+        font-weight: 700;
+    }
+
+    .panel-subtitulo {
+        color: #94a3b8;
+        font-size: .67rem;
+        margin-top: 2px;
+    }
+
+    /* TABLAS */
+
+    .tabla-loreto {
+        margin: 0;
+    }
+
+    .tabla-loreto th {
+        color: #cbd5e1;
+        font-size: .7rem;
+        padding: 8px 11px;
+        white-space: nowrap;
+    }
+
+    .tabla-loreto td {
+        font-size: .78rem;
+        padding: 8px 11px;
+        vertical-align: middle;
+    }
+
+    .nombre-paciente {
+        font-weight: 600;
+    }
+
+    .dato-secundario {
+        color: #94a3b8;
+        font-size: .67rem;
+        margin-top: 1px;
+    }
+
+    .vacio {
+        text-align: center;
+        color: #94a3b8;
+        padding: 24px 12px;
+        font-size: .78rem;
+    }
+
+    .badge-area {
+        font-size: .65rem;
+        font-weight: 500;
+    }
+
+    @media (max-width: 1000px) {
+
+        .recepcion-top {
+            grid-template-columns: 1fr;
         }
 
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0F172A;
-            color: white;
-            padding: 20px;
+        .busqueda-superior {
+            max-width: none;
+            justify-self: stretch;
         }
 
-        a {
-            color: #CBD5E1;
-            text-decoration: none;
+        .acciones-top {
+            justify-self: start;
         }
 
-        h1 {
-            margin-bottom: 6px;
+    }
+
+    @media (max-width: 700px) {
+
+        .indicadores {
+            grid-template-columns: repeat(2, 1fr);
         }
 
-        .subtitulo {
-            margin-top: 0;
-            color: #CBD5E1;
+        .recepcion-wrap {
+            padding-left: 12px;
+            padding-right: 12px;
         }
 
-        .barra-acciones {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 24px 0 18px;
-            flex-wrap: wrap;
-        }
+    }
 
-        .btn-principal {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: #3B82F6;
-            color: white;
-            padding: 11px 16px;
-            border-radius: 6px;
-            font-weight: bold;
-            white-space: nowrap;
-        }
+</style>
 
-        .btn-principal:hover {
-            background: #2563EB;
-        }
 
-        .form-busqueda {
-            display: flex;
-            align-items: center;
-            flex: 1;
-            min-width: 260px;
-            max-width: 620px;
-            gap: 8px;
-        }
+<div class="recepcion-wrap">
 
-        .campo-busqueda {
-            position: relative;
-            flex: 1;
-        }
+    <!-- CABECERA -->
 
-        .campo-busqueda span {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #64748B;
-            pointer-events: none;
-        }
+    <div class="recepcion-top">
 
-        .campo-busqueda input {
-            width: 100%;
-            padding: 11px 12px 11px 38px;
-            border: 1px solid #475569;
-            border-radius: 6px;
-            font-size: 15px;
-            outline: none;
-        }
+        <div>
 
-        .campo-busqueda input:focus {
-            border-color: #3B82F6;
-        }
+            <h1 class="recepcion-titulo">
+                Panel de Recepción
+            </h1>
 
-        .btn-buscar {
-            background: #22C55E;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 11px 18px;
-            cursor: pointer;
-            font-size: 15px;
-        }
-
-        .btn-buscar:hover {
-            background: #16A34A;
-        }
-
-        .btn-limpiar {
-            display: inline-flex;
-            align-items: center;
-            background: #64748B;
-            color: white;
-            padding: 11px 15px;
-            border-radius: 6px;
-            white-space: nowrap;
-        }
-
-        .lista {
-            background: #1E293B;
-            padding: 18px;
-            border-radius: 10px;
-            border-left: 4px solid #22C55E;
-        }
-
-        .lista h3 {
-            margin-top: 0;
-            margin-bottom: 5px;
-        }
-
-        .contador {
-            color: #94A3B8;
-            margin-top: 0;
-            margin-bottom: 16px;
-        }
-
-        .tabla-contenedor {
-            overflow-x: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: #0F172A;
-        }
-
-        th,
-        td {
-            padding: 13px;
-            border-bottom: 1px solid #334155;
-            text-align: left;
-        }
-
-        th {
-            background: #334155;
-            color: white;
-        }
-
-        tr:hover {
-            background: #1E293B;
-        }
-
-        .registro {
-            font-weight: bold;
-            color: #38BDF8;
-        }
-
-        .enlace-registro {
-            color: #38BDF8;
-            font-weight: bold;
-            text-decoration: none;
-        }
-
-        .enlace-registro:hover {
-            color: #7DD3FC;
-            text-decoration: underline;
-        }
-
-        .sin-resultados {
-            background: #0F172A;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 20px;
-            text-align: center;
-            color: #CBD5E1;
-        }
-
-        @media (max-width: 750px) {
-            body {
-                padding: 15px;
-            }
-
-            .barra-acciones {
-                align-items: stretch;
-            }
-
-            .btn-principal,
-            .form-busqueda {
-                width: 100%;
-                max-width: none;
-            }
-
-            .form-busqueda {
-                flex-wrap: wrap;
-            }
-
-            .campo-busqueda {
-                min-width: 100%;
-            }
-
-            .btn-buscar,
-            .btn-limpiar {
-                flex: 1;
-                justify-content: center;
-            }
-        }
-    </style>
-</head>
-
-<body>
-
-    <a href="/">← Inicio</a>
-
-    <h1>👩‍💼 Panel de Recepción</h1>
-
-    <p class="subtitulo">
-        Registro y atención al paciente.
-    </p>
-
-    <div class="barra-acciones">
-
-        <a
-            href="{% url 'registrar_recepcion' %}"
-            class="btn-principal"
-        >
-            + Registrar nuevo paciente
-        </a>
-
-        <form method="get" class="form-busqueda">
-
-            <div class="campo-busqueda">
-                <span>🔎</span>
-
-                <input
-                    type="text"
-                    name="buscar"
-                    value="{{ busqueda }}"
-                    placeholder="Buscar paciente"
-                    autocomplete="off"
-                >
+            <div class="recepcion-subtitulo">
+                Admisión y agenda de pacientes
             </div>
 
-            <button type="submit" class="btn-buscar">
-                Buscar
+        </div>
+
+
+        <!-- BUSCADOR GENERAL -->
+
+        <form
+            method="get"
+            class="input-group input-group-sm busqueda-superior"
+        >
+
+            <input
+                type="text"
+                name="buscar"
+                value="{{ busqueda }}"
+                class="form-control"
+                placeholder="Buscar paciente por nombre, registro o teléfono..."
+                autocomplete="off"
+            >
+
+            <button
+                class="btn btn-outline-info"
+                type="submit"
+            >
+                🔎
             </button>
 
             {% if busqueda %}
+
                 <a
                     href="{% url 'panel_recepcion' %}"
-                    class="btn-limpiar"
+                    class="btn btn-outline-secondary"
                 >
-                    Limpiar
+                    ×
                 </a>
+
             {% endif %}
 
         </form>
 
+
+        <div class="acciones-top">
+
+            <a
+                href="{% url 'registrar_recepcion' %}"
+                class="btn btn-primary btn-sm"
+            >
+                + Paciente
+            </a>
+
+            <a
+                href="{% url 'nueva_cita' %}"
+                class="btn btn-outline-info btn-sm"
+            >
+                📅 Cita
+            </a>
+
+        </div>
+
     </div>
 
-    <section class="lista">
 
-        <h3>📋 Pacientes</h3>
+    <!-- INDICADORES -->
 
-        <p class="contador">
-            Registros encontrados: {{ pacientes|length }}
-        </p>
+    <div class="indicadores">
 
-        {% if pacientes %}
+        <div class="indicador">
 
-            <div class="tabla-contenedor">
-                <table>
+            <div>
+
+                <div class="indicador-label">
+                    Registrados hoy
+                </div>
+
+                <div class="indicador-valor">
+                    {{ pacientes_hoy }}
+                </div>
+
+            </div>
+
+            <span class="indicador-icono">
+                👥
+            </span>
+
+        </div>
+
+
+        <div class="indicador">
+
+            <div>
+
+                <div class="indicador-label">
+                    Citas hoy
+                </div>
+
+                <div class="indicador-valor">
+                    {{ total_citas_hoy }}
+                </div>
+
+            </div>
+
+            <span class="indicador-icono">
+                📅
+            </span>
+
+        </div>
+
+
+        <div class="indicador">
+
+            <div>
+
+                <div class="indicador-label">
+                    En espera
+                </div>
+
+                <div class="indicador-valor">
+                    {{ consultas_espera }}
+                </div>
+
+            </div>
+
+            <span class="indicador-icono">
+                🩺
+            </span>
+
+        </div>
+
+
+        <div class="indicador">
+
+            <div>
+
+                <div class="indicador-label">
+                    Estudios pendientes
+                </div>
+
+                <div class="indicador-valor">
+                    {{ estudios_pendientes }}
+                </div>
+
+            </div>
+
+            <span class="indicador-icono">
+                🩻
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- RESULTADOS DE BÚSQUEDA -->
+
+    {% if busqueda %}
+
+        <div class="panel-loreto">
+
+            <div class="panel-loreto-header">
+
+                <div>
+
+                    <h5>
+                        🔎 Resultados de búsqueda
+                    </h5>
+
+                    <div class="panel-subtitulo">
+                        Resultados para “{{ busqueda }}”
+                    </div>
+
+                </div>
+
+                <span class="badge bg-secondary">
+                    {{ pacientes|length }}
+                </span>
+
+            </div>
+
+
+            {% if pacientes %}
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover tabla-loreto">
+
+                        <thead>
+
+                            <tr>
+                                <th>Registro</th>
+                                <th>Paciente</th>
+                                <th>Nacimiento</th>
+                                <th>Género</th>
+                                <th>Teléfono</th>
+                                <th class="text-end">
+                                    Acción
+                                </th>
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody>
+
+                            {% for paciente in pacientes %}
+
+                                <tr>
+
+                                    <td>
+                                        {{ paciente.identificacion }}
+                                    </td>
+
+                                    <td class="nombre-paciente">
+
+                                        {{ paciente.nombre }}
+                                        {{ paciente.apellido }}
+
+                                    </td>
+
+                                    <td>
+                                        {{ paciente.fecha_nacimiento|date:"d/m/Y" }}
+                                    </td>
+
+                                    <td>
+                                        {{ paciente.get_genero_display }}
+                                    </td>
+
+                                    <td>
+                                        {{ paciente.telefono|default:"—" }}
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        <a
+                                            href="{% url 'detalle_paciente' paciente.id %}"
+                                            class="btn btn-sm btn-outline-info py-0"
+                                        >
+                                            Expediente
+                                        </a>
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="vacio">
+                    No se encontraron pacientes.
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    {% endif %}
+
+
+    <!-- PACIENTES DE HOY -->
+
+    <div class="panel-loreto">
+
+        <div class="panel-loreto-header">
+
+            <div>
+
+                <h5>
+                    👥 Pacientes de hoy
+                </h5>
+
+                <div class="panel-subtitulo">
+                    Pacientes registrados durante el día.
+                </div>
+
+            </div>
+
+            <span class="badge bg-primary">
+                {{ pacientes_hoy }}
+            </span>
+
+        </div>
+
+
+        {% if pacientes_de_hoy %}
+
+            <div class="table-responsive">
+
+                <table class="table table-dark table-hover tabla-loreto">
+
                     <thead>
+
                         <tr>
                             <th>Registro</th>
-                            <th>Nombre</th>
-                            <th>Fecha de nacimiento</th>
+                            <th>Paciente</th>
+                            <th>Hora</th>
                             <th>Género</th>
                             <th>Teléfono</th>
-                            <th>Fecha de registro</th>
+                            <th class="text-end">
+                                Acción
+                            </th>
                         </tr>
+
                     </thead>
 
+
                     <tbody>
-                        {% for paciente in pacientes %}
+
+                        {% for paciente in pacientes_de_hoy %}
+
                             <tr>
-                                <td class="registro">
-                                    <a
-                                        href="{% url 'detalle_paciente' paciente.id %}"
-                                        class="enlace-registro"
-                                    >
-                                        {{ paciente.identificacion }}
-                                    </a>
-                                </td>
 
                                 <td>
+                                    <span class="badge bg-secondary">
+                                        {{ paciente.identificacion }}
+                                    </span>
+                                </td>
+
+                                <td class="nombre-paciente">
+
                                     {{ paciente.nombre }}
                                     {{ paciente.apellido }}
+
                                 </td>
 
                                 <td>
-                                    {{ paciente.fecha_nacimiento|date:"d/m/Y" }}
+                                    {{ paciente.creado_el|date:"H:i" }}
                                 </td>
 
                                 <td>
@@ -321,31 +545,171 @@
                                 </td>
 
                                 <td>
-                                    {{ paciente.telefono|default:"Sin teléfono" }}
+                                    {{ paciente.telefono|default:"—" }}
                                 </td>
 
-                                <td>
-                                    {{ paciente.creado_el|date:"d/m/Y H:i" }}
+                                <td class="text-end">
+
+                                    <a
+                                        href="{% url 'detalle_paciente' paciente.id %}"
+                                        class="btn btn-sm btn-outline-info py-0"
+                                    >
+                                        Expediente
+                                    </a>
+
                                 </td>
+
                             </tr>
+
                         {% endfor %}
+
                     </tbody>
+
                 </table>
+
             </div>
 
         {% else %}
 
-            <div class="sin-resultados">
-                {% if busqueda %}
-                    No se encontraron pacientes para “{{ busqueda }}”.
-                {% else %}
-                    Todavía no hay pacientes registrados.
-                {% endif %}
+            <div class="vacio">
+                No hay pacientes registrados hoy.
             </div>
 
         {% endif %}
 
-    </section>
+    </div>
 
-</body>
-</html>
+
+    <!-- PRÓXIMAS CITAS -->
+
+    <div class="panel-loreto">
+
+        <div class="panel-loreto-header">
+
+            <div>
+
+                <h5>
+                    📅 Próximas citas
+                </h5>
+
+                <div class="panel-subtitulo">
+                    Ordenadas desde la cita más próxima.
+                </div>
+
+            </div>
+
+
+            <a
+                href="{% url 'nueva_cita' %}"
+                class="btn btn-outline-info btn-sm py-0"
+            >
+                + Cita
+            </a>
+
+        </div>
+
+
+        {% if proximas_citas %}
+
+            <div class="table-responsive">
+
+                <table class="table table-dark table-hover tabla-loreto">
+
+                    <thead>
+
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Hora</th>
+                            <th>Paciente</th>
+                            <th>Área</th>
+                            <th>Médico</th>
+                            <th>Motivo / Estudio</th>
+                            <th>Estado</th>
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for cita in proximas_citas %}
+
+                            <tr>
+
+                                <td class="fw-bold">
+                                    {{ cita.fecha_hora|date:"d/m/Y" }}
+                                </td>
+
+                                <td>
+                                    {{ cita.fecha_hora|date:"H:i" }}
+                                </td>
+
+                                <td>
+
+                                    <div class="nombre-paciente">
+                                        {{ cita.nombre_paciente }}
+                                    </div>
+
+                                    {% if cita.telefono %}
+
+                                        <div class="dato-secundario">
+                                            {{ cita.telefono }}
+                                        </div>
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    <span class="badge bg-secondary badge-area">
+                                        {{ cita.get_area_display }}
+                                    </span>
+
+                                </td>
+
+                                <td>
+                                    {{ cita.medico_nombre|default:"—" }}
+                                </td>
+
+                                <td>
+
+                                    {% if cita.area == 'RADIOLOGIA' and cita.tipo_estudio %}
+
+                                        {{ cita.tipo_estudio.nombre }}
+
+                                    {% else %}
+
+                                        {{ cita.motivo|default:"—"|truncatechars:50 }}
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+                                    {{ cita.get_estado_display }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="vacio">
+                No existen citas futuras programadas.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

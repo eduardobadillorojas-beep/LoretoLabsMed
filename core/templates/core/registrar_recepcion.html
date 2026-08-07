@@ -3,25 +3,131 @@
 {% block content %}
 <div class="container mt-4 mb-5">
 
-    <h2>Registro de Paciente y Estudio</h2>
+    <h2>Registrar paciente</h2>
 
-    <form method="post" class="mt-3">
+    <p class="text-muted">
+        Registra los datos del paciente y selecciona el área a la que será enviado.
+    </p>
+
+    <form method="post" class="mt-4" novalidate>
         {% csrf_token %}
 
-        <h4>Datos del Paciente</h4>
-        {{ paciente_form.as_p }}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>Datos del paciente</h4>
 
-        <h4 class="mt-4">Datos del Estudio</h4>
-        {{ estudio_form.as_p }}
+                {{ paciente_form.as_p }}
+            </div>
+        </div>
 
-        <button type="submit" class="btn btn-success mt-3">
-            Guardar Registro
+        <div class="card mb-4">
+            <div class="card-body">
+                <h4>Destino de atención</h4>
+
+                {{ destino_form.as_p }}
+            </div>
+        </div>
+
+        <div
+            id="seccion-consulta"
+            class="card mb-4"
+        >
+            <div class="card-body">
+                <h4>Consulta médica</h4>
+
+                <p class="text-muted">
+                    El paciente aparecerá en la sala de espera de Médicos.
+                </p>
+
+                {{ consulta_form.as_p }}
+            </div>
+        </div>
+
+        <div
+            id="seccion-radiologia"
+            class="card mb-4"
+            style="display: none;"
+        >
+            <div class="card-body">
+                <h4>Radiología e imagen</h4>
+
+                <p class="text-muted">
+                    El paciente aparecerá en la lista de estudios pendientes de Radiología.
+                </p>
+
+                <div class="mb-3">
+                    {{ estudio_form.medico_solicitante.label_tag }}
+                    {{ estudio_form.medico_solicitante }}
+                    {{ estudio_form.medico_solicitante.errors }}
+                </div>
+
+                <div class="mb-3">
+                    {{ estudio_form.tipo_estudio.label_tag }}
+                    {{ estudio_form.tipo_estudio }}
+                    {{ estudio_form.tipo_estudio.errors }}
+                </div>
+
+                <div class="mb-3">
+                    {{ estudio_form.descripcion.label_tag }}
+                    {{ estudio_form.descripcion }}
+                    {{ estudio_form.descripcion.errors }}
+                </div>
+
+                <div style="display: none;">
+                    {{ estudio_form.estado }}
+                </div>
+            </div>
+        </div>
+
+        <button
+            type="submit"
+            class="btn btn-success mt-2"
+        >
+            Registrar y enviar
         </button>
 
-        <a href="{% url 'panel_recepcion' %}" class="btn btn-secondary mt-3">
+        <a
+            href="{% url 'panel_recepcion' %}"
+            class="btn btn-secondary mt-2"
+        >
             Cancelar
         </a>
     </form>
 
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const selectorDestino = document.getElementById(
+            'id_tipo_atencion'
+        );
+
+        const seccionConsulta = document.getElementById(
+            'seccion-consulta'
+        );
+
+        const seccionRadiologia = document.getElementById(
+            'seccion-radiologia'
+        );
+
+        function actualizarSecciones() {
+            const destino = selectorDestino.value;
+
+            if (destino === 'RADIOLOGIA') {
+                seccionConsulta.style.display = 'none';
+                seccionRadiologia.style.display = 'block';
+            } else {
+                seccionConsulta.style.display = 'block';
+                seccionRadiologia.style.display = 'none';
+            }
+        }
+
+        selectorDestino.addEventListener(
+            'change',
+            actualizarSecciones
+        );
+
+        actualizarSecciones();
+    });
+</script>
 {% endblock %}

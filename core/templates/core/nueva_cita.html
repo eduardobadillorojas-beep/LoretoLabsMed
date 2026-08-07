@@ -1,0 +1,406 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+Nueva cita | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <div class="row justify-content-center">
+
+        <div class="col-12 col-lg-9 col-xl-8">
+
+            <div class="mb-4">
+
+                <a
+                    href="{% url 'panel_recepcion' %}"
+                    class="text-decoration-none text-secondary"
+                >
+                    ← Volver a Recepción
+                </a>
+
+                <h2 class="fw-bold mt-3 mb-1">
+                    📅 Programar nueva cita
+                </h2>
+
+                <p class="text-secondary">
+                    Programa una consulta, especialidad o estudio de Radiología.
+                </p>
+
+            </div>
+
+            <div class="card bg-dark border-secondary text-light shadow">
+
+                <div class="card-body p-4">
+
+                    <form method="post">
+
+                        {% csrf_token %}
+
+                        {% if cita_form.non_field_errors %}
+                            <div class="alert alert-danger">
+
+                                {% for error in cita_form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+
+                            </div>
+                        {% endif %}
+
+                        <!-- DATOS DEL PACIENTE -->
+
+                        <div class="mb-4">
+
+                            <h5 class="fw-bold mb-3">
+                                👤 Datos del paciente
+                            </h5>
+
+                            <div class="row g-3">
+
+                                <div class="col-12 col-md-8">
+
+                                    <label
+                                        for="{{ cita_form.nombre_paciente.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Nombre del paciente
+                                    </label>
+
+                                    {{ cita_form.nombre_paciente }}
+
+                                    {% for error in cita_form.nombre_paciente.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                                <div class="col-12 col-md-4">
+
+                                    <label
+                                        for="{{ cita_form.telefono.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Teléfono
+                                    </label>
+
+                                    {{ cita_form.telefono }}
+
+                                    {% for error in cita_form.telefono.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <!-- ATENCIÓN -->
+
+                        <div class="mb-4">
+
+                            <h5 class="fw-bold mb-3">
+                                🏥 Atención
+                            </h5>
+
+                            <div class="row g-3">
+
+                                <div class="col-12 col-md-6">
+
+                                    <label
+                                        for="{{ cita_form.area.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Área de atención
+                                    </label>
+
+                                    {{ cita_form.area }}
+
+                                    {% for error in cita_form.area.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                                <div class="col-12 col-md-6">
+
+                                    <label
+                                        for="{{ cita_form.medico_nombre.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Médico o responsable
+                                    </label>
+
+                                    {{ cita_form.medico_nombre }}
+
+                                    <div class="form-text text-secondary">
+                                        Puedes escribir libremente el nombre del médico.
+                                    </div>
+
+                                    {% for error in cita_form.medico_nombre.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                            </div>
+
+                            <!-- RADIOLOGÍA -->
+
+                            <div
+                                id="contenedor-estudio"
+                                class="mt-3"
+                                style="display: none;"
+                            >
+
+                                <div class="card bg-black border-secondary">
+
+                                    <div class="card-body">
+
+                                        <h6 class="fw-bold mb-3">
+                                            🩻 Estudio de Radiología
+                                        </h6>
+
+                                        <label
+                                            for="{{ cita_form.tipo_estudio.id_for_label }}"
+                                            class="form-label"
+                                        >
+                                            Estudio programado
+                                        </label>
+
+                                        {{ cita_form.tipo_estudio }}
+
+                                        <div class="form-text text-secondary">
+                                            Selecciona el estudio que se realizará al paciente.
+                                        </div>
+
+                                        {% for error in cita_form.tipo_estudio.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {{ error }}
+                                            </div>
+                                        {% endfor %}
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <!-- FECHA Y HORA -->
+
+                        <div class="mb-4">
+
+                            <h5 class="fw-bold mb-3">
+                                🕐 Fecha y horario
+                            </h5>
+
+                            <div class="row g-3">
+
+                                <div class="col-12 col-md-8">
+
+                                    <label
+                                        for="{{ cita_form.fecha_hora.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Fecha y hora
+                                    </label>
+
+                                    {{ cita_form.fecha_hora }}
+
+                                    {% for error in cita_form.fecha_hora.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                                <div class="col-12 col-md-4">
+
+                                    <label
+                                        for="{{ cita_form.duracion_minutos.id_for_label }}"
+                                        class="form-label"
+                                    >
+                                        Duración estimada
+                                    </label>
+
+                                    <div class="input-group">
+
+                                        {{ cita_form.duracion_minutos }}
+
+                                        <span class="input-group-text">
+                                            min
+                                        </span>
+
+                                    </div>
+
+                                    {% for error in cita_form.duracion_minutos.errors %}
+                                        <div class="text-danger small mt-1">
+                                            {{ error }}
+                                        </div>
+                                    {% endfor %}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <!-- INFORMACIÓN -->
+
+                        <div class="mb-4">
+
+                            <h5 class="fw-bold mb-3">
+                                📝 Información de la cita
+                            </h5>
+
+                            <div class="mb-3">
+
+                                <label
+                                    for="{{ cita_form.motivo.id_for_label }}"
+                                    class="form-label"
+                                >
+                                    Motivo de la cita
+                                </label>
+
+                                {{ cita_form.motivo }}
+
+                                {% for error in cita_form.motivo.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ error }}
+                                    </div>
+                                {% endfor %}
+
+                            </div>
+
+                            <div class="mb-3">
+
+                                <label
+                                    for="{{ cita_form.observaciones.id_for_label }}"
+                                    class="form-label"
+                                >
+                                    Observaciones internas
+                                </label>
+
+                                {{ cita_form.observaciones }}
+
+                                <div class="form-text text-secondary">
+                                    Visible para el personal autorizado.
+                                </div>
+
+                                {% for error in cita_form.observaciones.errors %}
+                                    <div class="text-danger small mt-1">
+                                        {{ error }}
+                                    </div>
+                                {% endfor %}
+
+                            </div>
+
+                        </div>
+
+                        <!-- ESTADO -->
+
+                        <div class="mb-4">
+
+                            <label
+                                for="{{ cita_form.estado.id_for_label }}"
+                                class="form-label"
+                            >
+                                Estado de la cita
+                            </label>
+
+                            {{ cita_form.estado }}
+
+                            {% for error in cita_form.estado.errors %}
+                                <div class="text-danger small mt-1">
+                                    {{ error }}
+                                </div>
+                            {% endfor %}
+
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+
+                            <button
+                                type="submit"
+                                class="btn btn-primary px-4"
+                            >
+                                📅 Programar cita
+                            </button>
+
+                            <a
+                                href="{% url 'panel_recepcion' %}"
+                                class="btn btn-outline-secondary"
+                            >
+                                Cancelar
+                            </a>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+document.addEventListener(
+    'DOMContentLoaded',
+    function () {
+
+        const area =
+            document.getElementById('id_area');
+
+        const contenedorEstudio =
+            document.getElementById('contenedor-estudio');
+
+        function actualizarFormulario() {
+
+            if (!area || !contenedorEstudio) {
+                return;
+            }
+
+            if (area.value === 'RADIOLOGIA') {
+                contenedorEstudio.style.display = 'block';
+            } else {
+                contenedorEstudio.style.display = 'none';
+            }
+
+        }
+
+        area.addEventListener(
+            'change',
+            actualizarFormulario
+        );
+
+        actualizarFormulario();
+    }
+);
+</script>
+
+{% endblock %}
