@@ -4,37 +4,265 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def detectar_modalidad(nombre):
+    texto = (nombre or '').upper()
+
+    if 'TAC' in texto or 'TOMOGRAF' in texto or 'CT ' in texto:
+        return 'TAC'
+
+    if 'ULTRASON' in texto or 'USG' in texto or 'ECOGRAF' in texto:
+        return 'USG'
+
+    if 'MASTOGRAF' in texto or 'MAMOGRAF' in texto:
+        return 'MASTO'
+
+    if 'FLUOR' in texto:
+        return 'FLUORO'
+
+    if 'RESONANC' in texto or ' RM ' in f' {texto} ':
+        return 'RM'
+
+    if 'DENSITOMETR' in texto or 'DXA' in texto:
+        return 'DXA'
+
+    return 'RX'
+
+
+def migrar_tipos_estudio(apps, schema_editor):
+    Estudio = apps.get_model(
+        'core',
+        'Estudio'
+    )
+
+    TipoEstudio = apps.get_model(
+        'core',
+        'TipoEstudio'
+    )
+
+    nombres = (
+        Estudio.objects
+        .values_list(
+            'tipo_estudio_texto',
+            flat=True
+        )
+        .distinct()
+    )
+
+    equivalencias = {}
+
+    contador = 1
+
+    for nombre_antiguo in nombres:
+        nombre_limpio = (
+            nombre_antiguo or
+            'Estudio sin especificar'
+        ).strip()
+
+        if not nombre_limpio:
+            nombre_limpio = 'Estudio sin especificar'
+
+        codigo = f'LEGACY{contador:04d}'
+
+        tipo_estudio, creado = (
+            TipoEstudio.objects.get_or_create(
+                nombre=nombre_limpio,
+                defaults={
+                    'codigo': codigo,
+                    'modalidad': detectar_modalidad(
+                        nombre_limpio
+                    ),
+                    'activo': True,
+                    'tiempo_estimado': 10,
+                }
+            )
+        )
+
+        equivalencias[
+            nombre_antiguo
+        ] = tipo_estudio.id
+
+        contador += 1
+
+    for estudio in Estudio.objects.all():
+        tipo_id = equivalencias.get(
+            estudio.tipo_estudio_texto
+        )
+
+        if tipo_id:
+            estudio.tipo_estudio_id = tipo_id
+            estudio.save(
+                update_fields=[
+                    'tipo_estudio',
+                ]
+            )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0005_consulta_estudio_consulta'),
+        (
+            'core',
+            '0005_consulta_estudio_consulta'
+        ),
     ]
 
     operations = [
+
         migrations.CreateModel(
             name='TipoEstudio',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('codigo', models.CharField(max_length=20, unique=True)),
-                ('nombre', models.CharField(max_length=150)),
-                ('modalidad', models.CharField(choices=[('RX', 'Radiografía'), ('TAC', 'Tomografía'), ('USG', 'Ultrasonido'), ('MASTO', 'Mastografía'), ('FLUORO', 'Fluoroscopia'), ('RM', 'Resonancia Magnética'), ('DXA', 'Densitometría')], max_length=20)),
-                ('activo', models.BooleanField(default=True)),
-                ('tiempo_estimado', models.PositiveIntegerField(default=10, verbose_name='Tiempo estimado (minutos)')),
+                (
+                    'id',
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name='ID'
+                    )
+                ),
+                (
+                    'codigo',
+                    models.CharField(
+                        max_length=20,
+                        unique=True
+                    )
+                ),
+                (
+                    'nombre',
+                    models.CharField(
+                        max_length=150
+                    )
+                ),
+                (
+                    'modalidad',
+                    models.CharField(
+                        choices=[
+                            (
+                                'RX',
+                                'Radiografía'
+                            ),
+                            (
+                                'TAC',
+                                'Tomografía'
+                            ),
+                            (
+                                'USG',
+                                'Ultrasonido'
+                            ),
+                            (
+                                'MASTO',
+                                'Mastografía'
+                            ),
+                            (
+                                'FLUORO',
+                                'Fluoroscopia'
+                            ),
+                            (
+                                'RM',
+                                'Resonancia Magnética'
+                            ),
+                            (
+                                'DXA',
+                                'Densitometría'
+                            ),
+                        ],
+                        max_length=20
+                    )
+                ),
+                (
+                    'activo',
+                    models.BooleanField(
+                        default=True
+                    )
+                ),
+                (
+                    'tiempo_estimado',
+                    models.PositiveIntegerField(
+                        default=10,
+                        verbose_name=(
+                            'Tiempo estimado '
+                            '(minutos)'
+                        )
+                    )
+                ),
             ],
         ),
+
         migrations.AlterField(
             model_name='consulta',
             name='motivo_consulta',
-            field=models.TextField(blank=True, null=True),
+            field=models.TextField(
+                blank=True,
+                null=True
+            ),
         ),
+
         migrations.AlterField(
             model_name='estudio',
             name='medico_solicitante',
-            field=models.CharField(blank=True, max_length=150, null=True),
+            field=models.CharField(
+                blank=True,
+                max_length=150,
+                null=True
+            ),
         ),
+
+        # Conservamos temporalmente
+        # el valor de texto antiguo.
+
+        migrations.RenameField(
+            model_name='estudio',
+            old_name='tipo_estudio',
+            new_name='tipo_estudio_texto',
+        ),
+
+        # Creamos el nuevo ForeignKey como nullable
+        # mientras hacemos la conversión.
+
+        migrations.AddField(
+            model_name='estudio',
+            name='tipo_estudio',
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=(
+                    django.db.models
+                    .deletion.PROTECT
+                ),
+                related_name='estudios',
+                to='core.tipoestudio'
+            ),
+        ),
+
+        # Convertimos los textos existentes
+        # a registros reales de TipoEstudio.
+
+        migrations.RunPython(
+            migrar_tipos_estudio,
+            migrations.RunPython.noop
+        ),
+
+        # Ya podemos eliminar el campo antiguo.
+
+        migrations.RemoveField(
+            model_name='estudio',
+            name='tipo_estudio_texto',
+        ),
+
+        # Finalmente dejamos el ForeignKey
+        # obligatorio como está actualmente
+        # definido en models.py.
+
         migrations.AlterField(
             model_name='estudio',
             name='tipo_estudio',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='estudios', to='core.tipoestudio'),
+            field=models.ForeignKey(
+                on_delete=(
+                    django.db.models
+                    .deletion.PROTECT
+                ),
+                related_name='estudios',
+                to='core.tipoestudio'
+            ),
         ),
     ]
