@@ -59,7 +59,6 @@ def login_view(request):
 
         if user is not None:
 
-            # Cerrar sesiones anteriores que hayan quedado abiertas.
             sesiones_anteriores = SesionTrabajo.objects.filter(
                 usuario=user,
                 activa=True
@@ -72,13 +71,11 @@ def login_view(request):
                 fin=momento_actual
             )
 
-            # Iniciar sesión de Django.
             login(
                 request,
                 user
             )
 
-            # Crear nuevo turno / sesión de trabajo.
             sesion_trabajo = SesionTrabajo.objects.create(
                 usuario=user,
                 ip_inicio=obtener_ip(request),
@@ -89,7 +86,6 @@ def login_view(request):
                 activa=True
             )
 
-            # Guardamos el ID en la sesión de Django.
             request.session[
                 'sesion_trabajo_id'
             ] = sesion_trabajo.id
@@ -281,6 +277,12 @@ def panel_medico(request):
 def panel_radiologo(request):
     hoy = timezone.localdate()
 
+    # ----------------------------------
+    # PACIENTES / ESTUDIOS EN ESPERA
+    # Primero registrado = primero
+    # que aparece en la lista.
+    # ----------------------------------
+
     estudios_pendientes = (
         Estudio.objects
         .select_related(
@@ -295,6 +297,49 @@ def panel_radiologo(request):
             'fecha_creacion'
         )
     )
+
+    # ----------------------------------
+    # ESTUDIOS EN PROCESO
+    # ----------------------------------
+
+    estudios_en_proceso = (
+        Estudio.objects
+        .select_related(
+            'paciente',
+            'consulta',
+            'tipo_estudio',
+        )
+        .filter(
+            estado='EN_PROCESO'
+        )
+        .order_by(
+            'fecha_creacion'
+        )
+    )
+
+    # ----------------------------------
+    # ESTUDIOS COMPLETADOS HOY
+    # ----------------------------------
+
+    estudios_realizados_hoy = (
+        Estudio.objects
+        .select_related(
+            'paciente',
+            'consulta',
+            'tipo_estudio',
+        )
+        .filter(
+            estado='COMPLETADO',
+            fecha_creacion__date=hoy,
+        )
+        .order_by(
+            '-fecha_creacion'
+        )
+    )
+
+    # ----------------------------------
+    # CITAS DE RADIOLOGÍA DE HOY
+    # ----------------------------------
 
     citas_radiologia_hoy = (
         Cita.objects
@@ -317,36 +362,18 @@ def panel_radiologo(request):
         )
     )
 
-    proximas_citas_radiologia = (
-        Cita.objects
-        .select_related(
-            'tipo_estudio'
-        )
-        .filter(
-            area='RADIOLOGIA',
-            fecha_hora__date__gt=hoy,
-        )
-        .exclude(
-            estado__in=[
-                'CANCELADA',
-                'NO_ASISTIO',
-                'FINALIZADA',
-            ]
-        )
-        .order_by(
-            'fecha_hora'
-        )
-    )
-
     context = {
         'estudios_pendientes':
             estudios_pendientes,
 
+        'estudios_en_proceso':
+            estudios_en_proceso,
+
+        'estudios_realizados_hoy':
+            estudios_realizados_hoy,
+
         'citas_radiologia_hoy':
             citas_radiologia_hoy,
-
-        'proximas_citas_radiologia':
-            proximas_citas_radiologia,
     }
 
     return render(

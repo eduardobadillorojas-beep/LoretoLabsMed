@@ -1,20 +1,665 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8"><title>Panel Radiología - Loreto Labs Med</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; padding: 30px; }
-        .card { background: #1E293B; padding: 20px; border-radius: 10px; border-left: 5px solid #A855F7; margin-top: 20px; }
-        a { color: #CBD5E1; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <a href="/">← Inicio</a>
-    <h1>🩻 Panel de Técnicos Radiólogos</h1>
-    <p>Bienvenido al módulo de interpretación y carga de imágenes.</p>
-    <div class="card">
-        <h3>🖼️ Estudios Pendientes</h3>
-        <p>Aquí gestionaras la subida de radiografías, tomografías y reportes DICOM.</p>
+{% extends 'core/base.html' %}
+
+{% block title %}
+Radiología | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<style>
+
+    .radio-container {
+        max-width: 1500px;
+        margin: 0 auto;
+        padding: 0 18px 30px;
+    }
+
+    .radio-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .radio-header h1 {
+        font-size: 1.55rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .radio-header p {
+        color: #94a3b8;
+        font-size: .75rem;
+        margin: 3px 0 0;
+    }
+
+    .radio-status {
+        display: flex;
+        gap: 7px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+    }
+
+    .status-box {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 7px;
+        padding: 6px 11px;
+        min-width: 125px;
+    }
+
+    .status-label {
+        color: #94a3b8;
+        font-size: .62rem;
+    }
+
+    .status-number {
+        font-size: 1rem;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .worklist {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 13px;
+    }
+
+    .worklist-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 12px;
+        border-bottom: 1px solid #334155;
+    }
+
+    .worklist-title {
+        font-size: .88rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .worklist-subtitle {
+        color: #94a3b8;
+        font-size: .63rem;
+        margin-top: 2px;
+    }
+
+    .radio-table {
+        margin: 0;
+    }
+
+    .radio-table th {
+        font-size: .65rem;
+        color: #94a3b8;
+        padding: 7px 9px;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+
+    .radio-table td {
+        font-size: .74rem;
+        padding: 8px 9px;
+        vertical-align: middle;
+    }
+
+    .hora {
+        color: #cbd5e1;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .paciente {
+        font-weight: 700;
+        color: #f8fafc;
+    }
+
+    .paciente-dato {
+        color: #94a3b8;
+        font-size: .63rem;
+        margin-top: 1px;
+    }
+
+    .estudio {
+        color: #38bdf8;
+        font-weight: 600;
+    }
+
+    .observaciones {
+        max-width: 300px;
+        color: #cbd5e1;
+    }
+
+    .btn-estudio {
+        font-size: .68rem;
+        padding: 3px 8px;
+        white-space: nowrap;
+    }
+
+    .lista-vacia {
+        text-align: center;
+        color: #64748b;
+        font-size: .75rem;
+        padding: 22px;
+    }
+
+    .radio-secundarios {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .mini-panel {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .mini-header {
+        padding: 8px 11px;
+        border-bottom: 1px solid #334155;
+        font-size: .78rem;
+        font-weight: 700;
+    }
+
+    .mini-lista {
+        max-height: 230px;
+        overflow-y: auto;
+    }
+
+    .mini-item {
+        display: grid;
+        grid-template-columns: 60px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 7px 10px;
+        border-bottom: 1px solid #273449;
+        font-size: .69rem;
+    }
+
+    .mini-item:last-child {
+        border-bottom: none;
+    }
+
+    .mini-hora {
+        color: #94a3b8;
+    }
+
+    .mini-paciente {
+        font-weight: 600;
+    }
+
+    .mini-estudio {
+        color: #94a3b8;
+        font-size: .61rem;
+    }
+
+    @media (max-width: 900px) {
+
+        .radio-secundarios {
+            grid-template-columns: 1fr;
+        }
+
+        .radio-container {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+    }
+
+</style>
+
+
+<div class="radio-container">
+
+
+    <!-- ENCABEZADO -->
+
+    <div class="radio-header">
+
+        <div>
+
+            <h1>
+                🩻 Técnico Radiólogo
+            </h1>
+
+            <p>
+                Lista de trabajo de Radiología e Imagen.
+            </p>
+
+        </div>
+
     </div>
-</body>
-</html>
+
+
+    <!-- CONTADORES -->
+
+    <div class="radio-status">
+
+
+        <div class="status-box">
+
+            <div class="status-label">
+                EN ESPERA
+            </div>
+
+            <div class="status-number">
+                {{ estudios_pendientes|length }}
+            </div>
+
+        </div>
+
+
+        <div class="status-box">
+
+            <div class="status-label">
+                EN PROCESO
+            </div>
+
+            <div class="status-number">
+                {{ estudios_en_proceso|length }}
+            </div>
+
+        </div>
+
+
+        <div class="status-box">
+
+            <div class="status-label">
+                CITADOS HOY
+            </div>
+
+            <div class="status-number">
+                {{ citas_radiologia_hoy|length }}
+            </div>
+
+        </div>
+
+
+        <div class="status-box">
+
+            <div class="status-label">
+                REALIZADOS HOY
+            </div>
+
+            <div class="status-number">
+                {{ estudios_realizados_hoy|length }}
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- LISTA PRINCIPAL -->
+
+    <div class="worklist">
+
+
+        <div class="worklist-header">
+
+            <div>
+
+                <div class="worklist-title">
+                    Pacientes en espera
+                </div>
+
+                <div class="worklist-subtitle">
+                    Ordenados conforme fueron registrados en Recepción.
+                </div>
+
+            </div>
+
+            <span class="badge bg-primary">
+
+                {{ estudios_pendientes|length }}
+
+            </span>
+
+        </div>
+
+
+        {% if estudios_pendientes %}
+
+            <div class="table-responsive">
+
+                <table
+                    class="table
+                           table-dark
+                           table-hover
+                           radio-table"
+                >
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Llegada
+                            </th>
+
+                            <th>
+                                Paciente
+                            </th>
+
+                            <th>
+                                Fecha de nacimiento
+                            </th>
+
+                            <th>
+                                Teléfono
+                            </th>
+
+                            <th>
+                                Estudio solicitado
+                            </th>
+
+                            <th>
+                                Médico
+                            </th>
+
+                            <th>
+                                Indicaciones / Observaciones
+                            </th>
+
+                            <th class="text-end">
+                                Acción
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for estudio in estudios_pendientes %}
+
+                            <tr>
+
+
+                                <td class="hora">
+
+                                    {{ estudio.fecha_creacion|date:"H:i" }}
+
+                                </td>
+
+
+                                <td>
+
+                                    <div class="paciente">
+
+                                        {{ estudio.paciente.nombre }}
+                                        {{ estudio.paciente.apellido }}
+
+                                    </div>
+
+                                    <div class="paciente-dato">
+
+                                        Registro
+                                        {{ estudio.paciente.identificacion }}
+
+                                    </div>
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ estudio.paciente.fecha_nacimiento|date:"d/m/Y" }}
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ estudio.paciente.telefono|default:"—" }}
+
+                                </td>
+
+
+                                <td>
+
+                                    <div class="estudio">
+
+                                        {{ estudio.tipo_estudio.nombre }}
+
+                                    </div>
+
+                                    <div class="paciente-dato">
+
+                                        {{ estudio.tipo_estudio.get_modalidad_display }}
+
+                                    </div>
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ estudio.medico_solicitante|default:"—" }}
+
+                                </td>
+
+
+                                <td class="observaciones">
+
+                                    {{ estudio.descripcion|default:"Sin observaciones" }}
+
+                                </td>
+
+
+                                <td class="text-end">
+
+                                    <a
+                                        href="{% url 'detalle_paciente' estudio.paciente.id %}"
+                                        class="btn
+                                               btn-outline-info
+                                               btn-estudio"
+                                    >
+                                        Expediente
+                                    </a>
+
+                                    <button
+                                        type="button"
+                                        class="btn
+                                               btn-primary
+                                               btn-estudio"
+                                        disabled
+                                    >
+                                        Abrir estudio
+                                    </button>
+
+                                </td>
+
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="lista-vacia">
+
+                No hay pacientes esperando estudios.
+
+            </div>
+
+        {% endif %}
+
+
+    </div>
+
+
+    <!-- BLOQUES INFERIORES -->
+
+    <div class="radio-secundarios">
+
+
+        <!-- CITAS DE HOY -->
+
+        <div class="mini-panel">
+
+            <div class="mini-header">
+                📅 Citas de Radiología de hoy
+            </div>
+
+
+            <div class="mini-lista">
+
+                {% for cita in citas_radiologia_hoy %}
+
+                    <div class="mini-item">
+
+
+                        <div class="mini-hora">
+
+                            {{ cita.fecha_hora|date:"H:i" }}
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="mini-paciente">
+
+                                {{ cita.nombre_paciente }}
+
+                            </div>
+
+                            <div class="mini-estudio">
+
+                                {% if cita.tipo_estudio %}
+
+                                    {{ cita.tipo_estudio.nombre }}
+
+                                {% else %}
+
+                                    Estudio no especificado
+
+                                {% endif %}
+
+                            </div>
+
+                        </div>
+
+
+                        <div>
+
+                            <span class="badge bg-secondary">
+
+                                {{ cita.get_estado_display }}
+
+                            </span>
+
+                        </div>
+
+
+                    </div>
+
+
+                {% empty %}
+
+                    <div class="lista-vacia">
+
+                        No hay pacientes citados hoy.
+
+                    </div>
+
+                {% endfor %}
+
+
+            </div>
+
+        </div>
+
+
+        <!-- ESTUDIOS REALIZADOS HOY -->
+
+        <div class="mini-panel">
+
+            <div class="mini-header">
+                ✅ Estudios realizados hoy
+            </div>
+
+
+            <div class="mini-lista">
+
+                {% for estudio in estudios_realizados_hoy %}
+
+
+                    <div class="mini-item">
+
+
+                        <div class="mini-hora">
+
+                            {{ estudio.fecha_creacion|date:"H:i" }}
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="mini-paciente">
+
+                                {{ estudio.paciente.nombre }}
+                                {{ estudio.paciente.apellido }}
+
+                            </div>
+
+                            <div class="mini-estudio">
+
+                                {{ estudio.tipo_estudio.nombre }}
+
+                            </div>
+
+                        </div>
+
+
+                        <div>
+
+                            <span class="badge bg-success">
+
+                                Terminado
+
+                            </span>
+
+                        </div>
+
+
+                    </div>
+
+
+                {% empty %}
+
+                    <div class="lista-vacia">
+
+                        Aún no hay estudios terminados hoy.
+
+                    </div>
+
+                {% endfor %}
+
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+{% endblock %}

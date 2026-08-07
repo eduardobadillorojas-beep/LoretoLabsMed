@@ -17,8 +17,14 @@ class Paciente(models.Model):
         verbose_name='Registro interno'
     )
 
-    nombre = models.CharField(max_length=100)
-    apellido = models.CharField(max_length=100)
+    nombre = models.CharField(
+        max_length=100
+    )
+
+    apellido = models.CharField(
+        max_length=100
+    )
+
     fecha_nacimiento = models.DateField()
 
     genero = models.CharField(
@@ -32,7 +38,9 @@ class Paciente(models.Model):
         null=True
     )
 
-    creado_el = models.DateTimeField(auto_now_add=True)
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
 
     def save(self, *args, **kwargs):
         nuevo_paciente = self.pk is None
@@ -91,7 +99,67 @@ class TipoEstudio(models.Model):
     )
 
     def __str__(self):
-        return f'{self.codigo} - {self.nombre}'
+        return (
+            f'{self.codigo} - '
+            f'{self.nombre}'
+        )
+
+
+class EquipoRadiologico(models.Model):
+    TIPO_CHOICES = [
+        ('RX', 'Radiografía'),
+        ('TAC', 'Tomografía'),
+        ('FLUORO', 'Fluoroscopia'),
+        ('MASTO', 'Mastografía'),
+        ('PORTATIL', 'Rayos X portátil'),
+        ('OTRO', 'Otro'),
+    ]
+
+    nombre = models.CharField(
+        max_length=100,
+        verbose_name='Nombre del equipo'
+    )
+
+    tipo = models.CharField(
+        max_length=20,
+        choices=TIPO_CHOICES
+    )
+
+    marca = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    modelo = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    numero_serie = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Número de serie'
+    )
+
+    ubicacion = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    activo = models.BooleanField(
+        default=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return self.nombre
 
 
 class Consulta(models.Model):
@@ -128,7 +196,9 @@ class Consulta(models.Model):
         default='EN_ESPERA'
     )
 
-    fecha_llegada = models.DateTimeField(auto_now_add=True)
+    fecha_llegada = models.DateTimeField(
+        auto_now_add=True
+    )
 
     fecha_inicio = models.DateTimeField(
         blank=True,
@@ -193,12 +263,228 @@ class Estudio(models.Model):
         default='PENDIENTE'
     )
 
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    tecnico = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='estudios_realizados',
+        blank=True,
+        null=True,
+        verbose_name='Técnico radiólogo'
+    )
+
+    equipo = models.ForeignKey(
+        EquipoRadiologico,
+        on_delete=models.SET_NULL,
+        related_name='estudios',
+        blank=True,
+        null=True,
+        verbose_name='Equipo utilizado'
+    )
+
+    fecha_inicio = models.DateTimeField(
+        blank=True,
+        null=True
+    )
+
+    fecha_finalizacion = models.DateTimeField(
+        blank=True,
+        null=True
+    )
+
+    fecha_creacion = models.DateTimeField(
+        auto_now_add=True
+    )
 
     def __str__(self):
         return (
             f'{self.tipo_estudio.nombre} - '
             f'{self.paciente.identificacion}'
+        )
+
+
+class BitacoraRadiologica(models.Model):
+    MODALIDAD_CHOICES = [
+        ('RX', 'Radiografía'),
+        ('TAC', 'Tomografía'),
+        ('FLUORO', 'Fluoroscopia'),
+        ('MASTO', 'Mastografía'),
+        ('OTRA', 'Otra'),
+    ]
+
+    estudio = models.OneToOneField(
+        Estudio,
+        on_delete=models.PROTECT,
+        related_name='bitacora_radiologica'
+    )
+
+    fecha_realizacion = models.DateTimeField(
+        verbose_name='Fecha y hora de realización'
+    )
+
+    paciente_nombre = models.CharField(
+        max_length=250
+    )
+
+    paciente_registro = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    fecha_nacimiento = models.DateField(
+        blank=True,
+        null=True
+    )
+
+    edad = models.PositiveIntegerField(
+        blank=True,
+        null=True
+    )
+
+    genero = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    modalidad = models.CharField(
+        max_length=20,
+        choices=MODALIDAD_CHOICES
+    )
+
+    estudio_nombre = models.CharField(
+        max_length=200
+    )
+
+    medico_solicitante = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    tecnico = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='bitacoras_radiologicas',
+        blank=True,
+        null=True
+    )
+
+    tecnico_nombre = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    equipo = models.ForeignKey(
+        EquipoRadiologico,
+        on_delete=models.SET_NULL,
+        related_name='bitacoras',
+        blank=True,
+        null=True
+    )
+
+    equipo_nombre = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True
+    )
+
+    # -----------------------------
+    # PARÁMETROS DE RADIOGRAFÍA
+    # -----------------------------
+
+    kvp = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='kVp'
+    )
+
+    mas = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='mAs'
+    )
+
+    numero_exposiciones = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='Número de exposiciones'
+    )
+
+    proyecciones = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    # -----------------------------
+    # PARÁMETROS DE TOMOGRAFÍA
+    # -----------------------------
+
+    ctdi_vol = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        blank=True,
+        null=True,
+        verbose_name='CTDIvol'
+    )
+
+    dlp = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        blank=True,
+        null=True,
+        verbose_name='DLP'
+    )
+
+    uso_contraste = models.BooleanField(
+        blank=True,
+        null=True,
+        verbose_name='Uso de medio de contraste'
+    )
+
+    # -----------------------------
+    # INFORMACIÓN GENERAL
+    # -----------------------------
+
+    observaciones = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = [
+            '-fecha_realizacion',
+        ]
+
+        indexes = [
+            models.Index(
+                fields=['fecha_realizacion']
+            ),
+            models.Index(
+                fields=['modalidad']
+            ),
+            models.Index(
+                fields=[
+                    'modalidad',
+                    'fecha_realizacion',
+                ]
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.fecha_realizacion:%d/%m/%Y} - '
+            f'{self.paciente_nombre} - '
+            f'{self.estudio_nombre}'
         )
 
 
@@ -299,8 +585,13 @@ class Cita(models.Model):
         null=True
     )
 
-    creado_el = models.DateTimeField(auto_now_add=True)
-    actualizado_el = models.DateTimeField(auto_now=True)
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    actualizado_el = models.DateTimeField(
+        auto_now=True
+    )
 
     class Meta:
         ordering = [
@@ -312,7 +603,10 @@ class Cita(models.Model):
                 fields=['fecha_hora']
             ),
             models.Index(
-                fields=['area', 'estado']
+                fields=[
+                    'area',
+                    'estado',
+                ]
             ),
         ]
 
@@ -370,7 +664,10 @@ class SesionTrabajo(models.Model):
 
         indexes = [
             models.Index(
-                fields=['usuario', 'activa']
+                fields=[
+                    'usuario',
+                    'activa',
+                ]
             ),
             models.Index(
                 fields=['inicio']
