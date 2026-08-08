@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
 
@@ -46,6 +48,36 @@ urlpatterns = [
         'radiologia/',
         views.panel_radiologo,
         name='panel_radiologo'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/',
+        views.estudio_radiologia,
+        name='estudio_radiologia'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/iniciar/',
+        views.iniciar_estudio_radiologia,
+        name='iniciar_estudio_radiologia'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/cargar/',
+        views.cargar_archivos_estudio,
+        name='cargar_archivos_estudio'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/archivo/<int:archivo_id>/eliminar/',
+        views.eliminar_archivo_estudio,
+        name='eliminar_archivo_estudio'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/finalizar/',
+        views.finalizar_estudio_radiologia,
+        name='finalizar_estudio_radiologia'
     ),
 
     # =========================
@@ -100,3 +132,10 @@ urlpatterns = [
         name='panel_config'
     ),
 ]
+
+
+if settings.DEBUG:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )

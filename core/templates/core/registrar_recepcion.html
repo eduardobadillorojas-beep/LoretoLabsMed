@@ -1,83 +1,479 @@
 {% extends 'core/base.html' %}
 
+{% block title %}
+Registrar paciente | Loreto One
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4 mb-5">
 
-    <h2>Registrar paciente</h2>
+<style>
 
-    <p class="text-muted">
+    .registro-container {
+        max-width: 1050px;
+        margin: 0 auto;
+        padding-bottom: 40px;
+    }
+
+    .registro-titulo {
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .registro-subtitulo {
+        color: #94a3b8;
+        font-size: .85rem;
+        margin-bottom: 24px;
+    }
+
+    .registro-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        overflow: visible;
+    }
+
+    .registro-card-body {
+        padding: 18px;
+    }
+
+    .registro-card h4 {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 15px;
+    }
+
+    .registro-card p {
+        color: #94a3b8;
+        font-size: .75rem;
+    }
+
+
+    /* ==========================================
+       BUSCADOR DE ESTUDIOS
+       ========================================== */
+
+    .buscador-estudio-wrapper {
+        position: relative;
+        margin-bottom: 18px;
+    }
+
+    .buscador-estudio-label {
+        display: block;
+        margin-bottom: 7px;
+        font-size: .85rem;
+        font-weight: 600;
+    }
+
+    .buscador-estudio-input {
+        width: 100%;
+        background: #0f172a;
+        color: #f8fafc;
+        border: 1px solid #475569;
+        border-radius: 7px;
+        padding: 10px 12px;
+        font-size: .88rem;
+        outline: none;
+        transition: border-color .15s ease;
+    }
+
+    .buscador-estudio-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, .15);
+    }
+
+    .buscador-estudio-input::placeholder {
+        color: #64748b;
+    }
+
+    .resultados-estudios {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 4px);
+        background: #0f172a;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        max-height: 310px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+    }
+
+    .resultado-estudio {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 11px;
+        border-bottom: 1px solid #1e293b;
+        cursor: pointer;
+    }
+
+    .resultado-estudio:last-child {
+        border-bottom: none;
+    }
+
+    .resultado-estudio:hover,
+    .resultado-estudio.activo {
+        background: #1e293b;
+    }
+
+    .modalidad-badge {
+        min-width: 52px;
+        text-align: center;
+        border-radius: 5px;
+        padding: 3px 6px;
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+    }
+
+    .modalidad-rx {
+        background: rgba(59, 130, 246, .18);
+        color: #60a5fa;
+    }
+
+    .modalidad-tac {
+        background: rgba(168, 85, 247, .18);
+        color: #c084fc;
+    }
+
+    .modalidad-usg {
+        background: rgba(34, 197, 94, .18);
+        color: #4ade80;
+    }
+
+    .modalidad-fluoro {
+        background: rgba(245, 158, 11, .18);
+        color: #fbbf24;
+    }
+
+    .modalidad-masto {
+        background: rgba(236, 72, 153, .18);
+        color: #f472b6;
+    }
+
+    .modalidad-rm {
+        background: rgba(20, 184, 166, .18);
+        color: #2dd4bf;
+    }
+
+    .modalidad-dxa {
+        background: rgba(148, 163, 184, .18);
+        color: #cbd5e1;
+    }
+
+    .resultado-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .resultado-nombre {
+        color: #f8fafc;
+        font-size: .79rem;
+        font-weight: 600;
+    }
+
+    .resultado-codigo {
+        color: #64748b;
+        font-size: .65rem;
+        margin-top: 2px;
+    }
+
+    .sin-coincidencias {
+        padding: 16px;
+        text-align: center;
+        color: #94a3b8;
+        font-size: .75rem;
+    }
+
+    .estudio-seleccionado {
+        display: none;
+        margin-top: 8px;
+        padding: 8px 10px;
+        background: rgba(34, 197, 94, .10);
+        border: 1px solid rgba(34, 197, 94, .35);
+        border-radius: 6px;
+        font-size: .75rem;
+        color: #86efac;
+    }
+
+    .estudio-seleccionado.visible {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .btn-quitar-estudio {
+        border: 0;
+        background: transparent;
+        color: #94a3b8;
+        padding: 0;
+        cursor: pointer;
+        font-size: .72rem;
+    }
+
+    .btn-quitar-estudio:hover {
+        color: #f87171;
+    }
+
+    .ayuda-estudio {
+        color: #64748b;
+        font-size: .67rem;
+        margin-top: 6px;
+    }
+
+    .error-estudio-custom {
+        color: #f87171;
+        font-size: .72rem;
+        margin-top: 6px;
+        display: none;
+    }
+
+    /*
+        Conservamos el campo original de Django porque
+        será el que realmente se envíe al servidor,
+        pero no necesitamos mostrarlo.
+    */
+    .campo-tipo-estudio-original {
+        display: none;
+    }
+
+</style>
+
+
+<div class="registro-container">
+
+    <h2 class="registro-titulo">
+        Registrar paciente
+    </h2>
+
+    <p class="registro-subtitulo">
         Registra los datos del paciente y selecciona el área a la que será enviado.
     </p>
 
-    <form method="post" class="mt-4" novalidate>
+
+    <form
+        method="post"
+        class="mt-4"
+        novalidate
+        id="form-registro-paciente"
+    >
+
         {% csrf_token %}
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h4>Datos del paciente</h4>
+
+        <!-- ======================================
+             DATOS DEL PACIENTE
+             ====================================== -->
+
+        <div class="registro-card">
+
+            <div class="registro-card-body">
+
+                <h4>
+                    Datos del paciente
+                </h4>
 
                 {{ paciente_form.as_p }}
+
             </div>
+
         </div>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h4>Destino de atención</h4>
+
+        <!-- ======================================
+             DESTINO
+             ====================================== -->
+
+        <div class="registro-card">
+
+            <div class="registro-card-body">
+
+                <h4>
+                    Destino de atención
+                </h4>
 
                 {{ destino_form.as_p }}
+
             </div>
+
         </div>
+
+
+        <!-- ======================================
+             CONSULTA MÉDICA
+             ====================================== -->
 
         <div
             id="seccion-consulta"
-            class="card mb-4"
+            class="registro-card"
         >
-            <div class="card-body">
-                <h4>Consulta médica</h4>
 
-                <p class="text-muted">
+            <div class="registro-card-body">
+
+                <h4>
+                    Consulta médica
+                </h4>
+
+                <p>
                     El paciente aparecerá en la sala de espera de Médicos.
                 </p>
 
                 {{ consulta_form.as_p }}
+
             </div>
+
         </div>
+
+
+        <!-- ======================================
+             RADIOLOGÍA
+             ====================================== -->
 
         <div
             id="seccion-radiologia"
-            class="card mb-4"
+            class="registro-card"
             style="display: none;"
         >
-            <div class="card-body">
-                <h4>Radiología e imagen</h4>
 
-                <p class="text-muted">
+            <div class="registro-card-body">
+
+                <h4>
+                    Radiología e imagen
+                </h4>
+
+                <p>
                     El paciente aparecerá en la lista de estudios pendientes de Radiología.
                 </p>
 
+
+                <!-- MÉDICO -->
+
                 <div class="mb-3">
+
                     {{ estudio_form.medico_solicitante.label_tag }}
+
                     {{ estudio_form.medico_solicitante }}
+
                     {{ estudio_form.medico_solicitante.errors }}
+
                 </div>
 
-                <div class="mb-3">
-                    {{ estudio_form.tipo_estudio.label_tag }}
-                    {{ estudio_form.tipo_estudio }}
+
+                <!-- ==================================
+                     BUSCADOR INTELIGENTE DE ESTUDIOS
+                     ================================== -->
+
+                <div class="buscador-estudio-wrapper">
+
+                    <label
+                        for="busqueda-estudio"
+                        class="buscador-estudio-label"
+                    >
+                        Tipo de estudio
+                    </label>
+
+                    <input
+                        type="text"
+                        id="busqueda-estudio"
+                        class="buscador-estudio-input"
+                        placeholder="Escribe para buscar RX, TAC, ultrasonido..."
+                        autocomplete="off"
+                    >
+
+
+                    <div
+                        id="resultados-estudios"
+                        class="resultados-estudios"
+                    >
+                    </div>
+
+
+                    <div
+                        id="estudio-seleccionado"
+                        class="estudio-seleccionado"
+                    >
+
+                        <span
+                            id="estudio-seleccionado-texto"
+                        >
+                        </span>
+
+                        <button
+                            type="button"
+                            id="quitar-estudio"
+                            class="btn-quitar-estudio"
+                        >
+                            Cambiar
+                        </button>
+
+                    </div>
+
+
+                    <div class="ayuda-estudio">
+                        Escribe al menos 2 caracteres. Puedes buscar por nombre o código.
+                    </div>
+
+
+                    <div
+                        id="error-estudio-custom"
+                        class="error-estudio-custom"
+                    >
+                        Selecciona un estudio de la lista.
+                    </div>
+
+
+                    <!--
+                        Campo original de Django.
+
+                        Aquí se encuentra el ID real del
+                        TipoEstudio que será guardado.
+                    -->
+
+                    <div class="campo-tipo-estudio-original">
+
+                        {{ estudio_form.tipo_estudio }}
+
+                    </div>
+
+
                     {{ estudio_form.tipo_estudio.errors }}
+
                 </div>
 
+
+                <!-- OBSERVACIONES -->
+
                 <div class="mb-3">
+
                     {{ estudio_form.descripcion.label_tag }}
+
                     {{ estudio_form.descripcion }}
+
                     {{ estudio_form.descripcion.errors }}
+
                 </div>
+
+
+                <!-- ESTADO -->
 
                 <div style="display: none;">
+
                     {{ estudio_form.estado }}
+
                 </div>
+
             </div>
+
         </div>
+
+
+        <!-- ======================================
+             BOTONES
+             ====================================== -->
 
         <button
             type="submit"
@@ -92,13 +488,25 @@
         >
             Cancelar
         </a>
+
     </form>
 
 </div>
 
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const selectorDestino = document.getElementById(
+
+document.addEventListener(
+    'DOMContentLoaded',
+    function () {
+
+        /*
+        ====================================================
+        DESTINO CONSULTA / RADIOLOGÍA
+        ====================================================
+        */
+
+        const campoDestino = document.getElementById(
             'id_tipo_atencion'
         );
 
@@ -110,24 +518,647 @@
             'seccion-radiologia'
         );
 
-        function actualizarSecciones() {
-            const destino = selectorDestino.value;
 
-            if (destino === 'RADIOLOGIA') {
-                seccionConsulta.style.display = 'none';
-                seccionRadiologia.style.display = 'block';
-            } else {
-                seccionConsulta.style.display = 'block';
-                seccionRadiologia.style.display = 'none';
+        function actualizarDestino() {
+
+            if (!campoDestino) {
+                return;
             }
+
+            if (campoDestino.value === 'RADIOLOGIA') {
+
+                seccionConsulta.style.display = 'none';
+
+                seccionRadiologia.style.display = 'block';
+
+            } else {
+
+                seccionConsulta.style.display = 'block';
+
+                seccionRadiologia.style.display = 'none';
+
+            }
+
         }
 
-        selectorDestino.addEventListener(
-            'change',
-            actualizarSecciones
+
+        if (campoDestino) {
+
+            campoDestino.addEventListener(
+                'change',
+                actualizarDestino
+            );
+
+            actualizarDestino();
+
+        }
+
+
+        /*
+        ====================================================
+        BUSCADOR DE ESTUDIOS
+        ====================================================
+        */
+
+        const campoBusqueda = document.getElementById(
+            'busqueda-estudio'
         );
 
-        actualizarSecciones();
-    });
+        const campoOriginal = document.getElementById(
+            'id_tipo_estudio'
+        );
+
+        const contenedorResultados = document.getElementById(
+            'resultados-estudios'
+        );
+
+        const cajaSeleccionado = document.getElementById(
+            'estudio-seleccionado'
+        );
+
+        const textoSeleccionado = document.getElementById(
+            'estudio-seleccionado-texto'
+        );
+
+        const botonQuitar = document.getElementById(
+            'quitar-estudio'
+        );
+
+        const errorCustom = document.getElementById(
+            'error-estudio-custom'
+        );
+
+        const formulario = document.getElementById(
+            'form-registro-paciente'
+        );
+
+
+        if (
+            !campoBusqueda ||
+            !campoOriginal ||
+            !contenedorResultados
+        ) {
+            return;
+        }
+
+
+        /*
+        ====================================================
+        CREAR CATÁLOGO DESDE EL SELECT ORIGINAL DE DJANGO
+        ====================================================
+        */
+
+        const catalogo = [];
+
+
+        Array.from(
+            campoOriginal.options
+        ).forEach(
+            function (option) {
+
+                if (!option.value) {
+                    return;
+                }
+
+
+                const textoCompleto = (
+                    option.textContent || ''
+                ).trim();
+
+
+                let codigo = '';
+                let nombre = textoCompleto;
+
+
+                /*
+                    TipoEstudio.__str__ devuelve actualmente:
+
+                    CODIGO - NOMBRE
+                */
+
+                const separador = textoCompleto.indexOf(' - ');
+
+                if (separador !== -1) {
+
+                    codigo = textoCompleto
+                        .substring(0, separador)
+                        .trim();
+
+                    nombre = textoCompleto
+                        .substring(separador + 3)
+                        .trim();
+
+                }
+
+
+                catalogo.push({
+                    id: option.value,
+                    codigo: codigo,
+                    nombre: nombre,
+                    textoCompleto: textoCompleto,
+                    busqueda: normalizarTexto(
+                        textoCompleto
+                    )
+                });
+
+            }
+        );
+
+
+        /*
+        ====================================================
+        NORMALIZACIÓN
+        ====================================================
+        */
+
+        function normalizarTexto(texto) {
+
+            return (
+                texto
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(
+                        /[\u0300-\u036f]/g,
+                        ''
+                    )
+                    .trim()
+            );
+
+        }
+
+
+        /*
+        ====================================================
+        DETECTAR MODALIDAD VISUAL
+        ====================================================
+        */
+
+        function obtenerModalidad(estudio) {
+
+            const codigo = estudio.codigo.toUpperCase();
+
+            const nombre = estudio.nombre.toUpperCase();
+
+
+            if (
+                codigo.startsWith('TAC') ||
+                nombre.startsWith('TAC ')
+            ) {
+                return {
+                    texto: 'TAC',
+                    clase: 'modalidad-tac'
+                };
+            }
+
+
+            if (
+                codigo.startsWith('USG') ||
+                nombre.startsWith('USG ') ||
+                nombre.startsWith('ULTRASONIDO')
+            ) {
+                return {
+                    texto: 'USG',
+                    clase: 'modalidad-usg'
+                };
+            }
+
+
+            if (
+                codigo.startsWith('FL') ||
+                nombre.startsWith('FLUOROSCOPIA')
+            ) {
+                return {
+                    texto: 'FL',
+                    clase: 'modalidad-fluoro'
+                };
+            }
+
+
+            if (
+                codigo.startsWith('MASTO') ||
+                nombre.startsWith('MASTOGRAF')
+            ) {
+                return {
+                    texto: 'MASTO',
+                    clase: 'modalidad-masto'
+                };
+            }
+
+
+            if (
+                codigo.startsWith('RM') ||
+                nombre.startsWith('RM ') ||
+                nombre.startsWith('RESONANCIA')
+            ) {
+                return {
+                    texto: 'RM',
+                    clase: 'modalidad-rm'
+                };
+            }
+
+
+            if (
+                codigo.startsWith('DXA') ||
+                nombre.startsWith('DXA ') ||
+                nombre.startsWith('DENSITOMETRIA')
+            ) {
+                return {
+                    texto: 'DXA',
+                    clase: 'modalidad-dxa'
+                };
+            }
+
+
+            return {
+                texto: 'RX',
+                clase: 'modalidad-rx'
+            };
+
+        }
+
+
+        /*
+        ====================================================
+        MOSTRAR RESULTADOS
+        ====================================================
+        */
+
+        function mostrarResultados() {
+
+            const termino = normalizarTexto(
+                campoBusqueda.value
+            );
+
+
+            contenedorResultados.innerHTML = '';
+
+
+            if (termino.length < 2) {
+
+                contenedorResultados.style.display = 'none';
+
+                return;
+
+            }
+
+
+            const palabras = termino
+                .split(/\s+/)
+                .filter(Boolean);
+
+
+            const coincidencias = catalogo.filter(
+                function (estudio) {
+
+                    return palabras.every(
+                        function (palabra) {
+
+                            return estudio.busqueda.includes(
+                                palabra
+                            );
+
+                        }
+                    );
+
+                }
+            ).slice(
+                0,
+                25
+            );
+
+
+            if (coincidencias.length === 0) {
+
+                const vacio = document.createElement(
+                    'div'
+                );
+
+                vacio.className = (
+                    'sin-coincidencias'
+                );
+
+                vacio.textContent = (
+                    'No se encontraron estudios.'
+                );
+
+                contenedorResultados.appendChild(
+                    vacio
+                );
+
+                contenedorResultados.style.display = (
+                    'block'
+                );
+
+                return;
+
+            }
+
+
+            coincidencias.forEach(
+                function (estudio) {
+
+                    const modalidad = obtenerModalidad(
+                        estudio
+                    );
+
+
+                    const fila = document.createElement(
+                        'div'
+                    );
+
+                    fila.className = (
+                        'resultado-estudio'
+                    );
+
+
+                    const badge = document.createElement(
+                        'span'
+                    );
+
+                    badge.className = (
+                        'modalidad-badge ' +
+                        modalidad.clase
+                    );
+
+                    badge.textContent = modalidad.texto;
+
+
+                    const informacion = document.createElement(
+                        'div'
+                    );
+
+                    informacion.className = (
+                        'resultado-info'
+                    );
+
+
+                    const nombre = document.createElement(
+                        'div'
+                    );
+
+                    nombre.className = (
+                        'resultado-nombre'
+                    );
+
+                    nombre.textContent = estudio.nombre;
+
+
+                    const codigo = document.createElement(
+                        'div'
+                    );
+
+                    codigo.className = (
+                        'resultado-codigo'
+                    );
+
+                    codigo.textContent = estudio.codigo;
+
+
+                    informacion.appendChild(
+                        nombre
+                    );
+
+                    informacion.appendChild(
+                        codigo
+                    );
+
+
+                    fila.appendChild(
+                        badge
+                    );
+
+                    fila.appendChild(
+                        informacion
+                    );
+
+
+                    fila.addEventListener(
+                        'click',
+                        function () {
+
+                            seleccionarEstudio(
+                                estudio
+                            );
+
+                        }
+                    );
+
+
+                    contenedorResultados.appendChild(
+                        fila
+                    );
+
+                }
+            );
+
+
+            contenedorResultados.style.display = (
+                'block'
+            );
+
+        }
+
+
+        /*
+        ====================================================
+        SELECCIONAR
+        ====================================================
+        */
+
+        function seleccionarEstudio(estudio) {
+
+            campoOriginal.value = estudio.id;
+
+            campoBusqueda.value = estudio.nombre;
+
+            textoSeleccionado.textContent = (
+                '✓ ' +
+                estudio.nombre
+            );
+
+            cajaSeleccionado.classList.add(
+                'visible'
+            );
+
+            contenedorResultados.style.display = (
+                'none'
+            );
+
+            errorCustom.style.display = (
+                'none'
+            );
+
+        }
+
+
+        /*
+        ====================================================
+        QUITAR SELECCIÓN
+        ====================================================
+        */
+
+        function quitarSeleccion() {
+
+            campoOriginal.value = '';
+
+            campoBusqueda.value = '';
+
+            textoSeleccionado.textContent = '';
+
+            cajaSeleccionado.classList.remove(
+                'visible'
+            );
+
+            campoBusqueda.focus();
+
+        }
+
+
+        /*
+        ====================================================
+        EVENTOS
+        ====================================================
+        */
+
+        campoBusqueda.addEventListener(
+            'input',
+            function () {
+
+                /*
+                    Si empieza a escribir nuevamente
+                    después de haber seleccionado algo,
+                    anulamos la selección anterior.
+                */
+
+                if (campoOriginal.value) {
+
+                    campoOriginal.value = '';
+
+                    cajaSeleccionado.classList.remove(
+                        'visible'
+                    );
+
+                }
+
+                mostrarResultados();
+
+            }
+        );
+
+
+        campoBusqueda.addEventListener(
+            'focus',
+            function () {
+
+                if (
+                    campoBusqueda.value.trim().length >= 2 &&
+                    !campoOriginal.value
+                ) {
+
+                    mostrarResultados();
+
+                }
+
+            }
+        );
+
+
+        botonQuitar.addEventListener(
+            'click',
+            quitarSeleccion
+        );
+
+
+        document.addEventListener(
+            'click',
+            function (event) {
+
+                const wrapper = document.querySelector(
+                    '.buscador-estudio-wrapper'
+                );
+
+                if (
+                    wrapper &&
+                    !wrapper.contains(event.target)
+                ) {
+
+                    contenedorResultados.style.display = (
+                        'none'
+                    );
+
+                }
+
+            }
+        );
+
+
+        /*
+        ====================================================
+        VALIDAR AL ENVIAR
+        ====================================================
+        */
+
+        formulario.addEventListener(
+            'submit',
+            function (event) {
+
+                if (
+                    campoDestino &&
+                    campoDestino.value === 'RADIOLOGIA'
+                ) {
+
+                    if (!campoOriginal.value) {
+
+                        event.preventDefault();
+
+                        errorCustom.style.display = (
+                            'block'
+                        );
+
+                        campoBusqueda.focus();
+
+                    }
+
+                }
+
+            }
+        );
+
+
+        /*
+        ====================================================
+        RESTAURAR VALOR DESPUÉS DE ERROR DE FORMULARIO
+        ====================================================
+        */
+
+        if (campoOriginal.value) {
+
+            const existente = catalogo.find(
+                function (estudio) {
+
+                    return (
+                        String(estudio.id)
+                        ===
+                        String(campoOriginal.value)
+                    );
+
+                }
+            );
+
+
+            if (existente) {
+
+                seleccionarEstudio(
+                    existente
+                );
+
+            }
+
+        }
+
+    }
+);
+
 </script>
+
 {% endblock %}

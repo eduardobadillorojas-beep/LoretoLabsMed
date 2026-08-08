@@ -302,6 +302,61 @@ class Estudio(models.Model):
         )
 
 
+class ArchivoEstudio(models.Model):
+    TIPO_ARCHIVO_CHOICES = [
+        ('DICOM', 'DICOM'),
+        ('IMAGEN', 'Imagen'),
+        ('DOCUMENTO', 'Documento'),
+        ('OTRO', 'Otro'),
+    ]
+
+    estudio = models.ForeignKey(
+        Estudio,
+        on_delete=models.CASCADE,
+        related_name='archivos'
+    )
+
+    archivo = models.FileField(
+        upload_to='estudios/%Y/%m/%d/',
+        verbose_name='Archivo'
+    )
+
+    tipo_archivo = models.CharField(
+        max_length=20,
+        choices=TIPO_ARCHIVO_CHOICES,
+        default='DICOM'
+    )
+
+    nombre_original = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    subido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='archivos_estudio_subidos',
+        blank=True,
+        null=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = [
+            'creado_el',
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.estudio.tipo_estudio.nombre} - '
+            f'{self.nombre_original or self.archivo.name}'
+        )
+
+
 class BitacoraRadiologica(models.Model):
     MODALIDAD_CHOICES = [
         ('RX', 'Radiografía'),
@@ -390,9 +445,9 @@ class BitacoraRadiologica(models.Model):
         null=True
     )
 
-    # -----------------------------
+    # ==================================
     # PARÁMETROS DE RADIOGRAFÍA
-    # -----------------------------
+    # ==================================
 
     kvp = models.DecimalField(
         max_digits=6,
@@ -421,9 +476,9 @@ class BitacoraRadiologica(models.Model):
         null=True
     )
 
-    # -----------------------------
+    # ==================================
     # PARÁMETROS DE TOMOGRAFÍA
-    # -----------------------------
+    # ==================================
 
     ctdi_vol = models.DecimalField(
         max_digits=10,
@@ -447,9 +502,9 @@ class BitacoraRadiologica(models.Model):
         verbose_name='Uso de medio de contraste'
     )
 
-    # -----------------------------
+    # ==================================
     # INFORMACIÓN GENERAL
-    # -----------------------------
+    # ==================================
 
     observaciones = models.TextField(
         blank=True,

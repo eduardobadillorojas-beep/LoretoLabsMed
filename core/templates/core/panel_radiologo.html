@@ -216,7 +216,6 @@ Radiología | Loreto One
 
 <div class="radio-container">
 
-
     <!-- ENCABEZADO -->
 
     <div class="radio-header">
@@ -239,7 +238,6 @@ Radiología | Loreto One
     <!-- CONTADORES -->
 
     <div class="radio-status">
-
 
         <div class="status-box">
 
@@ -292,14 +290,12 @@ Radiología | Loreto One
 
         </div>
 
-
     </div>
 
 
     <!-- LISTA PRINCIPAL -->
 
     <div class="worklist">
-
 
         <div class="worklist-header">
 
@@ -316,9 +312,7 @@ Radiología | Loreto One
             </div>
 
             <span class="badge bg-primary">
-
                 {{ estudios_pendientes|length }}
-
             </span>
 
         </div>
@@ -382,75 +376,56 @@ Radiología | Loreto One
 
                             <tr>
 
-
                                 <td class="hora">
-
                                     {{ estudio.fecha_creacion|date:"H:i" }}
-
                                 </td>
 
 
                                 <td>
 
                                     <div class="paciente">
-
                                         {{ estudio.paciente.nombre }}
                                         {{ estudio.paciente.apellido }}
-
                                     </div>
 
                                     <div class="paciente-dato">
-
                                         Registro
                                         {{ estudio.paciente.identificacion }}
-
                                     </div>
 
                                 </td>
 
 
                                 <td>
-
                                     {{ estudio.paciente.fecha_nacimiento|date:"d/m/Y" }}
-
                                 </td>
 
 
                                 <td>
-
                                     {{ estudio.paciente.telefono|default:"—" }}
-
                                 </td>
 
 
                                 <td>
 
                                     <div class="estudio">
-
                                         {{ estudio.tipo_estudio.nombre }}
-
                                     </div>
 
                                     <div class="paciente-dato">
-
                                         {{ estudio.tipo_estudio.get_modalidad_display }}
-
                                     </div>
 
                                 </td>
 
 
                                 <td>
-
                                     {{ estudio.medico_solicitante|default:"—" }}
-
                                 </td>
 
 
                                 <td class="observaciones">
-
                                     {{ estudio.descripcion|default:"Sin observaciones" }}
-
                                 </td>
 
 
@@ -465,18 +440,14 @@ Radiología | Loreto One
                                         Expediente
                                     </a>
 
-                                    <button
-                                        type="button"
-                                        class="btn
-                                               btn-primary
-                                               btn-estudio"
-                                        disabled
-                                    >
-                                        Abrir estudio
-                                    </button>
+                                    <a
+    href="{% url 'estudio_radiologia' estudio.id %}"
+    class="btn btn-primary btn-estudio"
+>
+    Abrir estudio
+</a>
 
                                 </td>
-
 
                             </tr>
 
@@ -491,13 +462,10 @@ Radiología | Loreto One
         {% else %}
 
             <div class="lista-vacia">
-
                 No hay pacientes esperando estudios.
-
             </div>
 
         {% endif %}
-
 
     </div>
 
@@ -522,20 +490,15 @@ Radiología | Loreto One
 
                     <div class="mini-item">
 
-
                         <div class="mini-hora">
-
                             {{ cita.fecha_hora|date:"H:i" }}
-
                         </div>
 
 
                         <div>
 
                             <div class="mini-paciente">
-
                                 {{ cita.nombre_paciente }}
-
                             </div>
 
                             <div class="mini-estudio">
@@ -558,13 +521,10 @@ Radiología | Loreto One
                         <div>
 
                             <span class="badge bg-secondary">
-
                                 {{ cita.get_estado_display }}
-
                             </span>
 
                         </div>
-
 
                     </div>
 
@@ -572,13 +532,10 @@ Radiología | Loreto One
                 {% empty %}
 
                     <div class="lista-vacia">
-
                         No hay pacientes citados hoy.
-
                     </div>
 
                 {% endfor %}
-
 
             </div>
 
@@ -598,13 +555,19 @@ Radiología | Loreto One
 
                 {% for estudio in estudios_realizados_hoy %}
 
-
                     <div class="mini-item">
-
 
                         <div class="mini-hora">
 
-                            {{ estudio.fecha_creacion|date:"H:i" }}
+                            {% if estudio.fecha_finalizacion %}
+
+                                {{ estudio.fecha_finalizacion|date:"H:i" }}
+
+                            {% else %}
+
+                                {{ estudio.fecha_creacion|date:"H:i" }}
+
+                            {% endif %}
 
                         </div>
 
@@ -612,16 +575,12 @@ Radiología | Loreto One
                         <div>
 
                             <div class="mini-paciente">
-
                                 {{ estudio.paciente.nombre }}
                                 {{ estudio.paciente.apellido }}
-
                             </div>
 
                             <div class="mini-estudio">
-
                                 {{ estudio.tipo_estudio.nombre }}
-
                             </div>
 
                         </div>
@@ -629,14 +588,14 @@ Radiología | Loreto One
 
                         <div>
 
-                            <span class="badge bg-success">
-
-                                Terminado
-
-                            </span>
+                            <a
+                                href="{% url 'estudio_radiologia' estudio.id %}"
+                                class="btn btn-outline-success btn-estudio"
+                            >
+                                Ver
+                            </a>
 
                         </div>
-
 
                     </div>
 
@@ -644,18 +603,14 @@ Radiología | Loreto One
                 {% empty %}
 
                     <div class="lista-vacia">
-
                         Aún no hay estudios terminados hoy.
-
                     </div>
 
                 {% endfor %}
 
-
             </div>
 
         </div>
-
 
     </div>
 

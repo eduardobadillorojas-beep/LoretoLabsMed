@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -16,6 +17,8 @@ from .forms import (
 )
 
 from .models import (
+    ArchivoEstudio,
+    BitacoraRadiologica,
     Cita,
     Consulta,
     Estudio,
@@ -23,6 +26,10 @@ from .models import (
     SesionTrabajo,
 )
 
+
+# =========================================================
+# UTILIDADES
+# =========================================================
 
 def obtener_ip(request):
     forwarded_for = request.META.get(
@@ -37,6 +44,190 @@ def obtener_ip(request):
     return ip
 
 
+def calcular_edad(
+    fecha_nacimiento,
+    fecha_referencia=None
+):
+    if not fecha_nacimiento:
+        return None
+
+    if fecha_referencia is None:
+        fecha_referencia = timezone.localdate()
+
+    return (
+        fecha_referencia.year
+        - fecha_nacimiento.year
+        - (
+            (
+                fecha_referencia.month,
+                fecha_referencia.day,
+            )
+            <
+            (
+                fecha_nacimiento.month,
+                fecha_nacimiento.day,
+            )
+        )
+    )
+
+
+def obtener_nombre_usuario(usuario):
+    if not usuario:
+        return ''
+
+    nombre_completo = (
+        usuario.get_full_name().strip()
+    )
+
+    if nombre_completo:
+        return nombre_completo
+
+    return usuario.username
+
+
+def detectar_tipo_archivo(nombre):
+    extension = Path(
+        nombre
+    ).suffix.lower()
+
+    if extension in [
+        '.dcm',
+        '.dicom',
+    ]:
+        return 'DICOM'
+
+    if extension in [
+        '.jpg',
+        '.jpeg',
+        '.png',
+        '.webp',
+        '.bmp',
+    ]:
+        return 'IMAGEN'
+
+    if extension in [
+        '.pdf',
+        '.doc',
+        '.docx',
+        '.txt',
+    ]:
+        return 'DOCUMENTO'
+
+    return 'OTRO'
+
+
+def crear_bitacora_radiologica(estudio):
+    modalidad_original = (
+        estudio.tipo_estudio.modalidad
+    )
+
+    modalidades_bitacora = {
+        'RX': 'RX',
+        'TAC': 'TAC',
+        'FLUORO': 'FLUORO',
+        'MASTO': 'MASTO',
+    }
+
+    if (
+        modalidad_original
+        not in modalidades_bitacora
+    ):
+        return None
+
+    paciente = estudio.paciente
+
+    fecha_realizacion = (
+        estudio.fecha_finalizacion
+        or timezone.now()
+    )
+
+    fecha_local = timezone.localtime(
+        fecha_realizacion
+    ).date()
+
+    edad = calcular_edad(
+        paciente.fecha_nacimiento,
+        fecha_local
+    )
+
+    genero = (
+        paciente.get_genero_display()
+    )
+
+    tecnico_nombre = (
+        obtener_nombre_usuario(
+            estudio.tecnico
+        )
+    )
+
+    equipo_nombre = ''
+
+    if estudio.equipo:
+        equipo_nombre = (
+            estudio.equipo.nombre
+        )
+
+    bitacora, creada = (
+        BitacoraRadiologica.objects.get_or_create(
+            estudio=estudio,
+            defaults={
+                'fecha_realizacion':
+                    fecha_realizacion,
+
+                'paciente_nombre':
+                    (
+                        f'{paciente.nombre} '
+                        f'{paciente.apellido}'
+                    ),
+
+                'paciente_registro':
+                    paciente.identificacion,
+
+                'fecha_nacimiento':
+                    paciente.fecha_nacimiento,
+
+                'edad':
+                    edad,
+
+                'genero':
+                    genero,
+
+                'modalidad':
+                    modalidades_bitacora[
+                        modalidad_original
+                    ],
+
+                'estudio_nombre':
+                    estudio.tipo_estudio.nombre,
+
+                'medico_solicitante':
+                    estudio.medico_solicitante,
+
+                'tecnico':
+                    estudio.tecnico,
+
+                'tecnico_nombre':
+                    tecnico_nombre,
+
+                'equipo':
+                    estudio.equipo,
+
+                'equipo_nombre':
+                    equipo_nombre,
+
+                'observaciones':
+                    estudio.descripcion,
+            }
+        )
+    )
+
+    return bitacora
+
+
+# =========================================================
+# INICIO
+# =========================================================
+
 def inicio(request):
     return render(
         request,
@@ -44,12 +235,21 @@ def inicio(request):
     )
 
 
+# =========================================================
+# LOGIN
+# =========================================================
+
 def login_view(request):
     error_message = None
 
     if request.method == 'POST':
-        usuario = request.POST.get('username')
-        clave = request.POST.get('password')
+        usuario = request.POST.get(
+            'username'
+        )
+
+        clave = request.POST.get(
+            'password'
+        )
 
         user = authenticate(
             request,
@@ -59,9 +259,11 @@ def login_view(request):
 
         if user is not None:
 
-            sesiones_anteriores = SesionTrabajo.objects.filter(
-                usuario=user,
-                activa=True
+            sesiones_anteriores = (
+                SesionTrabajo.objects.filter(
+                    usuario=user,
+                    activa=True
+                )
             )
 
             momento_actual = timezone.now()
@@ -76,14 +278,20 @@ def login_view(request):
                 user
             )
 
-            sesion_trabajo = SesionTrabajo.objects.create(
-                usuario=user,
-                ip_inicio=obtener_ip(request),
-                user_agent=request.META.get(
-                    'HTTP_USER_AGENT',
-                    ''
-                ),
-                activa=True
+            sesion_trabajo = (
+                SesionTrabajo.objects.create(
+                    usuario=user,
+                    ip_inicio=obtener_ip(
+                        request
+                    ),
+                    user_agent=(
+                        request.META.get(
+                            'HTTP_USER_AGENT',
+                            ''
+                        )
+                    ),
+                    activa=True
+                )
             )
 
             request.session[
@@ -131,13 +339,18 @@ def login_view(request):
     )
 
 
+# =========================================================
+# LOGOUT
+# =========================================================
+
 @login_required
 def logout_view(request):
-
     momento_actual = timezone.now()
 
-    sesion_trabajo_id = request.session.get(
-        'sesion_trabajo_id'
+    sesion_trabajo_id = (
+        request.session.get(
+            'sesion_trabajo_id'
+        )
     )
 
     if sesion_trabajo_id:
@@ -167,10 +380,19 @@ def logout_view(request):
         )
 
     if sesion_trabajo:
-        sesion_trabajo.fin = momento_actual
-        sesion_trabajo.ultima_actividad = momento_actual
+        sesion_trabajo.fin = (
+            momento_actual
+        )
+
+        sesion_trabajo.ultima_actividad = (
+            momento_actual
+        )
+
         sesion_trabajo.activa = False
-        sesion_trabajo.ip_fin = obtener_ip(request)
+
+        sesion_trabajo.ip_fin = (
+            obtener_ip(request)
+        )
 
         sesion_trabajo.save(
             update_fields=[
@@ -187,6 +409,10 @@ def logout_view(request):
         'inicio'
     )
 
+
+# =========================================================
+# MÉDICOS
+# =========================================================
 
 @login_required
 def panel_medico(request):
@@ -273,15 +499,13 @@ def panel_medico(request):
     )
 
 
+# =========================================================
+# PANEL RADIOLOGÍA
+# =========================================================
+
 @login_required
 def panel_radiologo(request):
     hoy = timezone.localdate()
-
-    # ----------------------------------
-    # PACIENTES / ESTUDIOS EN ESPERA
-    # Primero registrado = primero
-    # que aparece en la lista.
-    # ----------------------------------
 
     estudios_pendientes = (
         Estudio.objects
@@ -289,6 +513,8 @@ def panel_radiologo(request):
             'paciente',
             'consulta',
             'tipo_estudio',
+            'tecnico',
+            'equipo',
         )
         .filter(
             estado='PENDIENTE'
@@ -298,28 +524,23 @@ def panel_radiologo(request):
         )
     )
 
-    # ----------------------------------
-    # ESTUDIOS EN PROCESO
-    # ----------------------------------
-
     estudios_en_proceso = (
         Estudio.objects
         .select_related(
             'paciente',
             'consulta',
             'tipo_estudio',
+            'tecnico',
+            'equipo',
         )
         .filter(
             estado='EN_PROCESO'
         )
         .order_by(
+            'fecha_inicio',
             'fecha_creacion'
         )
     )
-
-    # ----------------------------------
-    # ESTUDIOS COMPLETADOS HOY
-    # ----------------------------------
 
     estudios_realizados_hoy = (
         Estudio.objects
@@ -327,19 +548,17 @@ def panel_radiologo(request):
             'paciente',
             'consulta',
             'tipo_estudio',
+            'tecnico',
+            'equipo',
         )
         .filter(
             estado='COMPLETADO',
-            fecha_creacion__date=hoy,
+            fecha_finalizacion__date=hoy,
         )
         .order_by(
-            '-fecha_creacion'
+            '-fecha_finalizacion'
         )
     )
-
-    # ----------------------------------
-    # CITAS DE RADIOLOGÍA DE HOY
-    # ----------------------------------
 
     citas_radiologia_hoy = (
         Cita.objects
@@ -383,6 +602,280 @@ def panel_radiologo(request):
     )
 
 
+# =========================================================
+# ESTACIÓN DE TRABAJO RADIOLOGÍA
+# =========================================================
+
+@login_required
+def estudio_radiologia(
+    request,
+    estudio_id
+):
+    estudio = get_object_or_404(
+        Estudio.objects.select_related(
+            'paciente',
+            'tipo_estudio',
+            'tecnico',
+            'equipo',
+        ),
+        pk=estudio_id
+    )
+
+    archivos = (
+        estudio.archivos
+        .select_related(
+            'subido_por'
+        )
+        .all()
+    )
+
+    antecedentes = (
+        estudio.paciente.estudios
+        .select_related(
+            'tipo_estudio'
+        )
+        .exclude(
+            pk=estudio.pk
+        )
+        .order_by(
+            '-fecha_creacion'
+        )
+    )
+
+    edad = calcular_edad(
+        estudio.paciente.fecha_nacimiento
+    )
+
+    context = {
+        'estudio': estudio,
+        'paciente': estudio.paciente,
+        'archivos': archivos,
+        'antecedentes': antecedentes,
+        'edad': edad,
+    }
+
+    return render(
+        request,
+        'core/estudio_radiologia.html',
+        context
+    )
+
+
+# =========================================================
+# INICIAR ESTUDIO
+# =========================================================
+
+@login_required
+def iniciar_estudio_radiologia(
+    request,
+    estudio_id
+):
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id
+    )
+
+    if request.method == 'POST':
+
+        if estudio.estado == 'PENDIENTE':
+
+            estudio.estado = (
+                'EN_PROCESO'
+            )
+
+            estudio.fecha_inicio = (
+                timezone.now()
+            )
+
+            estudio.tecnico = (
+                request.user
+            )
+
+            estudio.save(
+                update_fields=[
+                    'estado',
+                    'fecha_inicio',
+                    'tecnico',
+                ]
+            )
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# CARGAR ARCHIVOS
+# =========================================================
+
+@login_required
+def cargar_archivos_estudio(
+    request,
+    estudio_id
+):
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id
+    )
+
+    if request.method == 'POST':
+
+        archivos = (
+            request.FILES.getlist(
+                'archivos'
+            )
+        )
+
+        if estudio.estado == 'PENDIENTE':
+
+            estudio.estado = (
+                'EN_PROCESO'
+            )
+
+            estudio.fecha_inicio = (
+                timezone.now()
+            )
+
+            estudio.tecnico = (
+                request.user
+            )
+
+            estudio.save(
+                update_fields=[
+                    'estado',
+                    'fecha_inicio',
+                    'tecnico',
+                ]
+            )
+
+        for archivo in archivos:
+
+            ArchivoEstudio.objects.create(
+                estudio=estudio,
+                archivo=archivo,
+                tipo_archivo=(
+                    detectar_tipo_archivo(
+                        archivo.name
+                    )
+                ),
+                nombre_original=(
+                    archivo.name
+                ),
+                subido_por=request.user
+            )
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# ELIMINAR ARCHIVO
+# =========================================================
+
+@login_required
+def eliminar_archivo_estudio(
+    request,
+    estudio_id,
+    archivo_id
+):
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id
+    )
+
+    archivo = get_object_or_404(
+        ArchivoEstudio,
+        pk=archivo_id,
+        estudio=estudio
+    )
+
+    if request.method == 'POST':
+
+        archivo.archivo.delete(
+            save=False
+        )
+
+        archivo.delete()
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# FINALIZAR ESTUDIO
+# =========================================================
+
+@login_required
+def finalizar_estudio_radiologia(
+    request,
+    estudio_id
+):
+    estudio = get_object_or_404(
+        Estudio.objects.select_related(
+            'paciente',
+            'tipo_estudio',
+            'tecnico',
+            'equipo',
+        ),
+        pk=estudio_id
+    )
+
+    if request.method == 'POST':
+
+        momento_actual = (
+            timezone.now()
+        )
+
+        if not estudio.fecha_inicio:
+            estudio.fecha_inicio = (
+                momento_actual
+            )
+
+        if not estudio.tecnico:
+            estudio.tecnico = (
+                request.user
+            )
+
+        estudio.estado = (
+            'COMPLETADO'
+        )
+
+        estudio.fecha_finalizacion = (
+            momento_actual
+        )
+
+        estudio.save(
+            update_fields=[
+                'estado',
+                'fecha_inicio',
+                'fecha_finalizacion',
+                'tecnico',
+            ]
+        )
+
+        crear_bitacora_radiologica(
+            estudio
+        )
+
+        return redirect(
+            'panel_radiologo'
+        )
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# RECEPCIÓN
+# =========================================================
+
 @login_required
 def panel_recepcion(request):
     busqueda = request.GET.get(
@@ -404,16 +897,23 @@ def panel_recepcion(request):
     if busqueda:
         pacientes = pacientes.filter(
             Q(
-                identificacion__icontains=busqueda
+                identificacion__icontains=
+                busqueda
             )
-            | Q(
-                nombre__icontains=busqueda
+            |
+            Q(
+                nombre__icontains=
+                busqueda
             )
-            | Q(
-                apellido__icontains=busqueda
+            |
+            Q(
+                apellido__icontains=
+                busqueda
             )
-            | Q(
-                telefono__icontains=busqueda
+            |
+            Q(
+                telefono__icontains=
+                busqueda
             )
         )
 
@@ -514,6 +1014,10 @@ def panel_recepcion(request):
     )
 
 
+# =========================================================
+# CITAS
+# =========================================================
+
 @login_required
 def nueva_cita(request):
 
@@ -529,7 +1033,10 @@ def nueva_cita(request):
                 commit=False
             )
 
-            cita.creada_por = request.user
+            cita.creada_por = (
+                request.user
+            )
+
             cita.save()
 
             return redirect(
@@ -540,13 +1047,17 @@ def nueva_cita(request):
 
         cita_form = CitaForm(
             initial={
-                'estado': 'PROGRAMADA',
-                'duracion_minutos': 30,
+                'estado':
+                    'PROGRAMADA',
+
+                'duracion_minutos':
+                    30,
             }
         )
 
     context = {
-        'cita_form': cita_form,
+        'cita_form':
+            cita_form,
     }
 
     return render(
@@ -556,12 +1067,15 @@ def nueva_cita(request):
     )
 
 
+# =========================================================
+# EXPEDIENTE
+# =========================================================
+
 @login_required
 def detalle_paciente(
     request,
     paciente_id
 ):
-
     paciente = get_object_or_404(
         Paciente,
         pk=paciente_id
@@ -571,6 +1085,9 @@ def detalle_paciente(
         paciente.estudios
         .select_related(
             'tipo_estudio'
+        )
+        .prefetch_related(
+            'archivos'
         )
         .all()
         .order_by(
@@ -602,16 +1119,9 @@ def detalle_paciente(
 
     hoy = date.today()
 
-    edad = (
-        hoy.year
-        - paciente.fecha_nacimiento.year
-        - (
-            (hoy.month, hoy.day)
-            < (
-                paciente.fecha_nacimiento.month,
-                paciente.fecha_nacimiento.day,
-            )
-        )
+    edad = calcular_edad(
+        paciente.fecha_nacimiento,
+        hoy
     )
 
     context = {
@@ -638,12 +1148,15 @@ def detalle_paciente(
     )
 
 
+# =========================================================
+# NUEVO ESTUDIO
+# =========================================================
+
 @login_required
 def nuevo_estudio_paciente(
     request,
     paciente_id
 ):
-
     paciente = get_object_or_404(
         Paciente,
         pk=paciente_id
@@ -657,11 +1170,16 @@ def nuevo_estudio_paciente(
 
         if estudio_form.is_valid():
 
-            estudio = estudio_form.save(
-                commit=False
+            estudio = (
+                estudio_form.save(
+                    commit=False
+                )
             )
 
-            estudio.paciente = paciente
+            estudio.paciente = (
+                paciente
+            )
+
             estudio.save()
 
             return redirect(
@@ -673,7 +1191,8 @@ def nuevo_estudio_paciente(
 
         estudio_form = EstudioForm(
             initial={
-                'estado': 'PENDIENTE',
+                'estado':
+                    'PENDIENTE',
             }
         )
 
@@ -692,14 +1211,21 @@ def nuevo_estudio_paciente(
     )
 
 
+# =========================================================
+# CONFIGURACIÓN
+# =========================================================
+
 @login_required
 def panel_config(request):
-
     return render(
         request,
         'core/panel_config.html'
     )
 
+
+# =========================================================
+# REGISTRO DESDE RECEPCIÓN
+# =========================================================
 
 @login_required
 def registrar_estudio_recepcion(request):
@@ -710,8 +1236,10 @@ def registrar_estudio_recepcion(request):
             request.POST
         )
 
-        destino_form = DestinoAtencionForm(
-            request.POST
+        destino_form = (
+            DestinoAtencionForm(
+                request.POST
+            )
         )
 
         consulta_form = ConsultaForm(
@@ -724,7 +1252,8 @@ def registrar_estudio_recepcion(request):
 
         formularios_principales_validos = (
             paciente_form.is_valid()
-            and destino_form.is_valid()
+            and
+            destino_form.is_valid()
         )
 
         if formularios_principales_validos:
@@ -755,7 +1284,10 @@ def registrar_estudio_recepcion(request):
                         paciente_form.save()
                     )
 
-                    if tipo_atencion == 'CONSULTA':
+                    if (
+                        tipo_atencion
+                        == 'CONSULTA'
+                    ):
 
                         consulta = (
                             consulta_form.save(
@@ -763,12 +1295,20 @@ def registrar_estudio_recepcion(request):
                             )
                         )
 
-                        consulta.paciente = paciente
-                        consulta.estado = 'EN_ESPERA'
+                        consulta.paciente = (
+                            paciente
+                        )
+
+                        consulta.estado = (
+                            'EN_ESPERA'
+                        )
 
                         consulta.save()
 
-                    elif tipo_atencion == 'RADIOLOGIA':
+                    elif (
+                        tipo_atencion
+                        == 'RADIOLOGIA'
+                    ):
 
                         estudio = (
                             estudio_form.save(
@@ -776,8 +1316,13 @@ def registrar_estudio_recepcion(request):
                             )
                         )
 
-                        estudio.paciente = paciente
-                        estudio.estado = 'PENDIENTE'
+                        estudio.paciente = (
+                            paciente
+                        )
+
+                        estudio.estado = (
+                            'PENDIENTE'
+                        )
 
                         estudio.save()
 
@@ -790,14 +1335,18 @@ def registrar_estudio_recepcion(request):
 
         paciente_form = PacienteForm()
 
-        destino_form = DestinoAtencionForm(
-            initial={
-                'tipo_atencion':
-                    'CONSULTA',
-            }
+        destino_form = (
+            DestinoAtencionForm(
+                initial={
+                    'tipo_atencion':
+                        'CONSULTA',
+                }
+            )
         )
 
-        consulta_form = ConsultaForm()
+        consulta_form = (
+            ConsultaForm()
+        )
 
         estudio_form = EstudioForm(
             initial={
