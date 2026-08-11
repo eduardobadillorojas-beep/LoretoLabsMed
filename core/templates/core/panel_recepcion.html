@@ -7,7 +7,6 @@ Recepción | Loreto One
 {% block content %}
 
 <style>
-
     .recepcion-wrap {
         padding: 0 22px 35px;
     }
@@ -49,8 +48,6 @@ Recepción | Loreto One
         white-space: nowrap;
     }
 
-    /* INDICADORES MUY COMPACTOS */
-
     .indicadores {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -67,6 +64,24 @@ Recepción | Loreto One
         display: flex;
         align-items: center;
         justify-content: space-between;
+
+        color: inherit;
+        text-decoration: none;
+
+        cursor: pointer;
+
+        transition:
+            transform .15s ease,
+            border-color .15s ease,
+            background .15s ease;
+    }
+
+    .indicador:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8;
+        background: #243247;
+        color: inherit;
+        text-decoration: none;
     }
 
     .indicador-label {
@@ -86,8 +101,6 @@ Recepción | Loreto One
         opacity: .75;
     }
 
-    /* PANELES */
-
     .panel-loreto {
         background: #1e293b;
         border: 1px solid #334155;
@@ -99,6 +112,7 @@ Recepción | Loreto One
     .panel-loreto-header {
         padding: 10px 14px;
         border-bottom: 1px solid #334155;
+
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -116,8 +130,6 @@ Recepción | Loreto One
         font-size: .67rem;
         margin-top: 2px;
     }
-
-    /* TABLAS */
 
     .tabla-loreto {
         margin: 0;
@@ -158,8 +170,11 @@ Recepción | Loreto One
         font-weight: 500;
     }
 
-    @media (max-width: 1000px) {
+    .ancla-panel {
+        scroll-margin-top: 20px;
+    }
 
+    @media (max-width: 1000px) {
         .recepcion-top {
             grid-template-columns: 1fr;
         }
@@ -172,11 +187,9 @@ Recepción | Loreto One
         .acciones-top {
             justify-self: start;
         }
-
     }
 
     @media (max-width: 700px) {
-
         .indicadores {
             grid-template-columns: repeat(2, 1fr);
         }
@@ -185,20 +198,19 @@ Recepción | Loreto One
             padding-left: 12px;
             padding-right: 12px;
         }
-
     }
-
 </style>
 
 
 <div class="recepcion-wrap">
 
-    <!-- CABECERA -->
+    <!-- =====================================================
+         CABECERA
+    ====================================================== -->
 
     <div class="recepcion-top">
 
         <div>
-
             <h1 class="recepcion-titulo">
                 Panel de Recepción
             </h1>
@@ -206,11 +218,10 @@ Recepción | Loreto One
             <div class="recepcion-subtitulo">
                 Admisión y agenda de pacientes
             </div>
-
         </div>
 
 
-        <!-- BUSCADOR GENERAL -->
+        <!-- BUSCADOR -->
 
         <form
             method="get"
@@ -234,18 +245,18 @@ Recepción | Loreto One
             </button>
 
             {% if busqueda %}
-
                 <a
                     href="{% url 'panel_recepcion' %}"
                     class="btn btn-outline-secondary"
                 >
                     ×
                 </a>
-
             {% endif %}
 
         </form>
 
+
+        <!-- ACCIONES -->
 
         <div class="acciones-top">
 
@@ -268,14 +279,18 @@ Recepción | Loreto One
     </div>
 
 
-    <!-- INDICADORES -->
+    <!-- =====================================================
+         INDICADORES CLICABLES
+    ====================================================== -->
 
     <div class="indicadores">
 
-        <div class="indicador">
+        <a
+            class="indicador"
+            href="#pacientes-hoy"
+        >
 
             <div>
-
                 <div class="indicador-label">
                     Registrados hoy
                 </div>
@@ -283,20 +298,21 @@ Recepción | Loreto One
                 <div class="indicador-valor">
                     {{ pacientes_hoy }}
                 </div>
-
             </div>
 
             <span class="indicador-icono">
                 👥
             </span>
 
-        </div>
+        </a>
 
 
-        <div class="indicador">
+        <a
+            class="indicador"
+            href="#citas-hoy"
+        >
 
             <div>
-
                 <div class="indicador-label">
                     Citas hoy
                 </div>
@@ -304,20 +320,21 @@ Recepción | Loreto One
                 <div class="indicador-valor">
                     {{ total_citas_hoy }}
                 </div>
-
             </div>
 
             <span class="indicador-icono">
                 📅
             </span>
 
-        </div>
+        </a>
 
 
-        <div class="indicador">
+        <a
+            class="indicador"
+            href="#en-espera"
+        >
 
             <div>
-
                 <div class="indicador-label">
                     En espera
                 </div>
@@ -325,20 +342,21 @@ Recepción | Loreto One
                 <div class="indicador-valor">
                     {{ consultas_espera }}
                 </div>
-
             </div>
 
             <span class="indicador-icono">
                 🩺
             </span>
 
-        </div>
+        </a>
 
 
-        <div class="indicador">
+        <a
+            class="indicador"
+            href="#estudios-pendientes"
+        >
 
             <div>
-
                 <div class="indicador-label">
                     Estudios pendientes
                 </div>
@@ -346,19 +364,20 @@ Recepción | Loreto One
                 <div class="indicador-valor">
                     {{ estudios_pendientes }}
                 </div>
-
             </div>
 
             <span class="indicador-icono">
                 🩻
             </span>
 
-        </div>
+        </a>
 
     </div>
 
 
-    <!-- RESULTADOS DE BÚSQUEDA -->
+    <!-- =====================================================
+         RESULTADOS DE BÚSQUEDA
+    ====================================================== -->
 
     {% if busqueda %}
 
@@ -367,7 +386,6 @@ Recepción | Loreto One
             <div class="panel-loreto-header">
 
                 <div>
-
                     <h5>
                         🔎 Resultados de búsqueda
                     </h5>
@@ -375,7 +393,6 @@ Recepción | Loreto One
                     <div class="panel-subtitulo">
                         Resultados para “{{ busqueda }}”
                     </div>
-
                 </div>
 
                 <span class="badge bg-secondary">
@@ -392,7 +409,6 @@ Recepción | Loreto One
                     <table class="table table-dark table-hover tabla-loreto">
 
                         <thead>
-
                             <tr>
                                 <th>Registro</th>
                                 <th>Paciente</th>
@@ -403,9 +419,7 @@ Recepción | Loreto One
                                     Acción
                                 </th>
                             </tr>
-
                         </thead>
-
 
                         <tbody>
 
@@ -418,10 +432,8 @@ Recepción | Loreto One
                                     </td>
 
                                     <td class="nombre-paciente">
-
                                         {{ paciente.nombre }}
                                         {{ paciente.apellido }}
-
                                     </td>
 
                                     <td>
@@ -470,9 +482,14 @@ Recepción | Loreto One
     {% endif %}
 
 
-    <!-- PACIENTES DE HOY -->
+    <!-- =====================================================
+         PACIENTES DE HOY
+    ====================================================== -->
 
-    <div class="panel-loreto">
+    <div
+        class="panel-loreto ancla-panel"
+        id="pacientes-hoy"
+    >
 
         <div class="panel-loreto-header">
 
@@ -502,7 +519,6 @@ Recepción | Loreto One
                 <table class="table table-dark table-hover tabla-loreto">
 
                     <thead>
-
                         <tr>
                             <th>Registro</th>
                             <th>Paciente</th>
@@ -513,9 +529,7 @@ Recepción | Loreto One
                                 Acción
                             </th>
                         </tr>
-
                     </thead>
-
 
                     <tbody>
 
@@ -530,10 +544,8 @@ Recepción | Loreto One
                                 </td>
 
                                 <td class="nombre-paciente">
-
                                     {{ paciente.nombre }}
                                     {{ paciente.apellido }}
-
                                 </td>
 
                                 <td>
@@ -580,7 +592,357 @@ Recepción | Loreto One
     </div>
 
 
-    <!-- PRÓXIMAS CITAS -->
+    <!-- =====================================================
+         CITAS DE HOY
+    ====================================================== -->
+
+    <div
+        class="panel-loreto ancla-panel"
+        id="citas-hoy"
+    >
+
+        <div class="panel-loreto-header">
+
+            <div>
+
+                <h5>
+                    📅 Citas de hoy
+                </h5>
+
+                <div class="panel-subtitulo">
+                    Agenda de la institución para el día de hoy.
+                </div>
+
+            </div>
+
+            <span class="badge bg-primary">
+                {{ total_citas_hoy }}
+            </span>
+
+        </div>
+
+
+        {% if citas_de_hoy %}
+
+            <div class="table-responsive">
+
+                <table class="table table-dark table-hover tabla-loreto">
+
+                    <thead>
+                        <tr>
+                            <th>Hora</th>
+                            <th>Paciente</th>
+                            <th>Área</th>
+                            <th>Médico</th>
+                            <th>Motivo / Estudio</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for cita in citas_de_hoy %}
+
+                            <tr>
+
+                                <td class="fw-bold">
+                                    {{ cita.fecha_hora|date:"H:i" }}
+                                </td>
+
+                                <td>
+
+                                    <div class="nombre-paciente">
+                                        {{ cita.nombre_paciente }}
+                                    </div>
+
+                                    {% if cita.telefono %}
+                                        <div class="dato-secundario">
+                                            {{ cita.telefono }}
+                                        </div>
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    <span class="badge bg-secondary badge-area">
+                                        {{ cita.get_area_display }}
+                                    </span>
+
+                                </td>
+
+                                <td>
+                                    {{ cita.medico_nombre|default:"—" }}
+                                </td>
+
+                                <td>
+
+                                    {% if cita.area == 'RADIOLOGIA' and cita.tipo_estudio %}
+
+                                        {{ cita.tipo_estudio.nombre }}
+
+                                    {% else %}
+
+                                        {{ cita.motivo|default:"—"|truncatechars:50 }}
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+                                    {{ cita.get_estado_display }}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="vacio">
+                No hay citas programadas para hoy.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- =====================================================
+         CONSULTAS EN ESPERA
+    ====================================================== -->
+
+    <div
+        class="panel-loreto ancla-panel"
+        id="en-espera"
+    >
+
+        <div class="panel-loreto-header">
+
+            <div>
+
+                <h5>
+                    🩺 Pacientes en espera
+                </h5>
+
+                <div class="panel-subtitulo">
+                    Consultas pendientes de atención.
+                </div>
+
+            </div>
+
+            <span class="badge bg-warning text-dark">
+                {{ consultas_espera }}
+            </span>
+
+        </div>
+
+
+        {% if consultas_en_espera_lista %}
+
+            <div class="table-responsive">
+
+                <table class="table table-dark table-hover tabla-loreto">
+
+                    <thead>
+                        <tr>
+                            <th>Registro</th>
+                            <th>Paciente</th>
+                            <th>Hora de llegada</th>
+                            <th>Motivo</th>
+                            <th>Médico</th>
+                            <th class="text-end">
+                                Acción
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for consulta in consultas_en_espera_lista %}
+
+                            <tr>
+
+                                <td>
+                                    {{ consulta.paciente.identificacion }}
+                                </td>
+
+                                <td class="nombre-paciente">
+                                    {{ consulta.paciente.nombre }}
+                                    {{ consulta.paciente.apellido }}
+                                </td>
+
+                                <td>
+                                    {{ consulta.fecha_llegada|date:"H:i" }}
+                                </td>
+
+                                <td>
+                                    {{ consulta.motivo_consulta|default:"—"|truncatechars:60 }}
+                                </td>
+
+                                <td>
+
+                                    {% if consulta.medico %}
+
+                                        {{ consulta.medico.get_full_name|default:consulta.medico.username }}
+
+                                    {% else %}
+
+                                        —
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td class="text-end">
+
+                                    <a
+                                        href="{% url 'detalle_paciente' consulta.paciente.id %}"
+                                        class="btn btn-sm btn-outline-info py-0"
+                                    >
+                                        Expediente
+                                    </a>
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="vacio">
+                No hay pacientes en espera.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- =====================================================
+         ESTUDIOS PENDIENTES
+    ====================================================== -->
+
+    <div
+        class="panel-loreto ancla-panel"
+        id="estudios-pendientes"
+    >
+
+        <div class="panel-loreto-header">
+
+            <div>
+
+                <h5>
+                    🩻 Estudios pendientes
+                </h5>
+
+                <div class="panel-subtitulo">
+                    Estudios pendientes de esta institución.
+                </div>
+
+            </div>
+
+            <span class="badge bg-info text-dark">
+                {{ estudios_pendientes }}
+            </span>
+
+        </div>
+
+
+        {% if estudios_pendientes_lista %}
+
+            <div class="table-responsive">
+
+                <table class="table table-dark table-hover tabla-loreto">
+
+                    <thead>
+                        <tr>
+                            <th>Registro</th>
+                            <th>Paciente</th>
+                            <th>Estudio</th>
+                            <th>Creado</th>
+                            <th>Médico solicitante</th>
+                            <th class="text-end">
+                                Acción
+                            </th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for estudio in estudios_pendientes_lista %}
+
+                            <tr>
+
+                                <td>
+                                    {{ estudio.paciente.identificacion }}
+                                </td>
+
+                                <td class="nombre-paciente">
+                                    {{ estudio.paciente.nombre }}
+                                    {{ estudio.paciente.apellido }}
+                                </td>
+
+                                <td>
+                                    {{ estudio.tipo_estudio.nombre }}
+                                </td>
+
+                                <td>
+                                    {{ estudio.fecha_creacion|date:"d/m/Y H:i" }}
+                                </td>
+
+                                <td>
+                                    {{ estudio.medico_solicitante|default:"—" }}
+                                </td>
+
+                                <td class="text-end">
+
+                                    <a
+                                        href="{% url 'detalle_paciente' estudio.paciente.id %}"
+                                        class="btn btn-sm btn-outline-info py-0"
+                                    >
+                                        Expediente
+                                    </a>
+
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="vacio">
+                No hay estudios pendientes.
+            </div>
+
+        {% endif %}
+
+    </div>
+
+
+    <!-- =====================================================
+         PRÓXIMAS CITAS
+    ====================================================== -->
 
     <div class="panel-loreto">
 
@@ -616,7 +978,6 @@ Recepción | Loreto One
                 <table class="table table-dark table-hover tabla-loreto">
 
                     <thead>
-
                         <tr>
                             <th>Fecha</th>
                             <th>Hora</th>
@@ -626,9 +987,7 @@ Recepción | Loreto One
                             <th>Motivo / Estudio</th>
                             <th>Estado</th>
                         </tr>
-
                     </thead>
-
 
                     <tbody>
 

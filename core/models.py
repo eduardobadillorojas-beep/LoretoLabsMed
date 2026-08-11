@@ -2,7 +2,108 @@ from django.conf import settings
 from django.db import models
 
 
+class Institucion(models.Model):
+    nombre = models.CharField(
+        max_length=200,
+        verbose_name='Nombre de la institución'
+    )
+
+    nombre_comercial = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        verbose_name='Nombre comercial'
+    )
+
+    telefono = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    email = models.EmailField(
+        blank=True,
+        null=True
+    )
+
+    direccion = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    activa = models.BooleanField(
+        default=True
+    )
+
+    creada_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    actualizada_el = models.DateTimeField(
+        auto_now=True
+    )
+
+    def __str__(self):
+        return self.nombre
+
+
+class MembresiaInstitucion(models.Model):
+    ROL_CHOICES = [
+        ('ADMIN', 'Administrador'),
+        ('RECEPCION', 'Recepción'),
+        ('MEDICO', 'Médico'),
+        ('RADIOLOGIA', 'Radiología'),
+        ('TECNICO', 'Técnico'),
+        ('ENFERMERIA', 'Enfermería'),
+        ('OTRO', 'Otro'),
+    ]
+
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.CASCADE,
+        related_name='membresias'
+    )
+
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='membresias_institucion'
+    )
+
+    rol = models.CharField(
+        max_length=20,
+        choices=ROL_CHOICES,
+        default='OTRO'
+    )
+
+    activa = models.BooleanField(
+        default=True
+    )
+
+    creada_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['institucion', 'usuario'],
+                name='unique_usuario_por_institucion'
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.usuario.username} - {self.institucion.nombre}'
+
+
 class Paciente(models.Model):
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='pacientes',
+        verbose_name='Institución'
+    )
+
     GENERO_CHOICES = [
         ('M', 'Masculino'),
         ('F', 'Femenino'),
@@ -544,6 +645,13 @@ class BitacoraRadiologica(models.Model):
 
 
 class Cita(models.Model):
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='citas',
+        verbose_name='Institución'
+    )
+
     AREA_CHOICES = [
         ('CONSULTA', 'Consulta médica'),
         ('TRAUMATOLOGIA', 'Traumatología'),

@@ -22,6 +22,7 @@ from .models import (
     Cita,
     Consulta,
     Estudio,
+    MembresiaInstitucion,
     Paciente,
     SesionTrabajo,
 )
@@ -30,6 +31,24 @@ from .models import (
 # =========================================================
 # UTILIDADES
 # =========================================================
+
+def obtener_institucion_usuario(request):
+    membresia = (
+        MembresiaInstitucion.objects
+        .select_related('institucion')
+        .filter(
+            usuario=request.user,
+            activa=True,
+            institucion__activa=True,
+        )
+        .first()
+    )
+
+    if not membresia:
+        return None
+
+    return membresia.institucion
+
 
 def obtener_ip(request):
     forwarded_for = request.META.get(
@@ -886,9 +905,16 @@ def panel_recepcion(request):
     hoy = timezone.localdate()
     ahora = timezone.now()
 
+    institucion = obtener_institucion_usuario(request)
+
+    if institucion is None:
+        return redirect('panel_config')
+
     pacientes = (
         Paciente.objects
-        .all()
+        .filter(
+            institucion=institucion
+        )
         .order_by(
             '-creado_el'
         )
@@ -920,6 +946,7 @@ def panel_recepcion(request):
     pacientes_de_hoy = (
         Paciente.objects
         .filter(
+            institucion=institucion,
             creado_el__date=hoy
         )
         .order_by(
@@ -931,25 +958,51 @@ def panel_recepcion(request):
         pacientes_de_hoy.count()
     )
 
-    consultas_espera = (
+    consultas_en_espera_lista = (
         Consulta.objects
+        .select_related(
+            'paciente',
+            'medico',
+        )
         .filter(
+            paciente__institucion=institucion,
             estado='EN_ESPERA'
         )
-        .count()
+        .order_by(
+            'fecha_llegada'
+        )
+    )
+
+    consultas_espera = (
+        consultas_en_espera_lista.count()
+    )
+
+    estudios_pendientes_lista = (
+        Estudio.objects
+        .select_related(
+            'paciente',
+            'tipo_estudio',
+        )
+        .filter(
+            paciente__institucion=institucion,
+            estado='PENDIENTE'
+        )
+        .order_by(
+            'fecha_creacion'
+        )
     )
 
     estudios_pendientes = (
-        Estudio.objects
-        .filter(
-            estado='PENDIENTE'
-        )
-        .count()
+        estudios_pendientes_lista.count()
     )
 
-    citas_hoy = (
+    citas_de_hoy = (
         Cita.objects
+        .select_related(
+            'tipo_estudio'
+        )
         .filter(
+            institucion=institucion,
             fecha_hora__date=hoy
         )
         .exclude(
@@ -958,7 +1011,13 @@ def panel_recepcion(request):
                 'NO_ASISTIO',
             ]
         )
-        .count()
+        .order_by(
+            'fecha_hora'
+        )
+    )
+
+    citas_hoy = (
+        citas_de_hoy.count()
     )
 
     proximas_citas = (
@@ -967,6 +1026,7 @@ def panel_recepcion(request):
             'tipo_estudio'
         )
         .filter(
+            institucion=institucion,
             fecha_hora__gte=ahora
         )
         .exclude(
@@ -1000,8 +1060,17 @@ def panel_recepcion(request):
         'consultas_espera':
             consultas_espera,
 
+        'consultas_en_espera_lista':
+            consultas_en_espera_lista,
+
         'estudios_pendientes':
             estudios_pendientes,
+
+        'estudios_pendientes_lista':
+            estudios_pendientes_lista,
+
+        'citas_de_hoy':
+            citas_de_hoy,
 
         'proximas_citas':
             proximas_citas,
@@ -1020,6 +1089,10 @@ def panel_recepcion(request):
 
 @login_required
 def nueva_cita(request):
+    institucion = obtener_institucion_usuario(request)
+
+    if institucion is None:
+        return redirect('panel_config')
 
     if request.method == 'POST':
 
@@ -1035,6 +1108,10 @@ def nueva_cita(request):
 
             cita.creada_por = (
                 request.user
+            )
+
+            cita.institucion = (
+                institucion
             )
 
             cita.save()
@@ -1076,9 +1153,15 @@ def detalle_paciente(
     request,
     paciente_id
 ):
+    institucion = obtener_institucion_usuario(request)
+
+    if institucion is None:
+        return redirect('panel_config')
+
     paciente = get_object_or_404(
         Paciente,
-        pk=paciente_id
+        pk=paciente_id,
+        institucion=institucion
     )
 
     estudios = (
@@ -1157,9 +1240,15 @@ def nuevo_estudio_paciente(
     request,
     paciente_id
 ):
+    institucion = obtener_institucion_usuario(request)
+
+    if institucion is None:
+        return redirect('panel_config')
+
     paciente = get_object_or_404(
         Paciente,
-        pk=paciente_id
+        pk=paciente_id,
+        institucion=institucion
     )
 
     if request.method == 'POST':
@@ -1229,6 +1318,10 @@ def panel_config(request):
 
 @login_required
 def registrar_estudio_recepcion(request):
+    institucion = obtener_institucion_usuario(request)
+
+    if institucion is None:
+        return redirect('panel_config')
 
     if request.method == 'POST':
 
@@ -1281,8 +1374,16 @@ def registrar_estudio_recepcion(request):
                 with transaction.atomic():
 
                     paciente = (
-                        paciente_form.save()
+                        paciente_form.save(
+                            commit=False
+                        )
                     )
+
+                    paciente.institucion = (
+                        institucion
+                    )
+
+                    paciente.save()
 
                     if (
                         tipo_atencion
