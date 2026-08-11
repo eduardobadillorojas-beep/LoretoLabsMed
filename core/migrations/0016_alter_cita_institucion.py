@@ -4,6 +4,25 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def asignar_institucion_a_citas(apps, schema_editor):
+    Institucion = apps.get_model('core', 'Institucion')
+    Cita = apps.get_model('core', 'Cita')
+
+    institucion, created = Institucion.objects.get_or_create(
+        nombre='Gabinete Radiológico IDUGON',
+        defaults={
+            'nombre_comercial': 'IDUGON',
+            'activa': True,
+        }
+    )
+
+    Cita.objects.filter(
+        institucion__isnull=True
+    ).update(
+        institucion=institucion
+    )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,10 +30,19 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(
+            asignar_institucion_a_citas,
+            migrations.RunPython.noop,
+        ),
+
         migrations.AlterField(
             model_name='cita',
             name='institucion',
-            field=models.ForeignKey(default=1, on_delete=django.db.models.deletion.PROTECT, related_name='citas', to='core.institucion', verbose_name='Institución'),
-            preserve_default=False,
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name='citas',
+                to='core.institucion',
+                verbose_name='Institución',
+            ),
         ),
     ]
