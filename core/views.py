@@ -248,6 +248,34 @@ def crear_bitacora_radiologica(estudio):
 # =========================================================
 
 def inicio(request):
+    if request.user.is_authenticated:
+        membresia = (
+            MembresiaInstitucion.objects
+            .select_related('institucion')
+            .filter(
+                usuario=request.user,
+                activa=True,
+                institucion__activa=True,
+            )
+            .first()
+        )
+
+        if membresia:
+            if membresia.rol == 'MEDICO':
+                return redirect('panel_medico')
+
+            if membresia.rol in [
+                'RADIOLOGIA',
+                'TECNICO',
+            ]:
+                return redirect('panel_radiologo')
+
+            if membresia.rol == 'RECEPCION':
+                return redirect('panel_recepcion')
+
+            if membresia.rol == 'ADMIN':
+                return redirect('panel_config')
+
     return render(
         request,
         'core/inicio.html'
@@ -317,6 +345,43 @@ def login_view(request):
                 'sesion_trabajo_id'
             ] = sesion_trabajo.id
 
+            membresia = (
+                MembresiaInstitucion.objects
+                .select_related('institucion')
+                .filter(
+                    usuario=user,
+                    activa=True,
+                    institucion__activa=True,
+                )
+                .first()
+            )
+
+            if membresia:
+                if membresia.rol == 'MEDICO':
+                    return redirect(
+                        'panel_medico'
+                    )
+
+                if membresia.rol in [
+                    'RADIOLOGIA',
+                    'TECNICO',
+                ]:
+                    return redirect(
+                        'panel_radiologo'
+                    )
+
+                if membresia.rol == 'RECEPCION':
+                    return redirect(
+                        'panel_recepcion'
+                    )
+
+                if membresia.rol == 'ADMIN':
+                    return redirect(
+                        'panel_config'
+                    )
+
+            # Compatibilidad temporal con usuarios antiguos
+            # que todavía dependen de Groups de Django.
             if user.groups.filter(
                 name='Médico'
             ).exists():
