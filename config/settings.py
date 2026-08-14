@@ -106,6 +106,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    # Almacenamiento de archivos en Cloudflare R2 / S3.
+    'storages',
+
     'core',
     'pacientes',
     'recepcion',
@@ -246,18 +249,94 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
-STORAGES = {
-    'default': {
-        'BACKEND': (
-            'django.core.files.storage.'
-            'FileSystemStorage'
-        ),
-    },
+# ============================================================
+# ALMACENAMIENTO DE ARCHIVOS
+# ============================================================
+#
+# LOCAL:
+#   Los archivos continúan guardándose en el sistema de archivos
+#   de la computadora.
+#
+# PRODUCCIÓN / RENDER:
+#   Los archivos médicos se almacenan en Cloudflare R2.
+#
+# Los archivos de estudios permanecen privados. Django genera
+# URLs firmadas temporales cuando necesita mostrarlos.
+# ============================================================
 
-    'staticfiles': {
-        'BACKEND': (
-            'whitenoise.storage.'
-            'CompressedManifestStaticFilesStorage'
-        ),
-    },
-}
+if IS_PRODUCTION:
+
+    STORAGES = {
+        'default': {
+            'BACKEND': (
+                'storages.backends.s3.S3Storage'
+            ),
+
+            'OPTIONS': {
+                'access_key': os.environ.get(
+                    'AWS_ACCESS_KEY_ID'
+                ),
+
+                'secret_key': os.environ.get(
+                    'AWS_SECRET_ACCESS_KEY'
+                ),
+
+                'bucket_name': os.environ.get(
+                    'AWS_STORAGE_BUCKET_NAME'
+                ),
+
+                'endpoint_url': os.environ.get(
+                    'AWS_S3_ENDPOINT_URL'
+                ),
+
+                'region_name': os.environ.get(
+                    'AWS_S3_REGION_NAME',
+                    'auto'
+                ),
+
+                'addressing_style': os.environ.get(
+                    'AWS_S3_ADDRESSING_STYLE',
+                    'virtual'
+                ),
+
+                # El bucket permanece privado.
+                # Las URLs generadas serán firmadas.
+                'querystring_auth': True,
+
+                # URL válida durante 15 minutos.
+                'querystring_expire': 900,
+
+                # Cloudflare R2 no utiliza ACL tradicionales.
+                'default_acl': None,
+
+                # Evita sobrescribir accidentalmente
+                # archivos con el mismo nombre.
+                'file_overwrite': False,
+            },
+        },
+
+        'staticfiles': {
+            'BACKEND': (
+                'whitenoise.storage.'
+                'CompressedManifestStaticFilesStorage'
+            ),
+        },
+    }
+
+else:
+
+    STORAGES = {
+        'default': {
+            'BACKEND': (
+                'django.core.files.storage.'
+                'FileSystemStorage'
+            ),
+        },
+
+        'staticfiles': {
+            'BACKEND': (
+                'whitenoise.storage.'
+                'CompressedManifestStaticFilesStorage'
+            ),
+        },
+    }
