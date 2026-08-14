@@ -180,10 +180,33 @@ Nueva cita | Loreto One
                                             Estudio programado
                                         </label>
 
-                                        {{ cita_form.tipo_estudio }}
+                                        <div class="mb-2">
+                                            <input
+                                                type="text"
+                                                id="buscador-estudio"
+                                                class="form-control"
+                                                placeholder="Escribe para buscar: rodilla, tórax, cráneo, TAC..."
+                                                autocomplete="off"
+                                            >
+                                        </div>
+
+                                        <div
+                                            id="resultados-estudio"
+                                            class="list-group mb-2"
+                                            style="display: none; max-height: 260px; overflow-y: auto;"
+                                        ></div>
+
+                                        <div style="display: none;">
+                                            {{ cita_form.tipo_estudio }}
+                                        </div>
+
+                                        <div
+                                            id="estudio-seleccionado"
+                                            class="small text-info mt-2"
+                                        ></div>
 
                                         <div class="form-text text-secondary">
-                                            Selecciona el estudio que se realizará al paciente.
+                                            Escribe parte del nombre del estudio y selecciona una coincidencia.
                                         </div>
 
                                         {% for error in cita_form.tipo_estudio.errors %}
@@ -379,24 +402,322 @@ document.addEventListener(
         const contenedorEstudio =
             document.getElementById('contenedor-estudio');
 
+        const selectEstudio =
+            document.getElementById('id_tipo_estudio');
+
+        const buscadorEstudio =
+            document.getElementById('buscador-estudio');
+
+        const resultadosEstudio =
+            document.getElementById('resultados-estudio');
+
+        const estudioSeleccionado =
+            document.getElementById('estudio-seleccionado');
+
+        const opcionesEstudio = [];
+
+        function normalizarTexto(texto) {
+            return (texto || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        }
+
+        if (selectEstudio) {
+            Array.from(
+                selectEstudio.options
+            ).forEach(
+                function (opcion) {
+
+                    if (!opcion.value) {
+                        return;
+                    }
+
+                    opcionesEstudio.push({
+                        value: opcion.value,
+                        text: opcion.text,
+                        normalizado:
+                            normalizarTexto(
+                                opcion.text
+                            ),
+                    });
+                }
+            );
+        }
+
         function actualizarFormulario() {
 
-            if (!area || !contenedorEstudio) {
+            if (
+                !area
+                || !contenedorEstudio
+            ) {
                 return;
             }
 
-            if (area.value === 'RADIOLOGIA') {
-                contenedorEstudio.style.display = 'block';
+            if (
+                area.value
+                === 'RADIOLOGIA'
+            ) {
+                contenedorEstudio.style.display =
+                    'block';
             } else {
-                contenedorEstudio.style.display = 'none';
+                contenedorEstudio.style.display =
+                    'none';
             }
-
         }
 
-        area.addEventListener(
-            'change',
-            actualizarFormulario
+        function ocultarResultados() {
+
+            if (!resultadosEstudio) {
+                return;
+            }
+
+            resultadosEstudio.innerHTML = '';
+            resultadosEstudio.style.display =
+                'none';
+        }
+
+        function seleccionarEstudio(opcion) {
+
+            if (!selectEstudio) {
+                return;
+            }
+
+            selectEstudio.value =
+                opcion.value;
+
+            if (buscadorEstudio) {
+                buscadorEstudio.value =
+                    opcion.text;
+            }
+
+            if (estudioSeleccionado) {
+                estudioSeleccionado.textContent =
+                    '✓ Estudio seleccionado: '
+                    + opcion.text;
+            }
+
+            ocultarResultados();
+
+            selectEstudio.dispatchEvent(
+                new Event(
+                    'change',
+                    {
+                        bubbles: true,
+                    }
+                )
+            );
+        }
+
+        function mostrarResultados() {
+
+            if (
+                !buscadorEstudio
+                || !resultadosEstudio
+            ) {
+                return;
+            }
+
+            const termino =
+                normalizarTexto(
+                    buscadorEstudio.value
+                );
+
+            resultadosEstudio.innerHTML = '';
+
+            if (!termino) {
+                resultadosEstudio.style.display =
+                    'none';
+                return;
+            }
+
+            const coincidencias =
+                opcionesEstudio
+                .filter(
+                    function (opcion) {
+                        return (
+                            opcion.normalizado
+                            .includes(
+                                termino
+                            )
+                        );
+                    }
+                )
+                .slice(
+                    0,
+                    30
+                );
+
+            if (
+                coincidencias.length
+                === 0
+            ) {
+
+                const mensaje =
+                    document.createElement(
+                        'div'
+                    );
+
+                mensaje.className =
+                    'list-group-item '
+                    + 'bg-dark '
+                    + 'text-secondary '
+                    + 'border-secondary';
+
+                mensaje.textContent =
+                    'No se encontraron estudios.';
+
+                resultadosEstudio.appendChild(
+                    mensaje
+                );
+
+                resultadosEstudio.style.display =
+                    'block';
+
+                return;
+            }
+
+            coincidencias.forEach(
+                function (opcion) {
+
+                    const boton =
+                        document.createElement(
+                            'button'
+                        );
+
+                    boton.type =
+                        'button';
+
+                    boton.className =
+                        'list-group-item '
+                        + 'list-group-item-action '
+                        + 'bg-dark '
+                        + 'text-light '
+                        + 'border-secondary';
+
+                    boton.textContent =
+                        opcion.text;
+
+                    boton.addEventListener(
+                        'click',
+                        function () {
+                            seleccionarEstudio(
+                                opcion
+                            );
+                        }
+                    );
+
+                    resultadosEstudio.appendChild(
+                        boton
+                    );
+                }
+            );
+
+            resultadosEstudio.style.display =
+                'block';
+        }
+
+        if (buscadorEstudio) {
+
+            buscadorEstudio.addEventListener(
+                'input',
+                mostrarResultados
+            );
+
+            buscadorEstudio.addEventListener(
+                'focus',
+                function () {
+
+                    if (
+                        buscadorEstudio.value
+                        .trim()
+                    ) {
+                        mostrarResultados();
+                    }
+                }
+            );
+
+            buscadorEstudio.addEventListener(
+                'keydown',
+                function (event) {
+
+                    if (
+                        event.key
+                        === 'Escape'
+                    ) {
+                        ocultarResultados();
+                    }
+
+                    if (
+                        event.key
+                        === 'Enter'
+                    ) {
+
+                        const primerResultado =
+                            resultadosEstudio
+                            .querySelector(
+                                'button'
+                            );
+
+                        if (
+                            primerResultado
+                        ) {
+                            event.preventDefault();
+                            primerResultado.click();
+                        }
+                    }
+                }
+            );
+        }
+
+        document.addEventListener(
+            'click',
+            function (event) {
+
+                if (
+                    resultadosEstudio
+                    && buscadorEstudio
+                    && !resultadosEstudio
+                        .contains(
+                            event.target
+                        )
+                    && event.target
+                        !== buscadorEstudio
+                ) {
+                    ocultarResultados();
+                }
+            }
         );
+
+        if (
+            selectEstudio
+            && selectEstudio.value
+        ) {
+
+            const seleccionActual =
+                opcionesEstudio.find(
+                    function (opcion) {
+                        return (
+                            opcion.value
+                            === selectEstudio.value
+                        );
+                    }
+                );
+
+            if (seleccionActual) {
+                seleccionarEstudio(
+                    seleccionActual
+                );
+            }
+        }
+
+        if (area) {
+            area.addEventListener(
+                'change',
+                actualizarFormulario
+            );
+        }
 
         actualizarFormulario();
     }
