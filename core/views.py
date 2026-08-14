@@ -878,6 +878,14 @@ def estudio_radiologia(
         == 'RADIOLOGIA'
     )
 
+    estudio_adicional_form = EstudioForm(
+        initial={
+            'estado': 'PENDIENTE',
+            'medico_solicitante':
+                estudio.medico_solicitante,
+        }
+    )
+
     context = {
         'estudio': estudio,
         'paciente': estudio.paciente,
@@ -889,6 +897,8 @@ def estudio_radiologia(
             puede_pre_reportar,
         'puede_emitir_reporte_final':
             puede_emitir_reporte_final,
+        'estudio_adicional_form':
+            estudio_adicional_form,
     }
 
     return render(
@@ -896,6 +906,71 @@ def estudio_radiologia(
         'core/estudio_radiologia.html',
         context
     )
+
+@login_required
+def nuevo_estudio_desde_radiologia(
+    request,
+    estudio_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    estudio_origen = get_object_or_404(
+        Estudio.objects.select_related(
+            'paciente',
+            'tipo_estudio',
+        ),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if request.method != 'POST':
+        return redirect(
+            'estudio_radiologia',
+            estudio_id=estudio_origen.id
+        )
+
+    estudio_form = EstudioForm(
+        request.POST
+    )
+
+    if estudio_form.is_valid():
+        estudio_nuevo = estudio_form.save(
+            commit=False
+        )
+
+        estudio_nuevo.paciente = (
+            estudio_origen.paciente
+        )
+
+        estudio_nuevo.estado = 'PENDIENTE'
+
+        if not estudio_nuevo.descripcion:
+            estudio_nuevo.descripcion = (
+                'Estudio adicional generado desde Radiología.'
+            )
+
+        estudio_nuevo.save()
+
+        return redirect(
+            'estudio_radiologia',
+            estudio_id=estudio_nuevo.id
+        )
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio_origen.id
+    )
+
 
 # =========================================================
 # INICIAR ESTUDIO

@@ -157,6 +157,23 @@ Estudio | Loreto One
         margin-top: 6px;
     }
 
+    .study-add-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    .study-add-grid .full {
+        grid-column: 1 / -1;
+    }
+
+    .study-add-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+    }
+
     @media (max-width: 850px) {
         .study-grid {
             grid-template-columns: 1fr;
@@ -419,6 +436,101 @@ Estudio | Loreto One
         <!-- TRABAJO -->
 
         <div>
+
+
+            <div class="box">
+
+                <div class="box-header d-flex justify-content-between align-items-center">
+                    <span>➕ Nuevo estudio para este paciente</span>
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-info btn-sm"
+                        onclick="
+                            const panel = document.getElementById('nuevo-estudio-rx');
+                            panel.style.display =
+                                panel.style.display === 'none'
+                                ? 'block'
+                                : 'none';
+                        "
+                    >
+                        Agregar estudio
+                    </button>
+                </div>
+
+                <div
+                    id="nuevo-estudio-rx"
+                    class="box-body"
+                    style="display: none;"
+                >
+
+                    <p class="small-muted">
+                        Crea un estudio adicional sin regresar a Recepción.
+                        El paciente y la institución se conservarán automáticamente.
+                    </p>
+
+                    <form
+                        method="post"
+                        action="{% url 'nuevo_estudio_desde_radiologia' estudio.id %}"
+                    >
+
+                        {% csrf_token %}
+
+                        <div class="study-add-grid">
+
+                            <div>
+                                <label class="form-label small">
+                                    Tipo de estudio
+                                </label>
+                                {{ estudio_adicional_form.tipo_estudio }}
+                            </div>
+
+                            <div>
+                                <label class="form-label small">
+                                    Médico solicitante
+                                </label>
+                                {{ estudio_adicional_form.medico_solicitante }}
+                            </div>
+
+                            <div class="full">
+                                <label class="form-label small">
+                                    Motivo / justificación / protocolo
+                                </label>
+                                {{ estudio_adicional_form.descripcion }}
+                            </div>
+
+                            <div class="full" style="display:none;">
+                                {{ estudio_adicional_form.estado }}
+                            </div>
+
+                        </div>
+
+                        <div class="study-add-actions">
+
+                            <button
+                                type="submit"
+                                class="btn btn-info btn-sm"
+                            >
+                                Crear y abrir estudio
+                            </button>
+
+                            <button
+                                type="button"
+                                class="btn btn-outline-secondary btn-sm"
+                                onclick="
+                                    document.getElementById('nuevo-estudio-rx').style.display='none';
+                                "
+                            >
+                                Cancelar
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </div>
+
+            </div>
 
 
             {% if estudio.estado == 'PENDIENTE' %}

@@ -69,6 +69,12 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/nuevo-estudio/',
+        views.nuevo_estudio_desde_radiologia,
+        name='nuevo_estudio_desde_radiologia'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/iniciar/',
         views.iniciar_estudio_radiologia,
         name='iniciar_estudio_radiologia'
