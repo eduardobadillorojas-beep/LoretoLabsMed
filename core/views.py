@@ -1527,21 +1527,23 @@ def detalle_paciente(
     request,
     paciente_id
 ):
-    institucion = obtener_institucion_usuario(request)
+    membresia = obtener_membresia_usuario(request)
 
-    if institucion is None:
+    if membresia is None:
         return redirect('panel_config')
 
     paciente = get_object_or_404(
         Paciente,
         pk=paciente_id,
-        institucion=institucion
+        institucion=membresia.institucion
     )
 
     estudios = (
         paciente.estudios
         .select_related(
-            'tipo_estudio'
+            'tipo_estudio',
+            'reporte_final_por',
+            'pre_reporte_por',
         )
         .prefetch_related(
             'archivos'
@@ -1574,34 +1576,243 @@ def detalle_paciente(
         )
     )
 
-    hoy = date.today()
+    consulta_activa = None
+
+    if membresia.rol in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        consulta_activa = (
+            paciente.consultas
+            .select_related(
+                'medico'
+            )
+            .filter(
+                estado='EN_CONSULTA'
+            )
+            .filter(
+                Q(
+                    medico=request.user
+                )
+                |
+                Q(
+                    medico__isnull=True
+                )
+            )
+            .order_by(
+                '-fecha_inicio',
+                '-fecha_llegada',
+            )
+            .first()
+        )
 
     edad = calcular_edad(
-        paciente.fecha_nacimiento,
-        hoy
+        paciente.fecha_nacimiento
+    )
+
+    puede_editar_clinica = (
+        membresia.rol
+        in [
+            'MEDICO',
+            'ADMIN',
+        ]
     )
 
     context = {
-        'paciente':
-            paciente,
-
-        'estudios':
-            estudios,
-
-        'consultas':
-            consultas,
-
-        'citas':
-            citas,
-
-        'edad':
-            edad,
+        'paciente': paciente,
+        'estudios': estudios,
+        'consultas': consultas,
+        'citas': citas,
+        'edad': edad,
+        'membresia': membresia,
+        'consulta_activa': consulta_activa,
+        'puede_editar_clinica':
+            puede_editar_clinica,
     }
 
     return render(
         request,
         'core/detalle_paciente.html',
         context
+    )
+
+
+@login_required
+def guardar_consulta_clinica(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+        estado='EN_CONSULTA',
+    )
+
+    if (
+        membresia.rol != 'ADMIN'
+        and consulta.medico_id
+        and consulta.medico_id != request.user.id
+    ):
+        return redirect(
+            'detalle_paciente',
+            paciente_id=consulta.paciente_id
+        )
+
+    if request.method == 'POST':
+
+        def entero(nombre):
+            valor = (
+                request.POST.get(
+                    nombre,
+                    ''
+                )
+                .strip()
+            )
+
+            if not valor:
+                return None
+
+            try:
+                return int(valor)
+            except (
+                TypeError,
+                ValueError,
+            ):
+                return None
+
+        def decimal(nombre):
+            valor = (
+                request.POST.get(
+                    nombre,
+                    ''
+                )
+                .strip()
+                .replace(
+                    ',',
+                    '.'
+                )
+            )
+
+            if not valor:
+                return None
+
+            try:
+                return float(valor)
+            except (
+                TypeError,
+                ValueError,
+            ):
+                return None
+
+        def texto(nombre):
+            return (
+                request.POST.get(
+                    nombre,
+                    ''
+                )
+                .strip()
+                or None
+            )
+
+        consulta.medico = (
+            consulta.medico
+            or request.user
+        )
+
+        consulta.motivo_consulta = (
+            texto('motivo_consulta')
+        )
+
+        consulta.presion_sistolica = (
+            entero('presion_sistolica')
+        )
+
+        consulta.presion_diastolica = (
+            entero('presion_diastolica')
+        )
+
+        consulta.frecuencia_cardiaca = (
+            entero('frecuencia_cardiaca')
+        )
+
+        consulta.frecuencia_respiratoria = (
+            entero('frecuencia_respiratoria')
+        )
+
+        consulta.temperatura = (
+            decimal('temperatura')
+        )
+
+        consulta.saturacion_oxigeno = (
+            entero('saturacion_oxigeno')
+        )
+
+        consulta.peso_kg = (
+            decimal('peso_kg')
+        )
+
+        consulta.talla_cm = (
+            decimal('talla_cm')
+        )
+
+        consulta.antecedentes = (
+            texto('antecedentes')
+        )
+
+        consulta.exploracion_fisica = (
+            texto('exploracion_fisica')
+        )
+
+        consulta.diagnostico = (
+            texto('diagnostico')
+        )
+
+        consulta.plan_tratamiento = (
+            texto('plan_tratamiento')
+        )
+
+        consulta.notas_medicas = (
+            texto('notas_medicas')
+        )
+
+        consulta.save(
+            update_fields=[
+                'medico',
+                'motivo_consulta',
+                'presion_sistolica',
+                'presion_diastolica',
+                'frecuencia_cardiaca',
+                'frecuencia_respiratoria',
+                'temperatura',
+                'saturacion_oxigeno',
+                'peso_kg',
+                'talla_cm',
+                'antecedentes',
+                'exploracion_fisica',
+                'diagnostico',
+                'plan_tratamiento',
+                'notas_medicas',
+            ]
+        )
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=consulta.paciente_id
     )
 
 

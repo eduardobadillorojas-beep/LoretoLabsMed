@@ -141,6 +141,12 @@ urlpatterns = [
     ),
 
     path(
+        'medicos/consulta/<int:consulta_id>/guardar/',
+        views.guardar_consulta_clinica,
+        name='guardar_consulta_clinica'
+    ),
+
+    path(
         'recepcion/paciente/<int:paciente_id>/nuevo-estudio/',
         views.nuevo_estudio_paciente,
         name='nuevo_estudio_paciente'

@@ -291,6 +291,98 @@ class Consulta(models.Model):
         verbose_name='Motivo de consulta'
     )
 
+    # =========================
+    # SIGNOS VITALES
+    # =========================
+
+    presion_sistolica = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='TA sistólica'
+    )
+
+    presion_diastolica = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='TA diastólica'
+    )
+
+    frecuencia_cardiaca = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='Frecuencia cardiaca'
+    )
+
+    frecuencia_respiratoria = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='Frecuencia respiratoria'
+    )
+
+    temperatura = models.DecimalField(
+        max_digits=4,
+        decimal_places=1,
+        blank=True,
+        null=True,
+        verbose_name='Temperatura °C'
+    )
+
+    saturacion_oxigeno = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='SpO₂'
+    )
+
+    peso_kg = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Peso kg'
+    )
+
+    talla_cm = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        verbose_name='Talla cm'
+    )
+
+    # =========================
+    # NOTA MÉDICA
+    # =========================
+
+    antecedentes = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Antecedentes'
+    )
+
+    exploracion_fisica = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Exploración física'
+    )
+
+    diagnostico = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Diagnóstico'
+    )
+
+    plan_tratamiento = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Plan y tratamiento'
+    )
+
+    notas_medicas = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Notas médicas'
+    )
+
     estado = models.CharField(
         max_length=20,
         choices=ESTADO_CHOICES,
@@ -310,6 +402,21 @@ class Consulta(models.Model):
         blank=True,
         null=True
     )
+
+    @property
+    def imc(self):
+        if not self.peso_kg or not self.talla_cm:
+            return None
+
+        talla_m = float(self.talla_cm) / 100
+
+        if talla_m <= 0:
+            return None
+
+        return round(
+            float(self.peso_kg) / (talla_m ** 2),
+            2
+        )
 
     def __str__(self):
         return (
