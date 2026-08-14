@@ -1,123 +1,789 @@
 {% extends 'core/base.html' %}
 
+{% block title %}
+Panel médico | Loreto One
+{% endblock %}
+
 {% block content %}
-<div class="container py-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<style>
+    .med-wrap {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 18px 18px 45px;
+    }
+
+    .med-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 18px;
+    }
+
+    .med-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin: 0;
+    }
+
+    .med-subtitle {
+        color: #94a3b8;
+        margin-top: 4px;
+        font-size: .86rem;
+    }
+
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .stat-card,
+    .med-box {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 10px;
+    }
+
+    .stat-card {
+        padding: 12px 14px;
+    }
+
+    .stat-label {
+        color: #94a3b8;
+        font-size: .68rem;
+        text-transform: uppercase;
+    }
+
+    .stat-value {
+        font-size: 1.45rem;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-top: 4px;
+    }
+
+    .med-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .med-box {
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+
+    .med-box.full {
+        grid-column: 1 / -1;
+    }
+
+    .med-box-header {
+        padding: 10px 13px;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: .88rem;
+        font-weight: 800;
+    }
+
+    .med-box-body {
+        padding: 0;
+    }
+
+    .medical-table {
+        margin: 0;
+        font-size: .78rem;
+    }
+
+    .medical-table th {
+        color: #94a3b8;
+        font-size: .67rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .medical-table td {
+        vertical-align: middle;
+    }
+
+    .empty-state {
+        color: #94a3b8;
+        text-align: center;
+        padding: 28px 15px;
+        font-size: .78rem;
+    }
+
+    .patient-name {
+        font-weight: 750;
+    }
+
+    .tiny {
+        color: #94a3b8;
+        font-size: .67rem;
+    }
+
+    .status-pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: .65rem;
+        font-weight: 700;
+    }
+
+    .status-pending {
+        background: #475569;
+    }
+
+    .status-process {
+        background: #f59e0b;
+        color: #111827;
+    }
+
+    .status-complete {
+        background: #16a34a;
+    }
+
+    .status-report {
+        background: #0ea5e9;
+        color: #082f49;
+    }
+
+    @media (max-width: 900px) {
+        .stats,
+        .med-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .med-box.full {
+            grid-column: auto;
+        }
+    }
+</style>
+
+
+<div class="med-wrap">
+
+    <div class="med-header">
+
         <div>
-            <h2 class="fw-bold text-light">
-                👨‍⚕️ Panel de Médicos
-            </h2>
+            <h1 class="med-title">
+                👨‍⚕️ Panel Médico
+            </h1>
 
-            <p class="text-secondary mb-0">
-                Pacientes enviados por Recepción y pendientes de atención médica.
-            </p>
+            <div class="med-subtitle">
+                {{ institucion.nombre }} · atención, agenda, expedientes y resultados.
+            </div>
         </div>
+
     </div>
 
-    <div class="card bg-dark border-secondary text-light shadow-sm">
 
-        <div class="card-header border-secondary d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold">
-                🕒 Pacientes en espera
-            </h5>
+    <div class="stats">
 
-            <span class="badge bg-primary">
-                {{ consultas_en_espera.count }} pacientes
-            </span>
+        <div class="stat-card">
+            <div class="stat-label">
+                En espera
+            </div>
+            <div class="stat-value">
+                {{ consultas_en_espera.count }}
+            </div>
         </div>
 
-        <div class="card-body p-0">
+        <div class="stat-card">
+            <div class="stat-label">
+                En consulta
+            </div>
+            <div class="stat-value">
+                {{ consultas_en_curso.count }}
+            </div>
+        </div>
 
-            <div class="table-responsive">
+        <div class="stat-card">
+            <div class="stat-label">
+                Citas de hoy
+            </div>
+            <div class="stat-value">
+                {{ citas_medicas_hoy.count }}
+            </div>
+        </div>
 
-                <table class="table table-dark table-hover mb-0 align-middle">
+        <div class="stat-card">
+            <div class="stat-label">
+                Próximas citas
+            </div>
+            <div class="stat-value">
+                {{ proximas_citas_medicas|length }}
+            </div>
+        </div>
 
-                    <thead>
-                        <tr class="table-active text-secondary">
-                            <th>Registro</th>
-                            <th>Paciente</th>
-                            <th>Motivo de consulta</th>
-                            <th>Hora de llegada</th>
-                            <th class="text-end">Acciones</th>
-                        </tr>
-                    </thead>
+    </div>
 
-                    <tbody>
 
-                        {% for consulta in consultas_en_espera %}
+    <div class="med-grid">
 
-                        <tr>
+        <!-- PACIENTES EN ESPERA -->
 
-                            <td>
-                                <span class="badge bg-secondary">
-                                    {{ consulta.paciente.identificacion }}
-                                </span>
-                            </td>
+        <section class="med-box full">
 
-                            <td class="fw-bold">
-                                {{ consulta.paciente.nombre }}
-                                {{ consulta.paciente.apellido }}
-                            </td>
+            <div class="med-box-header">
+                <span>🕒 Pacientes en espera</span>
 
-                            <td>
-                                {% if consulta.motivo_consulta %}
-                                    {{ consulta.motivo_consulta }}
-                                {% else %}
-                                    <span class="text-muted">
-                                        Sin motivo registrado
-                                    </span>
-                                {% endif %}
-                            </td>
+                <span class="badge bg-primary">
+                    {{ consultas_en_espera.count }}
+                </span>
+            </div>
 
-                            <td>
-                                {{ consulta.fecha_llegada|date:"d/m/Y H:i" }}
-                            </td>
+            <div class="med-box-body">
 
-                            <td class="text-end">
+                <div class="table-responsive">
 
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-primary"
-                                    disabled
-                                >
-                                    Atender
-                                </button>
+                    <table class="table table-dark table-hover medical-table">
 
-                            </td>
+                        <thead>
+                            <tr>
+                                <th>Registro</th>
+                                <th>Paciente</th>
+                                <th>Motivo</th>
+                                <th>Llegada</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
 
-                        </tr>
+                        <tbody>
 
-                        {% empty %}
+                            {% for consulta in consultas_en_espera %}
 
-                        <tr>
-                            <td
-                                colspan="5"
-                                class="text-center py-5 text-muted"
-                            >
-                                <div class="fs-4 mb-2">✅</div>
+                                <tr>
 
-                                <strong>
-                                    No hay pacientes esperando consulta.
-                                </strong>
+                                    <td>
+                                        {{ consulta.paciente.identificacion }}
+                                    </td>
 
-                                <div class="small mt-1">
-                                    Los pacientes enviados por Recepción aparecerán aquí.
-                                </div>
-                            </td>
-                        </tr>
+                                    <td>
+                                        <div class="patient-name">
+                                            {{ consulta.paciente.nombre }}
+                                            {{ consulta.paciente.apellido }}
+                                        </div>
+                                    </td>
 
-                        {% endfor %}
+                                    <td>
+                                        {{ consulta.motivo_consulta|default:"Sin motivo registrado" }}
+                                    </td>
 
-                    </tbody>
+                                    <td>
+                                        {{ consulta.fecha_llegada|date:"d/m/Y H:i" }}
+                                    </td>
 
-                </table>
+                                    <td class="text-end">
+
+                                        <div class="d-flex gap-1 justify-content-end">
+
+                                            <a
+                                                href="{% url 'detalle_paciente' consulta.paciente.id %}"
+                                                class="btn btn-outline-info btn-sm"
+                                            >
+                                                Expediente
+                                            </a>
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'atender_consulta_medica' consulta.id %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-primary btn-sm"
+                                                >
+                                                    Atender
+                                                </button>
+                                            </form>
+
+                                        </div>
+
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="5">
+                                        <div class="empty-state">
+                                            No hay pacientes esperando consulta.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
 
             </div>
 
-        </div>
+        </section>
+
+
+        <!-- CONSULTAS EN CURSO -->
+
+        <section class="med-box">
+
+            <div class="med-box-header">
+                <span>🩺 Consultas en curso</span>
+
+                <span class="badge bg-warning text-dark">
+                    {{ consultas_en_curso.count }}
+                </span>
+            </div>
+
+            <div class="med-box-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover medical-table">
+
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Médico</th>
+                                <th>Inicio</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for consulta in consultas_en_curso %}
+
+                                <tr>
+
+                                    <td>
+                                        <div class="patient-name">
+                                            {{ consulta.paciente.nombre }}
+                                            {{ consulta.paciente.apellido }}
+                                        </div>
+
+                                        <div class="tiny">
+                                            {{ consulta.paciente.identificacion }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {% if consulta.medico %}
+                                            {% if consulta.medico.get_full_name %}
+                                                {{ consulta.medico.get_full_name }}
+                                            {% else %}
+                                                {{ consulta.medico.username }}
+                                            {% endif %}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {{ consulta.fecha_inicio|date:"H:i"|default:"—" }}
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        <div class="d-flex gap-1 justify-content-end">
+
+                                            <a
+                                                href="{% url 'detalle_paciente' consulta.paciente.id %}"
+                                                class="btn btn-outline-info btn-sm"
+                                            >
+                                                Continuar
+                                            </a>
+
+                                            <form
+                                                method="post"
+                                                action="{% url 'finalizar_consulta_medica' consulta.id %}"
+                                                onsubmit="return confirm('¿Finalizar esta consulta?');"
+                                            >
+                                                {% csrf_token %}
+
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-success btn-sm"
+                                                >
+                                                    Finalizar
+                                                </button>
+                                            </form>
+
+                                        </div>
+
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="empty-state">
+                                            No hay consultas activas.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- CITAS DE HOY -->
+
+        <section class="med-box">
+
+            <div class="med-box-header">
+                <span>📅 Citas médicas de hoy</span>
+
+                <span class="badge bg-primary">
+                    {{ citas_medicas_hoy.count }}
+                </span>
+            </div>
+
+            <div class="med-box-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover medical-table">
+
+                        <thead>
+                            <tr>
+                                <th>Hora</th>
+                                <th>Paciente</th>
+                                <th>Área</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for cita in citas_medicas_hoy %}
+
+                                <tr>
+                                    <td>
+                                        {{ cita.fecha_hora|date:"H:i" }}
+                                    </td>
+
+                                    <td>
+                                        <div class="patient-name">
+                                            {{ cita.nombre_paciente }}
+                                        </div>
+
+                                        {% if cita.telefono %}
+                                            <div class="tiny">
+                                                {{ cita.telefono }}
+                                            </div>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {{ cita.get_area_display }}
+                                    </td>
+
+                                    <td>
+                                        {{ cita.get_estado_display }}
+                                    </td>
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="empty-state">
+                                            No hay citas médicas programadas para hoy.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ESTUDIOS / RESULTADOS -->
+
+        <section class="med-box full">
+
+            <div class="med-box-header">
+                <span>🩻 Estudios y resultados recientes</span>
+            </div>
+
+            <div class="med-box-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover medical-table">
+
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Estudio</th>
+                                <th>Creado</th>
+                                <th>Servicio</th>
+                                <th>Reporte</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for estudio in estudios_recientes %}
+
+                                <tr>
+
+                                    <td>
+                                        <div class="patient-name">
+                                            {{ estudio.paciente.nombre }}
+                                            {{ estudio.paciente.apellido }}
+                                        </div>
+
+                                        <div class="tiny">
+                                            {{ estudio.paciente.identificacion }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {{ estudio.tipo_estudio.nombre }}
+                                    </td>
+
+                                    <td>
+                                        {{ estudio.fecha_creacion|date:"d/m/Y H:i" }}
+                                    </td>
+
+                                    <td>
+                                        {% if estudio.estado == 'PENDIENTE' %}
+                                            <span class="status-pill status-pending">
+                                                Pendiente
+                                            </span>
+                                        {% elif estudio.estado == 'EN_PROCESO' %}
+                                            <span class="status-pill status-process">
+                                                En proceso
+                                            </span>
+                                        {% else %}
+                                            <span class="status-pill status-complete">
+                                                Completado
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if estudio.estado_reporte == 'FINAL' %}
+                                            <span class="status-pill status-report">
+                                                Reporte final
+                                            </span>
+                                        {% elif estudio.estado_reporte == 'POR_VALIDAR' %}
+                                            <span class="status-pill status-process">
+                                                Por validar
+                                            </span>
+                                        {% else %}
+                                            <span class="tiny">
+                                                Sin reporte final
+                                            </span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td class="text-end">
+                                        <a
+                                            href="{% url 'detalle_paciente' estudio.paciente.id %}"
+                                            class="btn btn-outline-info btn-sm"
+                                        >
+                                            Expediente
+                                        </a>
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="6">
+                                        <div class="empty-state">
+                                            No hay estudios registrados para esta institución.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- PRÓXIMAS CITAS -->
+
+        <section class="med-box">
+
+            <div class="med-box-header">
+                <span>🗓️ Próximas citas</span>
+            </div>
+
+            <div class="med-box-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover medical-table">
+
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Paciente</th>
+                                <th>Área</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for cita in proximas_citas_medicas %}
+
+                                <tr>
+                                    <td>
+                                        {{ cita.fecha_hora|date:"d/m/Y H:i" }}
+                                    </td>
+
+                                    <td>
+                                        {{ cita.nombre_paciente }}
+                                    </td>
+
+                                    <td>
+                                        {{ cita.get_area_display }}
+                                    </td>
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="3">
+                                        <div class="empty-state">
+                                            No hay próximas citas médicas.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ATENDIDOS RECIENTEMENTE -->
+
+        <section class="med-box">
+
+            <div class="med-box-header">
+                <span>✅ Atendidos recientemente</span>
+            </div>
+
+            <div class="med-box-body">
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover medical-table">
+
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Finalizada</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for consulta in pacientes_atendidos %}
+
+                                <tr>
+
+                                    <td>
+                                        <div class="patient-name">
+                                            {{ consulta.paciente.nombre }}
+                                            {{ consulta.paciente.apellido }}
+                                        </div>
+
+                                        <div class="tiny">
+                                            {{ consulta.paciente.identificacion }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {{ consulta.fecha_finalizacion|date:"d/m/Y H:i"|default:"—" }}
+                                    </td>
+
+                                    <td class="text-end">
+                                        <a
+                                            href="{% url 'detalle_paciente' consulta.paciente.id %}"
+                                            class="btn btn-outline-secondary btn-sm"
+                                        >
+                                            Expediente
+                                        </a>
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+                                    <td colspan="3">
+                                        <div class="empty-state">
+                                            Aún no hay consultas finalizadas.
+                                        </div>
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
 
     </div>
 
 </div>
+
 {% endblock %}

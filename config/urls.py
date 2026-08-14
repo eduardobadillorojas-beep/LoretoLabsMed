@@ -40,6 +40,18 @@ urlpatterns = [
         name='panel_medico'
     ),
 
+    path(
+        'medicos/consulta/<int:consulta_id>/atender/',
+        views.atender_consulta_medica,
+        name='atender_consulta_medica'
+    ),
+
+    path(
+        'medicos/consulta/<int:consulta_id>/finalizar/',
+        views.finalizar_consulta_medica,
+        name='finalizar_consulta_medica'
+    ),
+
     # =========================
     # RADIOLOGÍA
     # =========================

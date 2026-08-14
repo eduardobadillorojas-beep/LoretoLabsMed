@@ -439,6 +439,18 @@ def logout_view(request):
 
 @login_required
 def panel_medico(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    institucion = membresia.institucion
     hoy = timezone.localdate()
 
     areas_medicas = [
@@ -455,19 +467,38 @@ def panel_medico(request):
             'medico',
         )
         .filter(
-            estado='EN_ESPERA'
+            paciente__institucion=institucion,
+            estado='EN_ESPERA',
         )
         .order_by(
             'fecha_llegada'
         )
     )
 
+    consultas_en_curso = (
+        Consulta.objects
+        .select_related(
+            'paciente',
+            'medico',
+        )
+        .filter(
+            paciente__institucion=institucion,
+            estado='EN_CONSULTA',
+        )
+        .order_by(
+            'fecha_inicio',
+            'fecha_llegada',
+        )
+    )
+
     citas_medicas_hoy = (
         Cita.objects
         .select_related(
-            'tipo_estudio'
+            'paciente',
+            'tipo_estudio',
         )
         .filter(
+            institucion=institucion,
             area__in=areas_medicas,
             fecha_hora__date=hoy,
         )
@@ -486,9 +517,11 @@ def panel_medico(request):
     proximas_citas_medicas = (
         Cita.objects
         .select_related(
-            'tipo_estudio'
+            'paciente',
+            'tipo_estudio',
         )
         .filter(
+            institucion=institucion,
             area__in=areas_medicas,
             fecha_hora__date__gt=hoy,
         )
@@ -501,18 +534,55 @@ def panel_medico(request):
         )
         .order_by(
             'fecha_hora'
+        )[:20]
+    )
+
+    pacientes_atendidos = (
+        Consulta.objects
+        .select_related(
+            'paciente',
+            'medico',
         )
+        .filter(
+            paciente__institucion=institucion,
+            estado='FINALIZADA',
+        )
+        .order_by(
+            '-fecha_finalizacion',
+            '-fecha_llegada',
+        )[:10]
+    )
+
+    estudios_recientes = (
+        Estudio.objects
+        .select_related(
+            'paciente',
+            'tipo_estudio',
+            'reporte_final_por',
+        )
+        .filter(
+            paciente__institucion=institucion,
+        )
+        .order_by(
+            '-fecha_creacion'
+        )[:15]
     )
 
     context = {
+        'membresia': membresia,
+        'institucion': institucion,
         'consultas_en_espera':
             consultas_en_espera,
-
+        'consultas_en_curso':
+            consultas_en_curso,
         'citas_medicas_hoy':
             citas_medicas_hoy,
-
         'proximas_citas_medicas':
             proximas_citas_medicas,
+        'pacientes_atendidos':
+            pacientes_atendidos,
+        'estudios_recientes':
+            estudios_recientes,
     }
 
     return render(
@@ -522,12 +592,121 @@ def panel_medico(request):
     )
 
 
+@login_required
+def atender_consulta_medica(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if request.method == 'POST':
+        if consulta.estado == 'EN_ESPERA':
+            consulta.estado = 'EN_CONSULTA'
+            consulta.medico = request.user
+            consulta.fecha_inicio = timezone.now()
+
+            consulta.save(
+                update_fields=[
+                    'estado',
+                    'medico',
+                    'fecha_inicio',
+                ]
+            )
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=consulta.paciente_id
+    )
+
+
+@login_required
+def finalizar_consulta_medica(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if request.method == 'POST':
+        if consulta.estado == 'EN_CONSULTA':
+            if (
+                membresia.rol == 'ADMIN'
+                or consulta.medico_id == request.user.id
+                or consulta.medico_id is None
+            ):
+                if consulta.medico_id is None:
+                    consulta.medico = request.user
+
+                consulta.estado = 'FINALIZADA'
+                consulta.fecha_finalizacion = timezone.now()
+
+                consulta.save(
+                    update_fields=[
+                        'estado',
+                        'medico',
+                        'fecha_finalizacion',
+                    ]
+                )
+
+    return redirect(
+        'panel_medico'
+    )
+
+
 # =========================================================
 # PANEL RADIOLOGÍA
 # =========================================================
 
 @login_required
 def panel_radiologo(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    institucion = membresia.institucion
     hoy = timezone.localdate()
 
     estudios_pendientes = (
@@ -540,7 +719,8 @@ def panel_radiologo(request):
             'equipo',
         )
         .filter(
-            estado='PENDIENTE'
+            paciente__institucion=institucion,
+            estado='PENDIENTE',
         )
         .order_by(
             'fecha_creacion'
@@ -557,7 +737,8 @@ def panel_radiologo(request):
             'equipo',
         )
         .filter(
-            estado='EN_PROCESO'
+            paciente__institucion=institucion,
+            estado='EN_PROCESO',
         )
         .order_by(
             'fecha_inicio',
@@ -575,6 +756,7 @@ def panel_radiologo(request):
             'equipo',
         )
         .filter(
+            paciente__institucion=institucion,
             estado='COMPLETADO',
             fecha_finalizacion__date=hoy,
         )
@@ -589,6 +771,7 @@ def panel_radiologo(request):
             'tipo_estudio'
         )
         .filter(
+            institucion=institucion,
             area='RADIOLOGIA',
             fecha_hora__date=hoy,
         )
@@ -605,15 +788,14 @@ def panel_radiologo(request):
     )
 
     context = {
+        'membresia': membresia,
+        'institucion': institucion,
         'estudios_pendientes':
             estudios_pendientes,
-
         'estudios_en_proceso':
             estudios_en_proceso,
-
         'estudios_realizados_hoy':
             estudios_realizados_hoy,
-
         'citas_radiologia_hoy':
             citas_radiologia_hoy,
     }
@@ -623,7 +805,6 @@ def panel_radiologo(request):
         'core/panel_radiologo.html',
         context
     )
-
 
 # =========================================================
 # ESTACIÓN DE TRABAJO RADIOLOGÍA
@@ -637,6 +818,13 @@ def estudio_radiologia(
     membresia = obtener_membresia_usuario(request)
 
     if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+        'ADMIN',
+    ]:
         return redirect('panel_config')
 
     estudio = get_object_or_404(
@@ -709,7 +897,6 @@ def estudio_radiologia(
         context
     )
 
-
 # =========================================================
 # INICIAR ESTUDIO
 # =========================================================
@@ -719,26 +906,28 @@ def iniciar_estudio_radiologia(
     request,
     estudio_id
 ):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+    ]:
+        return redirect('panel_radiologo')
+
     estudio = get_object_or_404(
         Estudio,
-        pk=estudio_id
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
     )
 
     if request.method == 'POST':
-
         if estudio.estado == 'PENDIENTE':
-
-            estudio.estado = (
-                'EN_PROCESO'
-            )
-
-            estudio.fecha_inicio = (
-                timezone.now()
-            )
-
-            estudio.tecnico = (
-                request.user
-            )
+            estudio.estado = 'EN_PROCESO'
+            estudio.fecha_inicio = timezone.now()
+            estudio.tecnico = request.user
 
             estudio.save(
                 update_fields=[
@@ -752,7 +941,6 @@ def iniciar_estudio_radiologia(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
-
 
 # =========================================================
 # CARGAR ARCHIVOS
@@ -763,32 +951,32 @@ def cargar_archivos_estudio(
     request,
     estudio_id
 ):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+    ]:
+        return redirect('panel_radiologo')
+
     estudio = get_object_or_404(
         Estudio,
-        pk=estudio_id
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
     )
 
     if request.method == 'POST':
-
-        archivos = (
-            request.FILES.getlist(
-                'archivos'
-            )
+        archivos = request.FILES.getlist(
+            'archivos'
         )
 
         if estudio.estado == 'PENDIENTE':
-
-            estudio.estado = (
-                'EN_PROCESO'
-            )
-
-            estudio.fecha_inicio = (
-                timezone.now()
-            )
-
-            estudio.tecnico = (
-                request.user
-            )
+            estudio.estado = 'EN_PROCESO'
+            estudio.fecha_inicio = timezone.now()
+            estudio.tecnico = request.user
 
             estudio.save(
                 update_fields=[
@@ -799,7 +987,6 @@ def cargar_archivos_estudio(
             )
 
         for archivo in archivos:
-
             ArchivoEstudio.objects.create(
                 estudio=estudio,
                 archivo=archivo,
@@ -808,9 +995,7 @@ def cargar_archivos_estudio(
                         archivo.name
                     )
                 ),
-                nombre_original=(
-                    archivo.name
-                ),
+                nombre_original=archivo.name,
                 subido_por=request.user
             )
 
@@ -818,7 +1003,6 @@ def cargar_archivos_estudio(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
-
 
 # =========================================================
 # ELIMINAR ARCHIVO
@@ -830,9 +1014,21 @@ def eliminar_archivo_estudio(
     estudio_id,
     archivo_id
 ):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+    ]:
+        return redirect('panel_radiologo')
+
     estudio = get_object_or_404(
         Estudio,
-        pk=estudio_id
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
     )
 
     archivo = get_object_or_404(
@@ -842,18 +1038,15 @@ def eliminar_archivo_estudio(
     )
 
     if request.method == 'POST':
-
         archivo.archivo.delete(
             save=False
         )
-
         archivo.delete()
 
     return redirect(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
-
 
 # =========================================================
 # PRE-REPORTE TÉCNICO
@@ -1016,6 +1209,17 @@ def finalizar_estudio_radiologia(
     request,
     estudio_id
 ):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+    ]:
+        return redirect('panel_radiologo')
+
     estudio = get_object_or_404(
         Estudio.objects.select_related(
             'paciente',
@@ -1023,32 +1227,21 @@ def finalizar_estudio_radiologia(
             'tecnico',
             'equipo',
         ),
-        pk=estudio_id
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
     )
 
     if request.method == 'POST':
-
-        momento_actual = (
-            timezone.now()
-        )
+        momento_actual = timezone.now()
 
         if not estudio.fecha_inicio:
-            estudio.fecha_inicio = (
-                momento_actual
-            )
+            estudio.fecha_inicio = momento_actual
 
         if not estudio.tecnico:
-            estudio.tecnico = (
-                request.user
-            )
+            estudio.tecnico = request.user
 
-        estudio.estado = (
-            'COMPLETADO'
-        )
-
-        estudio.fecha_finalizacion = (
-            momento_actual
-        )
+        estudio.estado = 'COMPLETADO'
+        estudio.fecha_finalizacion = momento_actual
 
         estudio.save(
             update_fields=[
@@ -1071,7 +1264,6 @@ def finalizar_estudio_radiologia(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
-
 
 # =========================================================
 # RECEPCIÓN
