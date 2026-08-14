@@ -1,5 +1,6 @@
 from datetime import date
 from pathlib import Path
+import logging
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -26,6 +27,9 @@ from .models import (
     Paciente,
     SesionTrabajo,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 # =========================================================
@@ -1062,17 +1066,33 @@ def cargar_archivos_estudio(
             )
 
         for archivo in archivos:
-            ArchivoEstudio.objects.create(
-                estudio=estudio,
-                archivo=archivo,
-                tipo_archivo=(
-                    detectar_tipo_archivo(
-                        archivo.name
-                    )
-                ),
-                nombre_original=archivo.name,
-                subido_por=request.user
-            )
+            try:
+                ArchivoEstudio.objects.create(
+                    estudio=estudio,
+                    archivo=archivo,
+                    tipo_archivo=(
+                        detectar_tipo_archivo(
+                            archivo.name
+                        )
+                    ),
+                    nombre_original=archivo.name,
+                    subido_por=request.user
+                )
+
+            except Exception as exc:
+                logger.exception(
+                    (
+                        'Error al subir archivo de estudio '
+                        'al almacenamiento. estudio_id=%s '
+                        'archivo=%s tipo_error=%s mensaje=%s'
+                    ),
+                    estudio.id,
+                    archivo.name,
+                    type(exc).__name__,
+                    str(exc),
+                )
+
+                raise
 
     return redirect(
         'estudio_radiologia',
