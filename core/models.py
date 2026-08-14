@@ -326,6 +326,13 @@ class Estudio(models.Model):
         ('COMPLETADO', 'Completado'),
     ]
 
+    ESTADO_REPORTE_CHOICES = [
+        ('SIN_REPORTE', 'Sin reporte'),
+        ('PRE_REPORTE', 'Pre-reporte'),
+        ('POR_VALIDAR', 'Por validar'),
+        ('FINAL', 'Reporte final'),
+    ]
+
     paciente = models.ForeignKey(
         Paciente,
         on_delete=models.CASCADE,
@@ -390,6 +397,55 @@ class Estudio(models.Model):
     fecha_finalizacion = models.DateTimeField(
         blank=True,
         null=True
+    )
+
+    estado_reporte = models.CharField(
+        max_length=20,
+        choices=ESTADO_REPORTE_CHOICES,
+        default='SIN_REPORTE',
+        verbose_name='Estado del reporte'
+    )
+
+    pre_reporte = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Pre-reporte técnico'
+    )
+
+    pre_reporte_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='pre_reportes_radiologicos',
+        blank=True,
+        null=True,
+        verbose_name='Pre-reporte elaborado por'
+    )
+
+    fecha_pre_reporte = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Fecha de pre-reporte'
+    )
+
+    reporte_final = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Reporte radiológico final'
+    )
+
+    reporte_final_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='reportes_radiologicos_finales',
+        blank=True,
+        null=True,
+        verbose_name='Reporte final validado por'
+    )
+
+    fecha_reporte_final = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name='Fecha de reporte final'
     )
 
     fecha_creacion = models.DateTimeField(

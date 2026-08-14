@@ -32,8 +32,8 @@ from .models import (
 # UTILIDADES
 # =========================================================
 
-def obtener_institucion_usuario(request):
-    membresia = (
+def obtener_membresia_usuario(request):
+    return (
         MembresiaInstitucion.objects
         .select_related('institucion')
         .filter(
@@ -43,6 +43,10 @@ def obtener_institucion_usuario(request):
         )
         .first()
     )
+
+
+def obtener_institucion_usuario(request):
+    membresia = obtener_membresia_usuario(request)
 
     if not membresia:
         return None
@@ -248,34 +252,6 @@ def crear_bitacora_radiologica(estudio):
 # =========================================================
 
 def inicio(request):
-    if request.user.is_authenticated:
-        membresia = (
-            MembresiaInstitucion.objects
-            .select_related('institucion')
-            .filter(
-                usuario=request.user,
-                activa=True,
-                institucion__activa=True,
-            )
-            .first()
-        )
-
-        if membresia:
-            if membresia.rol == 'MEDICO':
-                return redirect('panel_medico')
-
-            if membresia.rol in [
-                'RADIOLOGIA',
-                'TECNICO',
-            ]:
-                return redirect('panel_radiologo')
-
-            if membresia.rol == 'RECEPCION':
-                return redirect('panel_recepcion')
-
-            if membresia.rol == 'ADMIN':
-                return redirect('panel_config')
-
     return render(
         request,
         'core/inicio.html'
@@ -345,43 +321,6 @@ def login_view(request):
                 'sesion_trabajo_id'
             ] = sesion_trabajo.id
 
-            membresia = (
-                MembresiaInstitucion.objects
-                .select_related('institucion')
-                .filter(
-                    usuario=user,
-                    activa=True,
-                    institucion__activa=True,
-                )
-                .first()
-            )
-
-            if membresia:
-                if membresia.rol == 'MEDICO':
-                    return redirect(
-                        'panel_medico'
-                    )
-
-                if membresia.rol in [
-                    'RADIOLOGIA',
-                    'TECNICO',
-                ]:
-                    return redirect(
-                        'panel_radiologo'
-                    )
-
-                if membresia.rol == 'RECEPCION':
-                    return redirect(
-                        'panel_recepcion'
-                    )
-
-                if membresia.rol == 'ADMIN':
-                    return redirect(
-                        'panel_config'
-                    )
-
-            # Compatibilidad temporal con usuarios antiguos
-            # que todavía dependen de Groups de Django.
             if user.groups.filter(
                 name='Médico'
             ).exists():
@@ -695,14 +634,22 @@ def estudio_radiologia(
     request,
     estudio_id
 ):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
     estudio = get_object_or_404(
         Estudio.objects.select_related(
             'paciente',
             'tipo_estudio',
             'tecnico',
             'equipo',
+            'pre_reporte_por',
+            'reporte_final_por',
         ),
-        pk=estudio_id
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
     )
 
     archivos = (
@@ -730,12 +677,30 @@ def estudio_radiologia(
         estudio.paciente.fecha_nacimiento
     )
 
+    puede_pre_reportar = (
+        membresia.rol
+        in [
+            'TECNICO',
+            'RADIOLOGIA',
+        ]
+    )
+
+    puede_emitir_reporte_final = (
+        membresia.rol
+        == 'RADIOLOGIA'
+    )
+
     context = {
         'estudio': estudio,
         'paciente': estudio.paciente,
         'archivos': archivos,
         'antecedentes': antecedentes,
         'edad': edad,
+        'membresia': membresia,
+        'puede_pre_reportar':
+            puede_pre_reportar,
+        'puede_emitir_reporte_final':
+            puede_emitir_reporte_final,
     }
 
     return render(
@@ -883,6 +848,158 @@ def eliminar_archivo_estudio(
         )
 
         archivo.delete()
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# PRE-REPORTE TÉCNICO
+# =========================================================
+
+@login_required
+def guardar_pre_reporte_estudio(
+    request,
+    estudio_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+    ]:
+        return redirect(
+            'estudio_radiologia',
+            estudio_id=estudio.id
+        )
+
+    if request.method == 'POST':
+        pre_reporte = (
+            request.POST.get(
+                'pre_reporte',
+                ''
+            )
+            .strip()
+        )
+
+        estudio.pre_reporte = (
+            pre_reporte
+            or None
+        )
+
+        if pre_reporte:
+            estudio.pre_reporte_por = (
+                request.user
+            )
+
+            estudio.fecha_pre_reporte = (
+                timezone.now()
+            )
+
+            estudio.estado_reporte = (
+                'POR_VALIDAR'
+            )
+        else:
+            estudio.pre_reporte_por = None
+            estudio.fecha_pre_reporte = None
+
+            if estudio.reporte_final:
+                estudio.estado_reporte = (
+                    'FINAL'
+                )
+            else:
+                estudio.estado_reporte = (
+                    'SIN_REPORTE'
+                )
+
+        estudio.save(
+            update_fields=[
+                'pre_reporte',
+                'pre_reporte_por',
+                'fecha_pre_reporte',
+                'estado_reporte',
+            ]
+        )
+
+    return redirect(
+        'estudio_radiologia',
+        estudio_id=estudio.id
+    )
+
+
+# =========================================================
+# REPORTE RADIOLÓGICO FINAL
+# =========================================================
+
+@login_required
+def guardar_reporte_final_estudio(
+    request,
+    estudio_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    # RADIOLOGIA representa al médico radiólogo
+    # dentro del flujo actual de membresías.
+    if membresia.rol != 'RADIOLOGIA':
+        return redirect(
+            'estudio_radiologia',
+            estudio_id=estudio.id
+        )
+
+    if request.method == 'POST':
+        reporte_final = (
+            request.POST.get(
+                'reporte_final',
+                ''
+            )
+            .strip()
+        )
+
+        if reporte_final:
+            estudio.reporte_final = (
+                reporte_final
+            )
+
+            estudio.reporte_final_por = (
+                request.user
+            )
+
+            estudio.fecha_reporte_final = (
+                timezone.now()
+            )
+
+            estudio.estado_reporte = (
+                'FINAL'
+            )
+
+            estudio.save(
+                update_fields=[
+                    'reporte_final',
+                    'reporte_final_por',
+                    'fecha_reporte_final',
+                    'estado_reporte',
+                ]
+            )
 
     return redirect(
         'estudio_radiologia',

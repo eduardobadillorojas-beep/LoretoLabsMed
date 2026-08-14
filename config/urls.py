@@ -69,6 +69,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/pre-reporte/',
+        views.guardar_pre_reporte_estudio,
+        name='guardar_pre_reporte_estudio'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/reporte-final/',
+        views.guardar_reporte_final_estudio,
+        name='guardar_reporte_final_estudio'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/archivo/<int:archivo_id>/eliminar/',
         views.eliminar_archivo_estudio,
         name='eliminar_archivo_estudio'
