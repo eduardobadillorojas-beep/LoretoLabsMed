@@ -2,6 +2,62 @@
 
 {% block title %}
 Expediente {{ paciente.identificacion }} | Loreto One
+
+<script>
+    function toggleInterpretacion(id) {
+        const panel = document.getElementById(id);
+
+        if (!panel) {
+            return;
+        }
+
+        panel.classList.toggle('open');
+
+        if (panel.classList.contains('open')) {
+            panel.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        }
+    }
+
+    function cambiarImagenEstudio(estudioId, url) {
+        const visor = document.getElementById(
+            'visor-principal-' + estudioId
+        );
+
+        if (visor) {
+            visor.src = url;
+        }
+    }
+
+    function abrirInterpretacion(panelId, url) {
+        const panel = document.getElementById(panelId);
+
+        if (!panel) {
+            window.open(url, '_blank');
+            return;
+        }
+
+        panel.classList.add('open');
+
+        const estudioId = panelId.replace(
+            'interpretacion-',
+            ''
+        );
+
+        cambiarImagenEstudio(
+            estudioId,
+            url
+        );
+
+        panel.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+    }
+</script>
+
 {% endblock %}
 
 {% block content %}
@@ -189,6 +245,111 @@ Expediente {{ paciente.identificacion }} | Loreto One
         line-height: 1.5;
     }
 
+
+    .interpret-btn {
+        white-space: nowrap;
+    }
+
+    .interpret-panel {
+        display: none;
+        margin-top: 12px;
+        border: 1px solid #0ea5e9;
+        border-radius: 10px;
+        background: #07111f;
+        overflow: hidden;
+    }
+
+    .interpret-panel.open {
+        display: block;
+    }
+
+    .interpret-header {
+        padding: 10px 12px;
+        border-bottom: 1px solid #1e3a5f;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        background: #0b1d33;
+    }
+
+    .interpret-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(320px, .85fr);
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .viewer-box {
+        min-height: 520px;
+        background: #020617;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+
+    .viewer-image {
+        display: block;
+        max-width: 100%;
+        max-height: 72vh;
+        object-fit: contain;
+    }
+
+    .viewer-thumbs {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-top: 8px;
+    }
+
+    .viewer-thumb {
+        width: 82px;
+        height: 68px;
+        object-fit: contain;
+        border: 1px solid #475569;
+        background: #020617;
+        border-radius: 6px;
+        cursor: pointer;
+        flex: 0 0 auto;
+    }
+
+    .report-editor {
+        width: 100%;
+        min-height: 420px;
+        resize: vertical;
+        background: #0f172a;
+        color: #e2e8f0;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: .84rem;
+        line-height: 1.55;
+    }
+
+    .report-editor:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
+    }
+
+    .signature-preview {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border: 1px dashed #475569;
+        border-radius: 8px;
+        background: #111827;
+        font-size: .72rem;
+        line-height: 1.5;
+    }
+
+    .signed-report {
+        border-left-color: #22c55e;
+    }
+
     @media (max-width: 1000px) {
         .exp-grid {
             grid-template-columns: 1fr;
@@ -197,6 +358,14 @@ Expediente {{ paciente.identificacion }} | Loreto One
         .vitals-grid,
         .clinical-grid {
             grid-template-columns: 1fr 1fr;
+        }
+
+        .interpret-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .viewer-box {
+            min-height: 360px;
         }
     }
 
@@ -777,10 +946,22 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                     </div>
                                 </div>
 
-                                <div>
+                                <div class="d-flex gap-2 align-items-center flex-wrap">
                                     <span class="badge bg-secondary">
                                         {{ estudio.get_estado_display }}
                                     </span>
+
+                                    {% if membresia.rol == 'MEDICO' or membresia.rol == 'ADMIN' %}
+                                        {% if estudio.archivos.all %}
+                                            <button
+                                                type="button"
+                                                class="btn btn-outline-info btn-sm interpret-btn"
+                                                onclick="toggleInterpretacion('interpretacion-{{ estudio.id }}')"
+                                            >
+                                                🩻 Interpretar
+                                            </button>
+                                        {% endif %}
+                                    {% endif %}
                                 </div>
 
                             </div>
@@ -825,11 +1006,22 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                                 {% if archivo.tipo_archivo == 'IMAGEN' %}
 
-                                                    <a
-                                                        href="{{ archivo.archivo.url }}"
-                                                        target="_blank"
-                                                        rel="noopener"
-                                                        style="display:block;"
+                                                    <button
+                                                        type="button"
+                                                        onclick="
+                                                            abrirInterpretacion(
+                                                                'interpretacion-{{ estudio.id }}',
+                                                                '{{ archivo.archivo.url|escapejs }}'
+                                                            )
+                                                        "
+                                                        style="
+                                                            display:block;
+                                                            width:100%;
+                                                            padding:0;
+                                                            border:0;
+                                                            background:transparent;
+                                                            cursor:pointer;
+                                                        "
                                                     >
                                                         <img
                                                             src="{{ archivo.archivo.url }}"
@@ -842,7 +1034,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 border-radius:6px;
                                                             "
                                                         >
-                                                    </a>
+                                                    </button>
 
                                                 {% else %}
 
@@ -872,14 +1064,29 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                     {{ archivo.creado_el|date:"d/m/Y H:i" }}
                                                 </div>
 
-                                                <a
-                                                    href="{{ archivo.archivo.url }}"
-                                                    target="_blank"
-                                                    rel="noopener"
-                                                    class="btn btn-outline-info btn-sm mt-2 w-100"
-                                                >
-                                                    Abrir archivo
-                                                </a>
+                                                {% if archivo.tipo_archivo == 'IMAGEN' %}
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-outline-info btn-sm mt-2 w-100"
+                                                        onclick="
+                                                            abrirInterpretacion(
+                                                                'interpretacion-{{ estudio.id }}',
+                                                                '{{ archivo.archivo.url|escapejs }}'
+                                                            )
+                                                        "
+                                                    >
+                                                        Ver e interpretar
+                                                    </button>
+                                                {% else %}
+                                                    <a
+                                                        href="{{ archivo.archivo.url }}"
+                                                        target="_blank"
+                                                        rel="noopener"
+                                                        class="btn btn-outline-info btn-sm mt-2 w-100"
+                                                    >
+                                                        Abrir archivo
+                                                    </a>
+                                                {% endif %}
 
                                             </div>
 
@@ -898,10 +1105,136 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             {% endif %}
 
 
+                            {% if membresia.rol == 'MEDICO' or membresia.rol == 'ADMIN' %}
+
+                                <div
+                                    id="interpretacion-{{ estudio.id }}"
+                                    class="interpret-panel"
+                                >
+
+                                    <div class="interpret-header">
+                                        <div>
+                                            <strong>
+                                                Interpretación: {{ estudio.tipo_estudio }}
+                                            </strong>
+
+                                            <div class="tiny mt-1">
+                                                {{ paciente.nombre }} {{ paciente.apellido }}
+                                                · Registro {{ paciente.identificacion }}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            class="btn btn-outline-secondary btn-sm"
+                                            onclick="toggleInterpretacion('interpretacion-{{ estudio.id }}')"
+                                        >
+                                            Cerrar
+                                        </button>
+                                    </div>
+
+                                    <div class="interpret-grid">
+
+                                        <div>
+                                            <div class="viewer-box">
+                                                {% for archivo in estudio.archivos.all %}
+                                                    {% if archivo.tipo_archivo == 'IMAGEN' and forloop.first %}
+                                                        <img
+                                                            id="visor-principal-{{ estudio.id }}"
+                                                            class="viewer-image"
+                                                            src="{{ archivo.archivo.url }}"
+                                                            alt="{{ archivo.nombre_original|default:'Imagen del estudio' }}"
+                                                        >
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+
+                                            <div class="viewer-thumbs">
+                                                {% for archivo in estudio.archivos.all %}
+                                                    {% if archivo.tipo_archivo == 'IMAGEN' %}
+                                                        <img
+                                                            class="viewer-thumb"
+                                                            src="{{ archivo.archivo.url }}"
+                                                            alt="{{ archivo.nombre_original|default:'Imagen del estudio' }}"
+                                                            onclick="
+                                                                cambiarImagenEstudio(
+                                                                    '{{ estudio.id }}',
+                                                                    '{{ archivo.archivo.url|escapejs }}'
+                                                                )
+                                                            "
+                                                        >
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <form
+                                                method="post"
+                                                action="{% url 'guardar_reporte_final_medico' estudio.id %}"
+                                            >
+                                                {% csrf_token %}
+
+                                                <label class="field-label">
+                                                    Interpretación / reporte radiológico
+                                                </label>
+
+                                                <textarea
+                                                    name="reporte_final"
+                                                    class="report-editor"
+                                                    required
+                                                    placeholder="Escribe aquí la interpretación del estudio..."
+                                                >{{ estudio.reporte_final|default_if_none:"" }}</textarea>
+
+                                                {% if estudio.pre_reporte %}
+                                                    <div class="note-readonly mt-2">
+                                                        <strong>Pre-reporte técnico</strong><br>
+                                                        {{ estudio.pre_reporte }}
+                                                    </div>
+                                                {% endif %}
+
+                                                <div class="signature-preview">
+                                                    <strong>Firma del reporte</strong><br>
+
+                                                    Médico:
+                                                    {% if request.user.get_full_name %}
+                                                        {{ request.user.get_full_name }}
+                                                    {% else %}
+                                                        {{ request.user.username }}
+                                                    {% endif %}
+
+                                                    <br>
+                                                    Institución: {{ paciente.institucion.nombre }}
+                                                    <br>
+                                                    El sistema registrará automáticamente
+                                                    fecha y hora al firmar.
+                                                </div>
+
+                                                <button
+                                                    type="submit"
+                                                    class="btn btn-success mt-3 w-100"
+                                                    onclick="
+                                                        return confirm(
+                                                            '¿Firmar este reporte como definitivo?'
+                                                        );
+                                                    "
+                                                >
+                                                    ✍️ Firmar reporte final
+                                                </button>
+                                            </form>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                            {% endif %}
+
+
                             {% if estudio.estado_reporte == 'FINAL' and estudio.reporte_final %}
 
-                                <div class="report-box">
-                                    <strong>Reporte radiológico final</strong>
+                                <div class="report-box signed-report">
+                                    <strong>Reporte radiológico final firmado</strong>
 
                                     <br><br>
 

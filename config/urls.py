@@ -52,6 +52,12 @@ urlpatterns = [
         name='finalizar_consulta_medica'
     ),
 
+    path(
+        'medicos/estudio/<int:estudio_id>/reporte-final/',
+        views.guardar_reporte_final_medico,
+        name='guardar_reporte_final_medico'
+    ),
+
     # =========================
     # RADIOLOGÍA
     # =========================

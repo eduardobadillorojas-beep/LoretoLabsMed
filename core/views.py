@@ -1912,6 +1912,66 @@ def guardar_consulta_clinica(
 
 
 # =========================================================
+# REPORTE FINAL DESDE EXPEDIENTE MÉDICO
+# =========================================================
+
+@login_required
+def guardar_reporte_final_medico(
+    request,
+    estudio_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    estudio = get_object_or_404(
+        Estudio.objects.select_related(
+            'paciente',
+            'tipo_estudio',
+            'reporte_final_por',
+        ),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if request.method == 'POST':
+        reporte_final = (
+            request.POST.get(
+                'reporte_final',
+                ''
+            )
+            .strip()
+        )
+
+        if reporte_final:
+            estudio.reporte_final = reporte_final
+            estudio.reporte_final_por = request.user
+            estudio.fecha_reporte_final = timezone.now()
+            estudio.estado_reporte = 'FINAL'
+
+            estudio.save(
+                update_fields=[
+                    'reporte_final',
+                    'reporte_final_por',
+                    'fecha_reporte_final',
+                    'estado_reporte',
+                ]
+            )
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=estudio.paciente_id
+    )
+
+
+# =========================================================
 # NUEVO ESTUDIO
 # =========================================================
 
