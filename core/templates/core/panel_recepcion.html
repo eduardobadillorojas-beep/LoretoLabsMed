@@ -50,7 +50,7 @@ Recepción | Loreto One
 
     .indicadores {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 8px;
         margin-bottom: 14px;
     }
@@ -59,17 +59,14 @@ Recepción | Loreto One
         background: #1e293b;
         border: 1px solid #334155;
         border-radius: 8px;
-        padding: 8px 12px;
-        min-height: 55px;
+        padding: 10px 14px;
+        min-height: 62px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-
         color: inherit;
         text-decoration: none;
-
         cursor: pointer;
-
         transition:
             transform .15s ease,
             border-color .15s ease,
@@ -86,19 +83,19 @@ Recepción | Loreto One
 
     .indicador-label {
         color: #94a3b8;
-        font-size: .68rem;
-        margin-bottom: 2px;
+        font-size: .7rem;
+        margin-bottom: 3px;
     }
 
     .indicador-valor {
-        font-size: 1.25rem;
+        font-size: 1.35rem;
         line-height: 1;
         font-weight: 700;
     }
 
     .indicador-icono {
-        font-size: 1rem;
-        opacity: .75;
+        font-size: 1.15rem;
+        opacity: .8;
     }
 
     .panel-loreto {
@@ -112,7 +109,6 @@ Recepción | Loreto One
     .panel-loreto-header {
         padding: 10px 14px;
         border-bottom: 1px solid #334155;
-
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -155,7 +151,7 @@ Recepción | Loreto One
     .dato-secundario {
         color: #94a3b8;
         font-size: .67rem;
-        margin-top: 1px;
+        margin-top: 2px;
     }
 
     .vacio {
@@ -168,6 +164,48 @@ Recepción | Loreto One
     .badge-area {
         font-size: .65rem;
         font-weight: 500;
+    }
+
+    .estado-paciente {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        font-size: .68rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .estado-punto {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .estado-warning {
+        color: #fef3c7;
+        background: rgba(245, 158, 11, .18);
+        border: 1px solid rgba(245, 158, 11, .45);
+    }
+
+    .estado-info {
+        color: #dbeafe;
+        background: rgba(14, 165, 233, .18);
+        border: 1px solid rgba(14, 165, 233, .45);
+    }
+
+    .estado-success {
+        color: #dcfce7;
+        background: rgba(34, 197, 94, .18);
+        border: 1px solid rgba(34, 197, 94, .45);
+    }
+
+    .estado-secondary {
+        color: #e2e8f0;
+        background: rgba(100, 116, 139, .18);
+        border: 1px solid rgba(100, 116, 139, .45);
     }
 
     .ancla-panel {
@@ -191,7 +229,7 @@ Recepción | Loreto One
 
     @media (max-width: 700px) {
         .indicadores {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
         }
 
         .recepcion-wrap {
@@ -203,10 +241,6 @@ Recepción | Loreto One
 
 
 <div class="recepcion-wrap">
-
-    <!-- =====================================================
-         CABECERA
-    ====================================================== -->
 
     <div class="recepcion-top">
 
@@ -220,8 +254,6 @@ Recepción | Loreto One
             </div>
         </div>
 
-
-        <!-- BUSCADOR -->
 
         <form
             method="get"
@@ -256,8 +288,6 @@ Recepción | Loreto One
         </form>
 
 
-        <!-- ACCIONES -->
-
         <div class="acciones-top">
 
             <a
@@ -279,20 +309,16 @@ Recepción | Loreto One
     </div>
 
 
-    <!-- =====================================================
-         INDICADORES CLICABLES
-    ====================================================== -->
-
     <div class="indicadores">
 
         <a
             class="indicador"
-            href="#pacientes-hoy"
+            href="#pacientes"
         >
 
             <div>
                 <div class="indicador-label">
-                    Registrados hoy
+                    Pacientes
                 </div>
 
                 <div class="indicador-valor">
@@ -309,12 +335,12 @@ Recepción | Loreto One
 
         <a
             class="indicador"
-            href="#citas-hoy"
+            href="#citas"
         >
 
             <div>
                 <div class="indicador-label">
-                    Citas hoy
+                    Citas
                 </div>
 
                 <div class="indicador-valor">
@@ -328,56 +354,8 @@ Recepción | Loreto One
 
         </a>
 
-
-        <a
-            class="indicador"
-            href="#en-espera"
-        >
-
-            <div>
-                <div class="indicador-label">
-                    En espera
-                </div>
-
-                <div class="indicador-valor">
-                    {{ consultas_espera }}
-                </div>
-            </div>
-
-            <span class="indicador-icono">
-                🩺
-            </span>
-
-        </a>
-
-
-        <a
-            class="indicador"
-            href="#estudios-pendientes"
-        >
-
-            <div>
-                <div class="indicador-label">
-                    Estudios pendientes
-                </div>
-
-                <div class="indicador-valor">
-                    {{ estudios_pendientes }}
-                </div>
-            </div>
-
-            <span class="indicador-icono">
-                🩻
-            </span>
-
-        </a>
-
     </div>
 
-
-    <!-- =====================================================
-         RESULTADOS DE BÚSQUEDA
-    ====================================================== -->
 
     {% if busqueda %}
 
@@ -413,8 +391,8 @@ Recepción | Loreto One
                                 <th>Registro</th>
                                 <th>Paciente</th>
                                 <th>Nacimiento</th>
-                                <th>Género</th>
                                 <th>Teléfono</th>
+                                <th>Estado</th>
                                 <th class="text-end">
                                     Acción
                                 </th>
@@ -441,11 +419,24 @@ Recepción | Loreto One
                                     </td>
 
                                     <td>
-                                        {{ paciente.get_genero_display }}
+                                        {{ paciente.telefono|default:"—" }}
                                     </td>
 
                                     <td>
-                                        {{ paciente.telefono|default:"—" }}
+
+                                        <span
+                                            class="estado-paciente estado-{{ paciente.estado_atencion_clase }}"
+                                        >
+                                            <span class="estado-punto"></span>
+                                            {{ paciente.estado_atencion }}
+                                        </span>
+
+                                        {% if paciente.estado_atencion_area %}
+                                            <div class="dato-secundario">
+                                                {{ paciente.estado_atencion_area }}
+                                            </div>
+                                        {% endif %}
+
                                     </td>
 
                                     <td class="text-end">
@@ -482,13 +473,9 @@ Recepción | Loreto One
     {% endif %}
 
 
-    <!-- =====================================================
-         PACIENTES DE HOY
-    ====================================================== -->
-
     <div
         class="panel-loreto ancla-panel"
-        id="pacientes-hoy"
+        id="pacientes"
     >
 
         <div class="panel-loreto-header">
@@ -496,11 +483,11 @@ Recepción | Loreto One
             <div>
 
                 <h5>
-                    👥 Pacientes de hoy
+                    👥 Pacientes
                 </h5>
 
                 <div class="panel-subtitulo">
-                    Pacientes registrados durante el día.
+                    Pacientes registrados durante el día y estado actual de atención.
                 </div>
 
             </div>
@@ -525,6 +512,7 @@ Recepción | Loreto One
                             <th>Hora</th>
                             <th>Género</th>
                             <th>Teléfono</th>
+                            <th>Estado</th>
                             <th class="text-end">
                                 Acción
                             </th>
@@ -560,6 +548,23 @@ Recepción | Loreto One
                                     {{ paciente.telefono|default:"—" }}
                                 </td>
 
+                                <td>
+
+                                    <span
+                                        class="estado-paciente estado-{{ paciente.estado_atencion_clase }}"
+                                    >
+                                        <span class="estado-punto"></span>
+                                        {{ paciente.estado_atencion }}
+                                    </span>
+
+                                    {% if paciente.estado_atencion_area %}
+                                        <div class="dato-secundario">
+                                            {{ paciente.estado_atencion_area }}
+                                        </div>
+                                    {% endif %}
+
+                                </td>
+
                                 <td class="text-end">
 
                                     <a
@@ -584,7 +589,7 @@ Recepción | Loreto One
         {% else %}
 
             <div class="vacio">
-                No hay pacientes registrados hoy.
+                No hay pacientes registrados durante el día.
             </div>
 
         {% endif %}
@@ -592,13 +597,9 @@ Recepción | Loreto One
     </div>
 
 
-    <!-- =====================================================
-         CITAS DE HOY
-    ====================================================== -->
-
     <div
         class="panel-loreto ancla-panel"
-        id="citas-hoy"
+        id="citas"
     >
 
         <div class="panel-loreto-header">
@@ -606,7 +607,7 @@ Recepción | Loreto One
             <div>
 
                 <h5>
-                    📅 Citas de hoy
+                    📅 Citas
                 </h5>
 
                 <div class="panel-subtitulo">
@@ -707,362 +708,6 @@ Recepción | Loreto One
 
             <div class="vacio">
                 No hay citas programadas para hoy.
-            </div>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- =====================================================
-         CONSULTAS EN ESPERA
-    ====================================================== -->
-
-    <div
-        class="panel-loreto ancla-panel"
-        id="en-espera"
-    >
-
-        <div class="panel-loreto-header">
-
-            <div>
-
-                <h5>
-                    🩺 Pacientes en espera
-                </h5>
-
-                <div class="panel-subtitulo">
-                    Consultas pendientes de atención.
-                </div>
-
-            </div>
-
-            <span class="badge bg-warning text-dark">
-                {{ consultas_espera }}
-            </span>
-
-        </div>
-
-
-        {% if consultas_en_espera_lista %}
-
-            <div class="table-responsive">
-
-                <table class="table table-dark table-hover tabla-loreto">
-
-                    <thead>
-                        <tr>
-                            <th>Registro</th>
-                            <th>Paciente</th>
-                            <th>Hora de llegada</th>
-                            <th>Motivo</th>
-                            <th>Médico</th>
-                            <th class="text-end">
-                                Acción
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        {% for consulta in consultas_en_espera_lista %}
-
-                            <tr>
-
-                                <td>
-                                    {{ consulta.paciente.identificacion }}
-                                </td>
-
-                                <td class="nombre-paciente">
-                                    {{ consulta.paciente.nombre }}
-                                    {{ consulta.paciente.apellido }}
-                                </td>
-
-                                <td>
-                                    {{ consulta.fecha_llegada|date:"H:i" }}
-                                </td>
-
-                                <td>
-                                    {{ consulta.motivo_consulta|default:"—"|truncatechars:60 }}
-                                </td>
-
-                                <td>
-
-                                    {% if consulta.medico %}
-
-                                        {{ consulta.medico.get_full_name|default:consulta.medico.username }}
-
-                                    {% else %}
-
-                                        —
-
-                                    {% endif %}
-
-                                </td>
-
-                                <td class="text-end">
-
-                                    <a
-                                        href="{% url 'detalle_paciente' consulta.paciente.id %}"
-                                        class="btn btn-sm btn-outline-info py-0"
-                                    >
-                                        Expediente
-                                    </a>
-
-                                </td>
-
-                            </tr>
-
-                        {% endfor %}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        {% else %}
-
-            <div class="vacio">
-                No hay pacientes en espera.
-            </div>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- =====================================================
-         ESTUDIOS PENDIENTES
-    ====================================================== -->
-
-    <div
-        class="panel-loreto ancla-panel"
-        id="estudios-pendientes"
-    >
-
-        <div class="panel-loreto-header">
-
-            <div>
-
-                <h5>
-                    🩻 Estudios pendientes
-                </h5>
-
-                <div class="panel-subtitulo">
-                    Estudios pendientes de esta institución.
-                </div>
-
-            </div>
-
-            <span class="badge bg-info text-dark">
-                {{ estudios_pendientes }}
-            </span>
-
-        </div>
-
-
-        {% if estudios_pendientes_lista %}
-
-            <div class="table-responsive">
-
-                <table class="table table-dark table-hover tabla-loreto">
-
-                    <thead>
-                        <tr>
-                            <th>Registro</th>
-                            <th>Paciente</th>
-                            <th>Estudio</th>
-                            <th>Creado</th>
-                            <th>Médico solicitante</th>
-                            <th class="text-end">
-                                Acción
-                            </th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        {% for estudio in estudios_pendientes_lista %}
-
-                            <tr>
-
-                                <td>
-                                    {{ estudio.paciente.identificacion }}
-                                </td>
-
-                                <td class="nombre-paciente">
-                                    {{ estudio.paciente.nombre }}
-                                    {{ estudio.paciente.apellido }}
-                                </td>
-
-                                <td>
-                                    {{ estudio.tipo_estudio.nombre }}
-                                </td>
-
-                                <td>
-                                    {{ estudio.fecha_creacion|date:"d/m/Y H:i" }}
-                                </td>
-
-                                <td>
-                                    {{ estudio.medico_solicitante|default:"—" }}
-                                </td>
-
-                                <td class="text-end">
-
-                                    <a
-                                        href="{% url 'detalle_paciente' estudio.paciente.id %}"
-                                        class="btn btn-sm btn-outline-info py-0"
-                                    >
-                                        Expediente
-                                    </a>
-
-                                </td>
-
-                            </tr>
-
-                        {% endfor %}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        {% else %}
-
-            <div class="vacio">
-                No hay estudios pendientes.
-            </div>
-
-        {% endif %}
-
-    </div>
-
-
-    <!-- =====================================================
-         PRÓXIMAS CITAS
-    ====================================================== -->
-
-    <div class="panel-loreto">
-
-        <div class="panel-loreto-header">
-
-            <div>
-
-                <h5>
-                    📅 Próximas citas
-                </h5>
-
-                <div class="panel-subtitulo">
-                    Ordenadas desde la cita más próxima.
-                </div>
-
-            </div>
-
-
-            <a
-                href="{% url 'nueva_cita' %}"
-                class="btn btn-outline-info btn-sm py-0"
-            >
-                + Cita
-            </a>
-
-        </div>
-
-
-        {% if proximas_citas %}
-
-            <div class="table-responsive">
-
-                <table class="table table-dark table-hover tabla-loreto">
-
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Hora</th>
-                            <th>Paciente</th>
-                            <th>Área</th>
-                            <th>Médico</th>
-                            <th>Motivo / Estudio</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        {% for cita in proximas_citas %}
-
-                            <tr>
-
-                                <td class="fw-bold">
-                                    {{ cita.fecha_hora|date:"d/m/Y" }}
-                                </td>
-
-                                <td>
-                                    {{ cita.fecha_hora|date:"H:i" }}
-                                </td>
-
-                                <td>
-
-                                    <div class="nombre-paciente">
-                                        {{ cita.nombre_paciente }}
-                                    </div>
-
-                                    {% if cita.telefono %}
-
-                                        <div class="dato-secundario">
-                                            {{ cita.telefono }}
-                                        </div>
-
-                                    {% endif %}
-
-                                </td>
-
-                                <td>
-
-                                    <span class="badge bg-secondary badge-area">
-                                        {{ cita.get_area_display }}
-                                    </span>
-
-                                </td>
-
-                                <td>
-                                    {{ cita.medico_nombre|default:"—" }}
-                                </td>
-
-                                <td>
-
-                                    {% if cita.area == 'RADIOLOGIA' and cita.tipo_estudio %}
-
-                                        {{ cita.tipo_estudio.nombre }}
-
-                                    {% else %}
-
-                                        {{ cita.motivo|default:"—"|truncatechars:50 }}
-
-                                    {% endif %}
-
-                                </td>
-
-                                <td>
-                                    {{ cita.get_estado_display }}
-                                </td>
-
-                            </tr>
-
-                        {% endfor %}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        {% else %}
-
-            <div class="vacio">
-                No existen citas futuras programadas.
             </div>
 
         {% endif %}

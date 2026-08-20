@@ -5,7 +5,7 @@ import logging
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -791,6 +791,73 @@ def panel_radiologo(request):
         )
     )
 
+    # -----------------------------------------------------
+    # BUSCADOR / HISTORIAL DE PACIENTES
+    # -----------------------------------------------------
+
+    busqueda_paciente = (
+        request.GET.get('q', '').strip()
+    )
+
+    estudios_historial = (
+        Estudio.objects
+        .select_related(
+            'tipo_estudio'
+        )
+        .order_by(
+            '-fecha_creacion'
+        )
+    )
+
+    pacientes_historial = (
+        Paciente.objects
+        .filter(
+            institucion=institucion
+        )
+        .prefetch_related(
+            Prefetch(
+                'estudios',
+                queryset=estudios_historial,
+                to_attr='estudios_radiologia_historial',
+            )
+        )
+        .order_by(
+            '-creado_el'
+        )
+    )
+
+    if busqueda_paciente:
+        pacientes_historial = (
+            pacientes_historial.filter(
+                Q(
+                    identificacion__icontains=
+                    busqueda_paciente
+                )
+                |
+                Q(
+                    nombre__icontains=
+                    busqueda_paciente
+                )
+                |
+                Q(
+                    apellido__icontains=
+                    busqueda_paciente
+                )
+                |
+                Q(
+                    telefono__icontains=
+                    busqueda_paciente
+                )
+            )
+        )
+
+    # Evita cargar una tabla enorme de una sola vez.
+    # La búsqueda sigue funcionando sobre todos los pacientes
+    # de la institución antes de aplicar este límite.
+    pacientes_historial = (
+        pacientes_historial[:50]
+    )
+
     context = {
         'membresia': membresia,
         'institucion': institucion,
@@ -802,6 +869,10 @@ def panel_radiologo(request):
             estudios_realizados_hoy,
         'citas_radiologia_hoy':
             citas_radiologia_hoy,
+        'busqueda_paciente':
+            busqueda_paciente,
+        'pacientes_historial':
+            pacientes_historial,
     }
 
     return render(
@@ -1372,17 +1443,157 @@ def panel_recepcion(request):
     ).strip()
 
     hoy = timezone.localdate()
-    ahora = timezone.now()
 
     institucion = obtener_institucion_usuario(request)
 
     if institucion is None:
         return redirect('panel_config')
 
-    pacientes = (
+    consultas_estado = (
+        Consulta.objects
+        .select_related(
+            'medico'
+        )
+        .order_by(
+            '-fecha_llegada'
+        )
+    )
+
+    estudios_estado = (
+        Estudio.objects
+        .select_related(
+            'tipo_estudio'
+        )
+        .order_by(
+            '-fecha_creacion'
+        )
+    )
+
+    def preparar_estado_recepcion(
+        lista_pacientes
+    ):
+        pacientes_preparados = list(
+            lista_pacientes
+        )
+
+        for paciente in pacientes_preparados:
+            consulta = None
+            estudio = None
+
+            if paciente.consultas_estado_recepcion:
+                consulta = (
+                    paciente
+                    .consultas_estado_recepcion[0]
+                )
+
+            if paciente.estudios_estado_recepcion:
+                estudio = (
+                    paciente
+                    .estudios_estado_recepcion[0]
+                )
+
+            actividad = None
+            tipo_actividad = None
+
+            if consulta and estudio:
+                if (
+                    consulta.fecha_llegada
+                    >= estudio.fecha_creacion
+                ):
+                    actividad = consulta
+                    tipo_actividad = 'CONSULTA'
+                else:
+                    actividad = estudio
+                    tipo_actividad = 'ESTUDIO'
+
+            elif consulta:
+                actividad = consulta
+                tipo_actividad = 'CONSULTA'
+
+            elif estudio:
+                actividad = estudio
+                tipo_actividad = 'ESTUDIO'
+
+            paciente.estado_atencion = 'Registrado'
+            paciente.estado_atencion_clase = 'secondary'
+            paciente.estado_atencion_area = ''
+
+            if tipo_actividad == 'CONSULTA':
+                paciente.estado_atencion_area = (
+                    'Consulta médica'
+                )
+
+                if actividad.estado == 'EN_ESPERA':
+                    paciente.estado_atencion = (
+                        'En espera'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'warning'
+                    )
+
+                elif actividad.estado == 'EN_CONSULTA':
+                    paciente.estado_atencion = (
+                        'Siendo atendido'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'info'
+                    )
+
+                elif actividad.estado == 'FINALIZADA':
+                    paciente.estado_atencion = (
+                        'Atendido'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'success'
+                    )
+
+            elif tipo_actividad == 'ESTUDIO':
+                paciente.estado_atencion_area = (
+                    'Radiología'
+                )
+
+                if actividad.estado == 'PENDIENTE':
+                    paciente.estado_atencion = (
+                        'En espera'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'warning'
+                    )
+
+                elif actividad.estado == 'EN_PROCESO':
+                    paciente.estado_atencion = (
+                        'Siendo atendido'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'info'
+                    )
+
+                elif actividad.estado == 'COMPLETADO':
+                    paciente.estado_atencion = (
+                        'Atendido'
+                    )
+                    paciente.estado_atencion_clase = (
+                        'success'
+                    )
+
+        return pacientes_preparados
+
+    pacientes_queryset = (
         Paciente.objects
         .filter(
             institucion=institucion
+        )
+        .prefetch_related(
+            Prefetch(
+                'consultas',
+                queryset=consultas_estado,
+                to_attr='consultas_estado_recepcion',
+            ),
+            Prefetch(
+                'estudios',
+                queryset=estudios_estado,
+                to_attr='estudios_estado_recepcion',
+            ),
         )
         .order_by(
             '-creado_el'
@@ -1390,79 +1601,63 @@ def panel_recepcion(request):
     )
 
     if busqueda:
-        pacientes = pacientes.filter(
-            Q(
-                identificacion__icontains=
-                busqueda
-            )
-            |
-            Q(
-                nombre__icontains=
-                busqueda
-            )
-            |
-            Q(
-                apellido__icontains=
-                busqueda
-            )
-            |
-            Q(
-                telefono__icontains=
-                busqueda
+        pacientes_queryset = (
+            pacientes_queryset.filter(
+                Q(
+                    identificacion__icontains=
+                    busqueda
+                )
+                |
+                Q(
+                    nombre__icontains=
+                    busqueda
+                )
+                |
+                Q(
+                    apellido__icontains=
+                    busqueda
+                )
+                |
+                Q(
+                    telefono__icontains=
+                    busqueda
+                )
             )
         )
 
-    pacientes_de_hoy = (
+    pacientes = preparar_estado_recepcion(
+        pacientes_queryset
+    )
+
+    pacientes_de_hoy_queryset = (
         Paciente.objects
         .filter(
             institucion=institucion,
             creado_el__date=hoy
+        )
+        .prefetch_related(
+            Prefetch(
+                'consultas',
+                queryset=consultas_estado,
+                to_attr='consultas_estado_recepcion',
+            ),
+            Prefetch(
+                'estudios',
+                queryset=estudios_estado,
+                to_attr='estudios_estado_recepcion',
+            ),
         )
         .order_by(
             '-creado_el'
         )
     )
 
-    pacientes_hoy = (
-        pacientes_de_hoy.count()
+    pacientes_de_hoy = preparar_estado_recepcion(
+        pacientes_de_hoy_queryset
     )
 
-    consultas_en_espera_lista = (
-        Consulta.objects
-        .select_related(
-            'paciente',
-            'medico',
-        )
-        .filter(
-            paciente__institucion=institucion,
-            estado='EN_ESPERA'
-        )
-        .order_by(
-            'fecha_llegada'
-        )
-    )
-
-    consultas_espera = (
-        consultas_en_espera_lista.count()
-    )
-
-    estudios_pendientes_lista = (
-        Estudio.objects
-        .select_related(
-            'paciente',
-            'tipo_estudio',
-        )
-        .filter(
-            paciente__institucion=institucion,
-            estado='PENDIENTE'
-        )
-        .order_by(
-            'fecha_creacion'
-        )
-    )
-
-    estudios_pendientes = (
-        estudios_pendientes_lista.count()
+    pacientes_hoy = len(
+        pacientes_de_hoy
     )
 
     citas_de_hoy = (
@@ -1489,27 +1684,6 @@ def panel_recepcion(request):
         citas_de_hoy.count()
     )
 
-    proximas_citas = (
-        Cita.objects
-        .select_related(
-            'tipo_estudio'
-        )
-        .filter(
-            institucion=institucion,
-            fecha_hora__gte=ahora
-        )
-        .exclude(
-            estado__in=[
-                'CANCELADA',
-                'NO_ASISTIO',
-                'FINALIZADA',
-            ]
-        )
-        .order_by(
-            'fecha_hora'
-        )
-    )
-
     context = {
         'pacientes':
             pacientes,
@@ -1526,23 +1700,8 @@ def panel_recepcion(request):
         'total_citas_hoy':
             citas_hoy,
 
-        'consultas_espera':
-            consultas_espera,
-
-        'consultas_en_espera_lista':
-            consultas_en_espera_lista,
-
-        'estudios_pendientes':
-            estudios_pendientes,
-
-        'estudios_pendientes_lista':
-            estudios_pendientes_lista,
-
         'citas_de_hoy':
             citas_de_hoy,
-
-        'proximas_citas':
-            proximas_citas,
     }
 
     return render(

@@ -42,9 +42,9 @@ Radiología | Loreto One
     }
 
     .status-box {
-        background: #1e293b;
+        background: linear-gradient(180deg, #1e293b 0%, #182235 100%);
         border: 1px solid #334155;
-        border-radius: 7px;
+        border-radius: 10px;
         padding: 6px 11px;
         min-width: 125px;
     }
@@ -61,11 +61,12 @@ Radiología | Loreto One
     }
 
     .worklist {
-        background: #1e293b;
+        background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
         border: 1px solid #334155;
-        border-radius: 8px;
+        border-radius: 10px;
         overflow: hidden;
         margin-bottom: 13px;
+        box-shadow: 0 10px 24px rgba(2, 6, 23, .16);
     }
 
     .worklist-header {
@@ -198,6 +199,88 @@ Radiología | Loreto One
         font-size: .61rem;
     }
 
+
+    .patient-search-shell {
+        max-width: 760px;
+        margin: 0 auto 18px;
+        padding: 0 10px;
+    }
+
+    .patient-search-label {
+        text-align: center;
+        color: #cbd5e1;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin-bottom: 7px;
+    }
+
+    .patient-search-form {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+        align-items: center;
+        background: linear-gradient(
+            180deg,
+            rgba(30, 41, 59, .96),
+            rgba(15, 23, 42, .96)
+        );
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 9px;
+        box-shadow:
+            0 12px 28px rgba(2, 6, 23, .22),
+            inset 0 1px 0 rgba(255, 255, 255, .025);
+    }
+
+    .patient-search-form input {
+        min-width: 0;
+        background: #0f172a;
+        border: 1px solid #475569;
+        color: #f8fafc;
+        border-radius: 8px;
+        padding: 9px 11px;
+        font-size: .76rem;
+    }
+
+    .patient-search-form input:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 3px rgba(56, 189, 248, .10);
+    }
+
+    .patient-search-form input::placeholder {
+        color: #64748b;
+    }
+
+    .search-results {
+        max-width: 1050px;
+        margin: -4px auto 16px;
+        background: #172033;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .search-results-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 12px;
+        border-bottom: 1px solid #334155;
+        color: #94a3b8;
+        font-size: .67rem;
+    }
+
+    .history-actions {
+        display: flex;
+        gap: 5px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
     @media (max-width: 900px) {
 
         .radio-secundarios {
@@ -207,6 +290,14 @@ Radiología | Loreto One
         .radio-container {
             padding-left: 10px;
             padding-right: 10px;
+        }
+
+        .patient-search-form {
+            grid-template-columns: 1fr;
+        }
+
+        .patient-search-form .btn {
+            width: 100%;
         }
 
     }
@@ -291,6 +382,220 @@ Radiología | Loreto One
         </div>
 
     </div>
+
+
+
+    <!-- BUSCADOR DE PACIENTES -->
+
+    <div class="patient-search-shell">
+
+        <div class="patient-search-label">
+            Buscar paciente
+        </div>
+
+        <form
+            method="get"
+            class="patient-search-form"
+        >
+
+            <input
+                type="search"
+                name="q"
+                value="{{ busqueda_paciente }}"
+                placeholder="Escribe nombre, apellido, registro o teléfono..."
+                autocomplete="off"
+            >
+
+            <button
+                type="submit"
+                class="btn btn-info btn-sm"
+            >
+                🔎 Buscar
+            </button>
+
+            {% if busqueda_paciente %}
+
+                <a
+                    href="{% url 'panel_radiologo' %}"
+                    class="btn btn-outline-secondary btn-sm"
+                >
+                    Limpiar
+                </a>
+
+            {% endif %}
+
+        </form>
+
+    </div>
+
+
+    {% if busqueda_paciente %}
+
+        <div class="search-results">
+
+            <div class="search-results-head">
+
+                <span>
+                    Resultados para “{{ busqueda_paciente }}”
+                </span>
+
+                <span>
+                    Hasta 50 coincidencias
+                </span>
+
+            </div>
+
+
+            {% if pacientes_historial %}
+
+                <div class="table-responsive">
+
+                    <table
+                        class="table
+                               table-dark
+                               table-hover
+                               radio-table"
+                    >
+
+                        <thead>
+                            <tr>
+                                <th>Paciente</th>
+                                <th>Registro</th>
+                                <th>Teléfono</th>
+                                <th>Último estudio</th>
+                                <th>Modalidad</th>
+                                <th>Fecha</th>
+                                <th class="text-end">
+                                    Acción
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for paciente_item in pacientes_historial %}
+
+                                <tr>
+
+                                    <td>
+
+                                        <div class="paciente">
+                                            {{ paciente_item.nombre }}
+                                            {{ paciente_item.apellido }}
+                                        </div>
+
+                                        <div class="paciente-dato">
+                                            Nacimiento:
+                                            {{ paciente_item.fecha_nacimiento|date:"d/m/Y" }}
+                                        </div>
+
+                                    </td>
+
+                                    <td>
+                                        {{ paciente_item.identificacion }}
+                                    </td>
+
+                                    <td>
+                                        {{ paciente_item.telefono|default:"—" }}
+                                    </td>
+
+
+                                    {% with ultimo=paciente_item.estudios_radiologia_historial.0 %}
+
+                                        <td>
+
+                                            {% if ultimo %}
+
+                                                <div class="estudio">
+                                                    {{ ultimo.tipo_estudio.nombre }}
+                                                </div>
+
+                                                <div class="paciente-dato">
+                                                    {{ ultimo.get_estado_display }}
+                                                </div>
+
+                                            {% else %}
+
+                                                <span class="text-secondary">
+                                                    Sin estudios
+                                                </span>
+
+                                            {% endif %}
+
+                                        </td>
+
+
+                                        <td>
+
+                                            {% if ultimo %}
+                                                {{ ultimo.tipo_estudio.get_modalidad_display }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+
+                                        </td>
+
+
+                                        <td class="hora">
+
+                                            {% if ultimo %}
+                                                {{ ultimo.fecha_creacion|date:"d/m/Y H:i" }}
+                                            {% else %}
+                                                —
+                                            {% endif %}
+
+                                        </td>
+
+
+                                        <td>
+
+                                            <div class="history-actions">
+
+                                                <a
+                                                    href="{% url 'detalle_paciente' paciente_item.id %}"
+                                                    class="btn btn-outline-info btn-estudio"
+                                                >
+                                                    Expediente
+                                                </a>
+
+                                                {% if ultimo %}
+
+                                                    <a
+                                                        href="{% url 'estudio_radiologia' ultimo.id %}"
+                                                        class="btn btn-primary btn-estudio"
+                                                    >
+                                                        Ver último estudio
+                                                    </a>
+
+                                                {% endif %}
+
+                                            </div>
+
+                                        </td>
+
+                                    {% endwith %}
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="lista-vacia">
+                    No se encontraron pacientes con esa búsqueda.
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    {% endif %}
 
 
     <!-- LISTA PRINCIPAL -->

@@ -146,6 +146,16 @@ ROOT_URLCONF = 'config.urls'
 
 
 # ============================================================
+# AUTENTICACIÓN
+# ============================================================
+
+# LoretoOne utiliza su propia vista de inicio de sesión en /login/.
+# Esto evita que @login_required intente enviar al usuario a la
+# ruta predeterminada de Django: /accounts/login/.
+LOGIN_URL = '/login/'
+
+
+# ============================================================
 # TEMPLATES
 # ============================================================
 
