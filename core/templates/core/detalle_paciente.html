@@ -2,8 +2,6 @@
 
 {% block title %}
 Expediente {{ paciente.identificacion }} | Loreto One
-
-
 {% endblock %}
 
 {% block content %}
@@ -191,125 +189,6 @@ Expediente {{ paciente.identificacion }} | Loreto One
         line-height: 1.5;
     }
 
-
-    .interpret-btn {
-        white-space: nowrap;
-    }
-
-    .interpret-details {
-        margin-top: 12px;
-        border: 1px solid #0ea5e9;
-        border-radius: 10px;
-        background: #07111f;
-        overflow: hidden;
-    }
-
-    .interpret-summary {
-        list-style: none;
-        cursor: pointer;
-        padding: 10px 13px;
-        background: #0b1d33;
-        color: #38bdf8;
-        font-weight: 800;
-        font-size: .8rem;
-        user-select: none;
-    }
-
-    .interpret-summary::-webkit-details-marker {
-        display: none;
-    }
-
-    .interpret-summary::after {
-        content: 'Abrir';
-        float: right;
-        color: #94a3b8;
-        font-size: .68rem;
-    }
-
-    .interpret-details[open] .interpret-summary::after {
-        content: 'Cerrar';
-    }
-
-    .interpret-header {
-        padding: 10px 12px;
-        border-bottom: 1px solid #1e3a5f;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        background: #0b1d33;
-    }
-
-    .interpret-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.35fr) minmax(320px, .85fr);
-        gap: 12px;
-        padding: 12px;
-    }
-
-    .viewer-box {
-        min-height: 520px;
-        background: #020617;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        padding: 10px;
-    }
-
-    .viewer-image {
-        display: block;
-        max-width: 100%;
-        max-height: 72vh;
-        object-fit: contain;
-    }
-
-    .viewer-empty {
-        color: #64748b;
-        text-align: center;
-        padding: 30px;
-        font-size: .82rem;
-    }
-
-
-    .report-editor {
-        width: 100%;
-        min-height: 420px;
-        resize: vertical;
-        background: #0f172a;
-        color: #e2e8f0;
-        border: 1px solid #475569;
-        border-radius: 8px;
-        padding: 12px;
-        font-size: .84rem;
-        line-height: 1.55;
-    }
-
-    .report-editor:focus {
-        outline: none;
-        border-color: #38bdf8;
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
-    }
-
-    .signature-preview {
-        margin-top: 10px;
-        padding: 10px 12px;
-        border: 1px dashed #475569;
-        border-radius: 8px;
-        background: #111827;
-        font-size: .72rem;
-        line-height: 1.5;
-    }
-
-    .signed-report {
-        border-left-color: #22c55e;
-    }
-
     @media (max-width: 1000px) {
         .exp-grid {
             grid-template-columns: 1fr;
@@ -318,14 +197,6 @@ Expediente {{ paciente.identificacion }} | Loreto One
         .vitals-grid,
         .clinical-grid {
             grid-template-columns: 1fr 1fr;
-        }
-
-        .interpret-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .viewer-box {
-            min-height: 360px;
         }
     }
 
@@ -765,6 +636,464 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                 </section>
 
+                <!-- DOCUMENTOS CLÍNICOS -->
+
+                <section class="exp-box mt-3">
+
+                    <div class="exp-box-header">
+                        🧾 Documentos clínicos
+                    </div>
+
+                    <div class="exp-box-body">
+
+                        <div class="accordion" id="documentosClinicos">
+
+                            <!-- RECETA MÉDICA -->
+
+                            <div class="accordion-item bg-dark border-secondary">
+
+                                <h2 class="accordion-header">
+
+                                    <button
+                                        class="accordion-button collapsed bg-dark text-white"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#panelReceta"
+                                    >
+                                        💊 Receta médica
+                                    </button>
+
+                                </h2>
+
+                                <div
+                                    id="panelReceta"
+                                    class="accordion-collapse collapse"
+                                    data-bs-parent="#documentosClinicos"
+                                >
+
+                                    <div class="accordion-body">
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'guardar_receta_medica' consulta_activa.id %}"
+                                        >
+
+                                            {% csrf_token %}
+
+                                            <div id="medicamentos-receta">
+
+                                                {% if receta_activa and receta_activa.medicamentos.all %}
+
+                                                    {% for medicamento in receta_activa.medicamentos.all %}
+
+                                                        <div class="study-card medicamento-fila mb-3">
+
+                                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                <strong>Medicamento {{ forloop.counter }}</strong>
+
+                                                                <button
+                                                                    type="button"
+                                                                    class="btn btn-sm btn-outline-danger"
+                                                                    onclick="eliminarFila(this)"
+                                                                >
+                                                                    Quitar
+                                                                </button>
+                                                            </div>
+
+                                                            <div class="row g-2">
+
+                                                                <div class="col-md-6">
+                                                                    <label class="field-label">Medicamento</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="medicamento"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.medicamento }}"
+                                                                        placeholder="Ej. Paracetamol"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-6">
+                                                                    <label class="field-label">Presentación</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="presentacion"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.presentacion|default_if_none:'' }}"
+                                                                        placeholder="Ej. tabletas 500 mg"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-4">
+                                                                    <label class="field-label">Dosis</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="dosis"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.dosis|default_if_none:'' }}"
+                                                                        placeholder="Ej. 1 tableta"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-4">
+                                                                    <label class="field-label">Vía</label>
+                                                                    <select name="via" class="clinical-input">
+                                                                        <option value="">Seleccionar</option>
+                                                                        <option value="ORAL" {% if medicamento.via == 'ORAL' %}selected{% endif %}>Oral</option>
+                                                                        <option value="SUBLINGUAL" {% if medicamento.via == 'SUBLINGUAL' %}selected{% endif %}>Sublingual</option>
+                                                                        <option value="TOPICA" {% if medicamento.via == 'TOPICA' %}selected{% endif %}>Tópica</option>
+                                                                        <option value="INHALADA" {% if medicamento.via == 'INHALADA' %}selected{% endif %}>Inhalada</option>
+                                                                        <option value="OFTALMICA" {% if medicamento.via == 'OFTALMICA' %}selected{% endif %}>Oftálmica</option>
+                                                                        <option value="OTICA" {% if medicamento.via == 'OTICA' %}selected{% endif %}>Ótica</option>
+                                                                        <option value="NASAL" {% if medicamento.via == 'NASAL' %}selected{% endif %}>Nasal</option>
+                                                                        <option value="RECTAL" {% if medicamento.via == 'RECTAL' %}selected{% endif %}>Rectal</option>
+                                                                        <option value="VAGINAL" {% if medicamento.via == 'VAGINAL' %}selected{% endif %}>Vaginal</option>
+                                                                        <option value="INTRAMUSCULAR" {% if medicamento.via == 'INTRAMUSCULAR' %}selected{% endif %}>Intramuscular</option>
+                                                                        <option value="INTRAVENOSA" {% if medicamento.via == 'INTRAVENOSA' %}selected{% endif %}>Intravenosa</option>
+                                                                        <option value="SUBCUTANEA" {% if medicamento.via == 'SUBCUTANEA' %}selected{% endif %}>Subcutánea</option>
+                                                                        <option value="OTRA" {% if medicamento.via == 'OTRA' %}selected{% endif %}>Otra</option>
+                                                                    </select>
+                                                                </div>
+
+                                                                <div class="col-md-4">
+                                                                    <label class="field-label">Frecuencia</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="frecuencia"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.frecuencia|default_if_none:'' }}"
+                                                                        placeholder="Ej. cada 8 horas"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-4">
+                                                                    <label class="field-label">Duración</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="duracion"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.duracion|default_if_none:'' }}"
+                                                                        placeholder="Ej. 5 días"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-8">
+                                                                    <label class="field-label">Indicaciones del medicamento</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="indicaciones_medicamento"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.indicaciones|default_if_none:'' }}"
+                                                                        placeholder="Ej. tomar después de alimentos"
+                                                                    >
+                                                                </div>
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    {% endfor %}
+
+                                                {% else %}
+
+                                                    <div class="study-card medicamento-fila mb-3">
+
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <strong>Medicamento 1</strong>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFila(this)">Quitar</button>
+                                                        </div>
+
+                                                        <div class="row g-2">
+                                                            <div class="col-md-6">
+                                                                <label class="field-label">Medicamento</label>
+                                                                <input type="text" name="medicamento" class="clinical-input" placeholder="Ej. Paracetamol">
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <label class="field-label">Presentación</label>
+                                                                <input type="text" name="presentacion" class="clinical-input" placeholder="Ej. tabletas 500 mg">
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <label class="field-label">Dosis</label>
+                                                                <input type="text" name="dosis" class="clinical-input" placeholder="Ej. 1 tableta">
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <label class="field-label">Vía</label>
+                                                                <select name="via" class="clinical-input">
+                                                                    <option value="">Seleccionar</option>
+                                                                    <option value="ORAL">Oral</option>
+                                                                    <option value="SUBLINGUAL">Sublingual</option>
+                                                                    <option value="TOPICA">Tópica</option>
+                                                                    <option value="INHALADA">Inhalada</option>
+                                                                    <option value="OFTALMICA">Oftálmica</option>
+                                                                    <option value="OTICA">Ótica</option>
+                                                                    <option value="NASAL">Nasal</option>
+                                                                    <option value="RECTAL">Rectal</option>
+                                                                    <option value="VAGINAL">Vaginal</option>
+                                                                    <option value="INTRAMUSCULAR">Intramuscular</option>
+                                                                    <option value="INTRAVENOSA">Intravenosa</option>
+                                                                    <option value="SUBCUTANEA">Subcutánea</option>
+                                                                    <option value="OTRA">Otra</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <label class="field-label">Frecuencia</label>
+                                                                <input type="text" name="frecuencia" class="clinical-input" placeholder="Ej. cada 8 horas">
+                                                            </div>
+                                                            <div class="col-md-4">
+                                                                <label class="field-label">Duración</label>
+                                                                <input type="text" name="duracion" class="clinical-input" placeholder="Ej. 5 días">
+                                                            </div>
+                                                            <div class="col-md-8">
+                                                                <label class="field-label">Indicaciones del medicamento</label>
+                                                                <input type="text" name="indicaciones_medicamento" class="clinical-input" placeholder="Ej. tomar después de alimentos">
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+
+                                                {% endif %}
+
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-info mb-3"
+                                                onclick="agregarMedicamento()"
+                                            >
+                                                + Agregar medicamento
+                                            </button>
+
+                                            <div class="mb-3">
+                                                <label class="field-label">Observaciones de la receta</label>
+                                                <textarea
+                                                    name="observaciones_receta"
+                                                    class="clinical-textarea"
+                                                    placeholder="Observaciones generales opcionales"
+                                                >{% if receta_activa %}{{ receta_activa.observaciones|default_if_none:"" }}{% endif %}</textarea>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-primary">
+                                                💾 Guardar receta
+                                            </button>
+
+                                        </form>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- SOLICITUD DE ESTUDIOS -->
+
+                            <div class="accordion-item bg-dark border-secondary">
+
+                                <h2 class="accordion-header">
+
+                                    <button
+                                        class="accordion-button collapsed bg-dark text-white"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#panelSolicitud"
+                                    >
+                                        🧪 Solicitud de estudios
+                                    </button>
+
+                                </h2>
+
+                                <div
+                                    id="panelSolicitud"
+                                    class="accordion-collapse collapse"
+                                    data-bs-parent="#documentosClinicos"
+                                >
+
+                                    <div class="accordion-body">
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'guardar_solicitud_estudio' consulta_activa.id %}"
+                                        >
+
+                                            {% csrf_token %}
+
+                                            <div class="row g-2 mb-3">
+
+                                                <div class="col-md-6">
+                                                    <label class="field-label">Tipo de solicitud</label>
+                                                    <select name="tipo_solicitud" class="clinical-input" required>
+                                                        <option value="">Seleccionar</option>
+                                                        <option value="LABORATORIO">Laboratorio clínico</option>
+                                                        <option value="IMAGEN">Imagenología</option>
+                                                        <option value="PATOLOGIA">Patología</option>
+                                                        <option value="CARDIOLOGIA">Cardiología</option>
+                                                        <option value="OTRO">Otro estudio o procedimiento</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="col-md-6">
+                                                    <label class="field-label">Prioridad</label>
+                                                    <select name="prioridad_solicitud" class="clinical-input">
+                                                        <option value="RUTINA">Rutina</option>
+                                                        <option value="PREFERENTE">Preferente</option>
+                                                        <option value="URGENTE">Urgente</option>
+                                                    </select>
+                                                </div>
+
+                                            </div>
+
+                                            <div id="estudios-solicitud">
+
+                                                <div class="study-card estudio-solicitud-fila mb-3">
+
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <strong>Estudio 1</strong>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarFila(this)">Quitar</button>
+                                                    </div>
+
+                                                    <div class="row g-2">
+                                                        <div class="col-md-5">
+                                                            <label class="field-label">Estudio solicitado</label>
+                                                            <input type="text" name="estudio_nombre" class="clinical-input" placeholder="Ej. Biometría hemática">
+                                                        </div>
+                                                        <div class="col-md-3">
+                                                            <label class="field-label">Región / muestra / detalle</label>
+                                                            <input type="text" name="estudio_detalle" class="clinical-input" placeholder="Opcional">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="field-label">Indicaciones específicas</label>
+                                                            <input type="text" name="estudio_indicaciones" class="clinical-input" placeholder="Ej. ayuno de 8 horas">
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-outline-info mb-3"
+                                                onclick="agregarEstudioSolicitud()"
+                                            >
+                                                + Agregar estudio
+                                            </button>
+
+                                            <div class="mb-3">
+                                                <label class="field-label">Motivo clínico / diagnóstico presuntivo</label>
+                                                <textarea name="motivo_clinico" class="clinical-textarea"></textarea>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <label class="field-label">Observaciones</label>
+                                                <textarea name="observaciones_solicitud" class="clinical-textarea"></textarea>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-primary">
+                                                💾 Guardar solicitud
+                                            </button>
+
+                                        </form>
+
+                                        {% if solicitudes_activas %}
+
+                                            <hr class="border-secondary my-4">
+
+                                            <div class="field-label mb-2">
+                                                Solicitudes guardadas en esta consulta
+                                            </div>
+
+                                            {% for solicitud in solicitudes_activas %}
+
+                                                <div class="study-card mb-2">
+                                                    <div class="study-top">
+                                                        <strong>{{ solicitud.get_tipo_display }}</strong>
+                                                        <span class="tiny">{{ solicitud.get_prioridad_display }}</span>
+                                                    </div>
+
+                                                    {% for estudio in solicitud.estudios_solicitados.all %}
+                                                        <div class="tiny mt-1">
+                                                            • {{ estudio.nombre }}
+                                                            {% if estudio.region_o_detalle %}
+                                                                — {{ estudio.region_o_detalle }}
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endfor %}
+                                                </div>
+
+                                            {% endfor %}
+
+                                        {% endif %}
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <!-- INDICACIONES -->
+
+                            <div class="accordion-item bg-dark border-secondary">
+
+                                <h2 class="accordion-header">
+
+                                    <button
+                                        class="accordion-button collapsed bg-dark text-white"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#panelIndicaciones"
+                                    >
+                                        📄 Indicaciones médicas
+                                    </button>
+
+                                </h2>
+
+                                <div
+                                    id="panelIndicaciones"
+                                    class="accordion-collapse collapse"
+                                    data-bs-parent="#documentosClinicos"
+                                >
+
+                                    <div class="accordion-body">
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'guardar_indicacion_medica' consulta_activa.id %}"
+                                        >
+
+                                            {% csrf_token %}
+
+                                            <div class="mb-3">
+                                                <label class="field-label">
+                                                    Indicaciones para el paciente
+                                                </label>
+
+                                                <textarea
+                                                    name="indicaciones_medicas"
+                                                    class="clinical-textarea"
+                                                    style="min-height: 180px;"
+                                                    placeholder="Cuidados, dieta, reposo, ejercicios, signos de alarma, próxima revisión, etc."
+                                                >{% if indicacion_activa %}{{ indicacion_activa.indicaciones }}{% endif %}</textarea>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-primary">
+                                                💾 Guardar indicaciones
+                                            </button>
+
+                                        </form>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
             {% elif puede_editar_clinica %}
 
                 <div class="alert alert-secondary">
@@ -906,11 +1235,10 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                     </div>
                                 </div>
 
-                                <div class="d-flex gap-2 align-items-center flex-wrap">
+                                <div>
                                     <span class="badge bg-secondary">
                                         {{ estudio.get_estado_display }}
                                     </span>
-
                                 </div>
 
                             </div>
@@ -955,11 +1283,11 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                                 {% if archivo.tipo_archivo == 'IMAGEN' %}
 
-                                                    <div
-                                                        style="
-                                                            display:block;
-                                                            width:100%;
-                                                        "
+                                                    <a
+                                                        href="{{ archivo.archivo.url }}"
+                                                        target="_blank"
+                                                        rel="noopener"
+                                                        style="display:block;"
                                                     >
                                                         <img
                                                             src="{{ archivo.archivo.url }}"
@@ -972,7 +1300,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 border-radius:6px;
                                                             "
                                                         >
-                                                    </div>
+                                                    </a>
 
                                                 {% else %}
 
@@ -1002,23 +1330,14 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                     {{ archivo.creado_el|date:"d/m/Y H:i" }}
                                                 </div>
 
-                                                {% if archivo.tipo_archivo == 'IMAGEN' %}
-                                                    <a
-                                                        href="#interpretacion-{{ estudio.id }}"
-                                                        class="btn btn-outline-info btn-sm mt-2 w-100"
-                                                    >
-                                                        Ver interpretación
-                                                    </a>
-                                                {% else %}
-                                                    <a
-                                                        href="{{ archivo.archivo.url }}"
-                                                        target="_blank"
-                                                        rel="noopener"
-                                                        class="btn btn-outline-info btn-sm mt-2 w-100"
-                                                    >
-                                                        Abrir archivo
-                                                    </a>
-                                                {% endif %}
+                                                <a
+                                                    href="{{ archivo.archivo.url }}"
+                                                    target="_blank"
+                                                    rel="noopener"
+                                                    class="btn btn-outline-info btn-sm mt-2 w-100"
+                                                >
+                                                    Abrir archivo
+                                                </a>
 
                                             </div>
 
@@ -1037,118 +1356,10 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             {% endif %}
 
 
-                            {% if membresia.rol == 'MEDICO' or membresia.rol == 'ADMIN' %}
-
-                                <details
-                                    id="interpretacion-{{ estudio.id }}"
-                                    class="interpret-details"
-                                >
-
-                                    <summary class="interpret-summary">
-                                        🩻 Interpretar estudio
-                                    </summary>
-
-                                    <div class="interpret-header">
-                                        <div>
-                                            <strong>
-                                                Interpretación: {{ estudio.tipo_estudio }}
-                                            </strong>
-
-                                            <div class="tiny mt-1">
-                                                {{ paciente.nombre }} {{ paciente.apellido }}
-                                                · Registro {{ paciente.identificacion }}
-                                            </div>
-                                        </div>
-
-                                    </div>
-
-                                    <div class="interpret-grid">
-
-                                        <div>
-                                            <div class="viewer-box">
-                                                {% for archivo in estudio.archivos.all %}
-                                                    {% if archivo.tipo_archivo == 'IMAGEN' %}
-                                                        <img
-                                                            class="viewer-image"
-                                                            src="{{ archivo.archivo.url }}"
-                                                            alt="{{ archivo.nombre_original|default:'Imagen del estudio' }}"
-                                                        >
-                                                    {% endif %}
-                                                {% empty %}
-                                                    <div class="viewer-empty">
-                                                        No hay imágenes disponibles para visualizar.
-                                                    </div>
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <form
-                                                method="post"
-                                                action="{% url 'guardar_reporte_final_medico' estudio.id %}"
-                                            >
-                                                {% csrf_token %}
-
-                                                <label class="field-label">
-                                                    Interpretación / reporte radiológico
-                                                </label>
-
-                                                <textarea
-                                                    name="reporte_final"
-                                                    class="report-editor"
-                                                    required
-                                                    placeholder="Escribe aquí la interpretación del estudio..."
-                                                >{{ estudio.reporte_final|default_if_none:"" }}</textarea>
-
-                                                {% if estudio.pre_reporte %}
-                                                    <div class="note-readonly mt-2">
-                                                        <strong>Pre-reporte técnico</strong><br>
-                                                        {{ estudio.pre_reporte }}
-                                                    </div>
-                                                {% endif %}
-
-                                                <div class="signature-preview">
-                                                    <strong>Firma del reporte</strong><br>
-
-                                                    Médico:
-                                                    {% if request.user.get_full_name %}
-                                                        {{ request.user.get_full_name }}
-                                                    {% else %}
-                                                        {{ request.user.username }}
-                                                    {% endif %}
-
-                                                    <br>
-                                                    Institución: {{ paciente.institucion.nombre }}
-                                                    <br>
-                                                    El sistema registrará automáticamente
-                                                    fecha y hora al firmar.
-                                                </div>
-
-                                                <button
-                                                    type="submit"
-                                                    class="btn btn-success mt-3 w-100"
-                                                    onclick="
-                                                        return confirm(
-                                                            '¿Firmar este reporte como definitivo?'
-                                                        );
-                                                    "
-                                                >
-                                                    ✍️ Firmar reporte final
-                                                </button>
-                                            </form>
-                                        </div>
-
-                                    </div>
-
-                                </details>
-
-                            {% endif %}
-
-
                             {% if estudio.estado_reporte == 'FINAL' and estudio.reporte_final %}
 
-                                <div class="report-box signed-report">
-                                    <strong>Reporte radiológico final firmado</strong>
+                                <div class="report-box">
+                                    <strong>Reporte radiológico final</strong>
 
                                     <br><br>
 
@@ -1203,5 +1414,73 @@ Expediente {{ paciente.identificacion }} | Loreto One
     </main>
 
 </div>
+
+
+<script>
+    function renumerarFilas(selector, etiqueta) {
+        document.querySelectorAll(selector).forEach(function (fila, indice) {
+            const titulo = fila.querySelector('strong');
+            if (titulo) {
+                titulo.textContent = etiqueta + ' ' + (indice + 1);
+            }
+        });
+    }
+
+    function eliminarFila(boton) {
+        const fila = boton.closest('.medicamento-fila, .estudio-solicitud-fila');
+        if (!fila) {
+            return;
+        }
+
+        const contenedor = fila.parentElement;
+        const filas = contenedor.querySelectorAll('.medicamento-fila, .estudio-solicitud-fila');
+
+        if (filas.length === 1) {
+            fila.querySelectorAll('input, textarea').forEach(function (campo) {
+                campo.value = '';
+            });
+
+            fila.querySelectorAll('select').forEach(function (campo) {
+                campo.selectedIndex = 0;
+            });
+
+            return;
+        }
+
+        fila.remove();
+        renumerarFilas('.medicamento-fila', 'Medicamento');
+        renumerarFilas('.estudio-solicitud-fila', 'Estudio');
+    }
+
+    function agregarMedicamento() {
+        const contenedor = document.getElementById('medicamentos-receta');
+        const primera = contenedor.querySelector('.medicamento-fila');
+        const nueva = primera.cloneNode(true);
+
+        nueva.querySelectorAll('input, textarea').forEach(function (campo) {
+            campo.value = '';
+        });
+
+        nueva.querySelectorAll('select').forEach(function (campo) {
+            campo.selectedIndex = 0;
+        });
+
+        contenedor.appendChild(nueva);
+        renumerarFilas('.medicamento-fila', 'Medicamento');
+    }
+
+    function agregarEstudioSolicitud() {
+        const contenedor = document.getElementById('estudios-solicitud');
+        const primera = contenedor.querySelector('.estudio-solicitud-fila');
+        const nueva = primera.cloneNode(true);
+
+        nueva.querySelectorAll('input, textarea').forEach(function (campo) {
+            campo.value = '';
+        });
+
+        contenedor.appendChild(nueva);
+        renumerarFilas('.estudio-solicitud-fila', 'Estudio');
+    }
+</script>
 
 {% endblock %}

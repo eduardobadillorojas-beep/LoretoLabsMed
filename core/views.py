@@ -23,9 +23,14 @@ from .models import (
     Cita,
     Consulta,
     Estudio,
+    EstudioSolicitado,
+    IndicacionMedica,
+    MedicamentoReceta,
     MembresiaInstitucion,
     Paciente,
+    RecetaMedica,
     SesionTrabajo,
+    SolicitudEstudio,
 )
 
 
@@ -2024,6 +2029,43 @@ def detalle_paciente(
         ]
     )
 
+    receta_activa = None
+    indicacion_activa = None
+    solicitudes_activas = []
+
+    if consulta_activa and puede_editar_clinica:
+        receta_activa = (
+            RecetaMedica.objects
+            .filter(
+                consulta=consulta_activa
+            )
+            .prefetch_related(
+                'medicamentos'
+            )
+            .first()
+        )
+
+        indicacion_activa = (
+            IndicacionMedica.objects
+            .filter(
+                consulta=consulta_activa
+            )
+            .first()
+        )
+
+        solicitudes_activas = (
+            SolicitudEstudio.objects
+            .filter(
+                consulta=consulta_activa
+            )
+            .prefetch_related(
+                'estudios_solicitados'
+            )
+            .order_by(
+                '-creada_el'
+            )
+        )
+
     context = {
         'paciente': paciente,
         'estudios': estudios,
@@ -2034,12 +2076,371 @@ def detalle_paciente(
         'consulta_activa': consulta_activa,
         'puede_editar_clinica':
             puede_editar_clinica,
+        'receta_activa': receta_activa,
+        'indicacion_activa': indicacion_activa,
+        'solicitudes_activas': solicitudes_activas,
     }
 
     return render(
         request,
         'core/detalle_paciente.html',
         context
+    )
+
+
+@login_required
+def guardar_receta_medica(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+        estado='EN_CONSULTA',
+    )
+
+    if (
+        membresia.rol != 'ADMIN'
+        and consulta.medico_id
+        and consulta.medico_id != request.user.id
+    ):
+        return redirect(
+            'detalle_paciente',
+            paciente_id=consulta.paciente_id
+        )
+
+    if request.method == 'POST':
+        observaciones = (
+            request.POST.get(
+                'observaciones_receta',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        receta, _ = (
+            RecetaMedica.objects
+            .update_or_create(
+                consulta=consulta,
+                defaults={
+                    'medico': request.user,
+                    'observaciones': observaciones,
+                }
+            )
+        )
+
+        receta.medicamentos.all().delete()
+
+        medicamentos = request.POST.getlist(
+            'medicamento'
+        )
+        presentaciones = request.POST.getlist(
+            'presentacion'
+        )
+        dosis = request.POST.getlist(
+            'dosis'
+        )
+        vias = request.POST.getlist(
+            'via'
+        )
+        frecuencias = request.POST.getlist(
+            'frecuencia'
+        )
+        duraciones = request.POST.getlist(
+            'duracion'
+        )
+        indicaciones = request.POST.getlist(
+            'indicaciones_medicamento'
+        )
+
+        for indice, nombre in enumerate(
+            medicamentos,
+            start=1
+        ):
+            nombre = nombre.strip()
+
+            if not nombre:
+                continue
+
+            def valor_lista(lista, posicion):
+                try:
+                    valor = lista[posicion].strip()
+                except IndexError:
+                    return None
+
+                return valor or None
+
+            posicion = indice - 1
+
+            MedicamentoReceta.objects.create(
+                receta=receta,
+                medicamento=nombre,
+                presentacion=valor_lista(
+                    presentaciones,
+                    posicion
+                ),
+                dosis=valor_lista(
+                    dosis,
+                    posicion
+                ),
+                via=valor_lista(
+                    vias,
+                    posicion
+                ),
+                frecuencia=valor_lista(
+                    frecuencias,
+                    posicion
+                ),
+                duracion=valor_lista(
+                    duraciones,
+                    posicion
+                ),
+                indicaciones=valor_lista(
+                    indicaciones,
+                    posicion
+                ),
+                orden=indice,
+            )
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=consulta.paciente_id
+    )
+
+
+@login_required
+def guardar_indicacion_medica(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+        estado='EN_CONSULTA',
+    )
+
+    if (
+        membresia.rol != 'ADMIN'
+        and consulta.medico_id
+        and consulta.medico_id != request.user.id
+    ):
+        return redirect(
+            'detalle_paciente',
+            paciente_id=consulta.paciente_id
+        )
+
+    if request.method == 'POST':
+        indicaciones = (
+            request.POST.get(
+                'indicaciones_medicas',
+                ''
+            )
+            .strip()
+        )
+
+        if indicaciones:
+            IndicacionMedica.objects.update_or_create(
+                consulta=consulta,
+                defaults={
+                    'medico': request.user,
+                    'indicaciones': indicaciones,
+                }
+            )
+        else:
+            IndicacionMedica.objects.filter(
+                consulta=consulta
+            ).delete()
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=consulta.paciente_id
+    )
+
+
+@login_required
+def guardar_solicitud_estudio(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+        estado='EN_CONSULTA',
+    )
+
+    if (
+        membresia.rol != 'ADMIN'
+        and consulta.medico_id
+        and consulta.medico_id != request.user.id
+    ):
+        return redirect(
+            'detalle_paciente',
+            paciente_id=consulta.paciente_id
+        )
+
+    if request.method == 'POST':
+        tipo = (
+            request.POST.get(
+                'tipo_solicitud',
+                ''
+            )
+            .strip()
+        )
+
+        prioridad = (
+            request.POST.get(
+                'prioridad_solicitud',
+                'RUTINA'
+            )
+            .strip()
+            or 'RUTINA'
+        )
+
+        motivo_clinico = (
+            request.POST.get(
+                'motivo_clinico',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        observaciones = (
+            request.POST.get(
+                'observaciones_solicitud',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        tipos_validos = {
+            opcion[0]
+            for opcion in SolicitudEstudio.TIPO_CHOICES
+        }
+
+        prioridades_validas = {
+            opcion[0]
+            for opcion in SolicitudEstudio.PRIORIDAD_CHOICES
+        }
+
+        if tipo in tipos_validos:
+            if prioridad not in prioridades_validas:
+                prioridad = 'RUTINA'
+
+            nombres = request.POST.getlist(
+                'estudio_nombre'
+            )
+            detalles = request.POST.getlist(
+                'estudio_detalle'
+            )
+            indicaciones = request.POST.getlist(
+                'estudio_indicaciones'
+            )
+
+            nombres_limpios = [
+                nombre.strip()
+                for nombre in nombres
+                if nombre.strip()
+            ]
+
+            if nombres_limpios:
+                with transaction.atomic():
+                    solicitud = (
+                        SolicitudEstudio.objects
+                        .create(
+                            consulta=consulta,
+                            medico=request.user,
+                            tipo=tipo,
+                            prioridad=prioridad,
+                            motivo_clinico=motivo_clinico,
+                            observaciones=observaciones,
+                        )
+                    )
+
+                    for indice, nombre in enumerate(
+                        nombres,
+                        start=1
+                    ):
+                        nombre = nombre.strip()
+
+                        if not nombre:
+                            continue
+
+                        posicion = indice - 1
+
+                        def valor_lista(lista):
+                            try:
+                                valor = (
+                                    lista[posicion]
+                                    .strip()
+                                )
+                            except IndexError:
+                                return None
+
+                            return valor or None
+
+                        EstudioSolicitado.objects.create(
+                            solicitud=solicitud,
+                            nombre=nombre,
+                            region_o_detalle=valor_lista(
+                                detalles
+                            ),
+                            indicaciones=valor_lista(
+                                indicaciones
+                            ),
+                            orden=indice,
+                        )
+
+    return redirect(
+        'detalle_paciente',
+        paciente_id=consulta.paciente_id
     )
 
 

@@ -53,6 +53,30 @@ urlpatterns = [
     ),
 
     path(
+        'medicos/consulta/<int:consulta_id>/guardar/',
+        views.guardar_consulta_clinica,
+        name='guardar_consulta_clinica'
+    ),
+
+    path(
+        'medicos/consulta/<int:consulta_id>/receta/guardar/',
+        views.guardar_receta_medica,
+        name='guardar_receta_medica'
+    ),
+
+    path(
+        'medicos/consulta/<int:consulta_id>/indicaciones/guardar/',
+        views.guardar_indicacion_medica,
+        name='guardar_indicacion_medica'
+    ),
+
+    path(
+        'medicos/consulta/<int:consulta_id>/solicitud-estudio/guardar/',
+        views.guardar_solicitud_estudio,
+        name='guardar_solicitud_estudio'
+    ),
+
+    path(
         'medicos/estudio/<int:estudio_id>/reporte-final/',
         views.guardar_reporte_final_medico,
         name='guardar_reporte_final_medico'
@@ -160,12 +184,6 @@ urlpatterns = [
         'recepcion/paciente/<int:paciente_id>/',
         views.detalle_paciente,
         name='detalle_paciente'
-    ),
-
-    path(
-        'medicos/consulta/<int:consulta_id>/guardar/',
-        views.guardar_consulta_clinica,
-        name='guardar_consulta_clinica'
     ),
 
     path(
