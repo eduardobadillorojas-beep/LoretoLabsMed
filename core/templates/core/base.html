@@ -52,7 +52,7 @@
         }
 
 
-        .marca-loreto:hover {
+        a.marca-loreto:hover {
             color: #38bdf8;
         }
 
@@ -175,53 +175,110 @@
 
         <!-- LOGO / MARCA -->
 
-        <a
-            href="/"
-            class="marca-loreto"
-        >
-            Loreto<span class="marca-one">One</span>
-        </a>
+        {% if user.is_authenticated and not user.is_superuser %}
 
+            <span class="marca-loreto">
+                Loreto<span class="marca-one">One</span>
+            </span>
 
-        <!-- MENÚ CENTRAL -->
-
-        <div
-            class="menu-modulos
-                   d-flex
-                   align-items-center
-                   ms-auto
-                   me-3"
-        >
+        {% else %}
 
             <a
-                class="nav-link"
                 href="/"
+                class="marca-loreto"
             >
-                Inicio
+                Loreto<span class="marca-one">One</span>
             </a>
 
-            <a
-                class="nav-link"
-                href="/medicos/"
-            >
-                Médicos
-            </a>
+        {% endif %}
 
-            <a
-                class="nav-link"
-                href="/recepcion/"
-            >
-                Recepción
-            </a>
 
-            <a
-                class="nav-link"
-                href="{% url 'panel_radiologo' %}"
-            >
-                Radiología
-            </a>
+        <!-- MENÚ CENTRAL SEGÚN ROL -->
 
-        </div>
+        {% if user.is_authenticated %}
+
+            <div
+                class="menu-modulos
+                       d-flex
+                       align-items-center
+                       ms-auto
+                       me-3"
+            >
+
+                {% if user.is_superuser %}
+
+                    <a
+                        class="nav-link"
+                        href="/"
+                    >
+                        Inicio
+                    </a>
+
+                    <a
+                        class="nav-link"
+                        href="{% url 'panel_medico' %}"
+                    >
+                        Médicos
+                    </a>
+
+                    <a
+                        class="nav-link"
+                        href="{% url 'panel_recepcion' %}"
+                    >
+                        Recepción
+                    </a>
+
+                    <a
+                        class="nav-link"
+                        href="{% url 'panel_radiologo' %}"
+                    >
+                        Radiología
+                    </a>
+
+                {% else %}
+
+                    {% for membresia in user.membresias_institucion.all %}
+
+                        {% if membresia.activa %}
+
+                            {% if membresia.rol == 'RECEPCION' %}
+
+                                <a
+                                    class="nav-link"
+                                    href="{% url 'panel_recepcion' %}"
+                                >
+                                    Recepción
+                                </a>
+
+                            {% elif membresia.rol == 'MEDICO' %}
+
+                                <a
+                                    class="nav-link"
+                                    href="{% url 'panel_medico' %}"
+                                >
+                                    Médicos
+                                </a>
+
+                            {% elif membresia.rol == 'RADIOLOGIA' or membresia.rol == 'TECNICO' %}
+
+                                <a
+                                    class="nav-link"
+                                    href="{% url 'panel_radiologo' %}"
+                                >
+                                    Radiología
+                                </a>
+
+                            {% endif %}
+
+                        {% endif %}
+
+                    {% endfor %}
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
 
 
         <!-- USUARIO -->

@@ -326,7 +326,7 @@ def login_view(request):
             ] = sesion_trabajo.id
 
             if user.groups.filter(
-                name='Médico'
+                name='MÃ©dico'
             ).exists():
 
                 return redirect(
@@ -334,7 +334,7 @@ def login_view(request):
                 )
 
             if user.groups.filter(
-                name='Radiólogo'
+                name='RadiÃ³logo'
             ).exists():
 
                 return redirect(
@@ -342,7 +342,7 @@ def login_view(request):
                 )
 
             if user.groups.filter(
-                name='Recepción'
+                name='RecepciÃ³n'
             ).exists():
 
                 return redirect(
@@ -354,7 +354,7 @@ def login_view(request):
             )
 
         error_message = (
-            'Usuario o contraseña incorrectos'
+            'Usuario o contraseÃ±a incorrectos'
         )
 
     return render(
@@ -438,7 +438,7 @@ def logout_view(request):
 
 
 # =========================================================
-# MÉDICOS
+# MÃ‰DICOS
 # =========================================================
 
 @login_required
@@ -693,7 +693,7 @@ def finalizar_consulta_medica(
 
 
 # =========================================================
-# PANEL RADIOLOGÍA
+# PANEL RADIOLOGÃA
 # =========================================================
 
 @login_required
@@ -852,8 +852,8 @@ def panel_radiologo(request):
         )
 
     # Evita cargar una tabla enorme de una sola vez.
-    # La búsqueda sigue funcionando sobre todos los pacientes
-    # de la institución antes de aplicar este límite.
+    # La bÃºsqueda sigue funcionando sobre todos los pacientes
+    # de la instituciÃ³n antes de aplicar este lÃ­mite.
     pacientes_historial = (
         pacientes_historial[:50]
     )
@@ -882,7 +882,7 @@ def panel_radiologo(request):
     )
 
 # =========================================================
-# ESTACIÓN DE TRABAJO RADIOLOGÍA
+# ESTACIÃ“N DE TRABAJO RADIOLOGÃA
 # =========================================================
 
 @login_required
@@ -1031,7 +1031,7 @@ def nuevo_estudio_desde_radiologia(
 
         if not estudio_nuevo.descripcion:
             estudio_nuevo.descripcion = (
-                'Estudio adicional generado desde Radiología.'
+                'Estudio adicional generado desde RadiologÃ­a.'
             )
 
         estudio_nuevo.save()
@@ -1215,7 +1215,7 @@ def eliminar_archivo_estudio(
     )
 
 # =========================================================
-# PRE-REPORTE TÉCNICO
+# PRE-REPORTE TÃ‰CNICO
 # =========================================================
 
 @login_required
@@ -1298,7 +1298,7 @@ def guardar_pre_reporte_estudio(
 
 
 # =========================================================
-# REPORTE RADIOLÓGICO FINAL
+# REPORTE RADIOLÃ“GICO FINAL
 # =========================================================
 
 @login_required
@@ -1317,8 +1317,8 @@ def guardar_reporte_final_estudio(
         paciente__institucion=membresia.institucion,
     )
 
-    # RADIOLOGIA representa al médico radiólogo
-    # dentro del flujo actual de membresías.
+    # RADIOLOGIA representa al mÃ©dico radiÃ³logo
+    # dentro del flujo actual de membresÃ­as.
     if membresia.rol != 'RADIOLOGIA':
         return redirect(
             'estudio_radiologia',
@@ -1432,11 +1432,22 @@ def finalizar_estudio_radiologia(
     )
 
 # =========================================================
-# RECEPCIÓN
+# RECEPCIÃ“N
 # =========================================================
 
 @login_required
 def panel_recepcion(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
     busqueda = request.GET.get(
         'buscar',
         ''
@@ -1520,7 +1531,7 @@ def panel_recepcion(request):
 
             if tipo_actividad == 'CONSULTA':
                 paciente.estado_atencion_area = (
-                    'Consulta médica'
+                    'Consulta mÃ©dica'
                 )
 
                 if actividad.estado == 'EN_ESPERA':
@@ -1549,7 +1560,7 @@ def panel_recepcion(request):
 
             elif tipo_actividad == 'ESTUDIO':
                 paciente.estado_atencion_area = (
-                    'Radiología'
+                    'RadiologÃ­a'
                 )
 
                 if actividad.estado == 'PENDIENTE':
@@ -2192,7 +2203,7 @@ def guardar_consulta_clinica(
 
 
 # =========================================================
-# REPORTE FINAL DESDE EXPEDIENTE MÉDICO
+# REPORTE FINAL DESDE EXPEDIENTE MÃ‰DICO
 # =========================================================
 
 @login_required
@@ -2321,7 +2332,7 @@ def nuevo_estudio_paciente(
 
 
 # =========================================================
-# CONFIGURACIÓN
+# CONFIGURACIÃ“N
 # =========================================================
 
 @login_required
@@ -2333,7 +2344,7 @@ def panel_config(request):
 
 
 # =========================================================
-# REGISTRO DESDE RECEPCIÓN
+# REGISTRO DESDE RECEPCIÃ“N
 # =========================================================
 
 @login_required
