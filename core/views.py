@@ -1777,6 +1777,119 @@ def nueva_cita(request):
 # =========================================================
 
 @login_required
+def servicios_paciente_recepcion(
+    request,
+    paciente_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        if membresia.rol == 'MEDICO':
+            return redirect('panel_medico')
+
+        if membresia.rol in [
+            'RADIOLOGIA',
+            'TECNICO',
+        ]:
+            return redirect('panel_radiologo')
+
+        return redirect('inicio')
+
+    paciente = get_object_or_404(
+        Paciente,
+        pk=paciente_id,
+        institucion=membresia.institucion,
+    )
+
+    estudios = list(
+        Estudio.objects
+        .select_related(
+            'tipo_estudio'
+        )
+        .filter(
+            paciente=paciente
+        )
+        .order_by(
+            '-fecha_creacion'
+        )
+    )
+
+    total_servicios = len(
+        estudios
+    )
+
+    total_realizados = sum(
+        1
+        for estudio in estudios
+        if estudio.estado == 'COMPLETADO'
+    )
+
+    total_en_proceso = sum(
+        1
+        for estudio in estudios
+        if estudio.estado == 'EN_PROCESO'
+    )
+
+    total_pendientes = sum(
+        1
+        for estudio in estudios
+        if estudio.estado == 'PENDIENTE'
+    )
+
+    resumen_por_tipo = {}
+
+    for estudio in estudios:
+        nombre = (
+            estudio.tipo_estudio.nombre
+            if estudio.tipo_estudio
+            else 'Servicio sin especificar'
+        )
+
+        if nombre not in resumen_por_tipo:
+            resumen_por_tipo[nombre] = {
+                'nombre': nombre,
+                'cantidad': 0,
+                'realizados': 0,
+            }
+
+        resumen_por_tipo[nombre]['cantidad'] += 1
+
+        if estudio.estado == 'COMPLETADO':
+            resumen_por_tipo[nombre]['realizados'] += 1
+
+    resumen_servicios = sorted(
+        resumen_por_tipo.values(),
+        key=lambda item: (
+            -item['cantidad'],
+            item['nombre'].lower(),
+        )
+    )
+
+    context = {
+        'paciente': paciente,
+        'estudios': estudios,
+        'total_servicios': total_servicios,
+        'total_realizados': total_realizados,
+        'total_en_proceso': total_en_proceso,
+        'total_pendientes': total_pendientes,
+        'resumen_servicios': resumen_servicios,
+        'membresia': membresia,
+    }
+
+    return render(
+        request,
+        'core/servicios_paciente_recepcion.html',
+        context
+    )
+
+
+@login_required
 def detalle_paciente(
     request,
     paciente_id
@@ -1785,6 +1898,14 @@ def detalle_paciente(
 
     if membresia is None:
         return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'RADIOLOGIA',
+        'TECNICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_recepcion')
 
     paciente = get_object_or_404(
         Paciente,

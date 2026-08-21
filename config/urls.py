@@ -143,6 +143,16 @@ urlpatterns = [
     ),
 
     # =========================
+    # SERVICIOS / CUENTA
+    # =========================
+
+    path(
+        'recepcion/paciente/<int:paciente_id>/servicios/',
+        views.servicios_paciente_recepcion,
+        name='servicios_paciente_recepcion'
+    ),
+
+    # =========================
     # EXPEDIENTE DEL PACIENTE
     # =========================
 

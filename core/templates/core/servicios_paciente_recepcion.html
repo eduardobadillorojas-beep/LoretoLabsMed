@@ -1,0 +1,425 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+Servicios del paciente | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .servicios-wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 14px 18px 35px;
+    }
+
+    .servicios-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+    }
+
+    .servicios-title {
+        margin: 0;
+        font-size: 1.45rem;
+        font-weight: 800;
+    }
+
+    .servicios-subtitle {
+        color: #94a3b8;
+        font-size: .72rem;
+        margin-top: 3px;
+    }
+
+    .paciente-card {
+        background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+        border: 1px solid #334155;
+        border-radius: 11px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    .paciente-nombre {
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .paciente-dato {
+        color: #94a3b8;
+        font-size: .68rem;
+        margin-top: 2px;
+    }
+
+    .stats-servicios {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .stat-servicio {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 9px;
+        padding: 9px 11px;
+    }
+
+    .stat-label {
+        color: #94a3b8;
+        font-size: .62rem;
+        text-transform: uppercase;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 800;
+        margin-top: 2px;
+    }
+
+    .servicios-grid {
+        display: grid;
+        grid-template-columns: .8fr 1.4fr;
+        gap: 10px;
+        align-items: start;
+    }
+
+    .panel-servicios {
+        background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+        border: 1px solid #334155;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 9px 12px;
+        border-bottom: 1px solid #334155;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .servicios-table {
+        margin: 0;
+        font-size: .73rem;
+    }
+
+    .servicios-table th {
+        color: #94a3b8;
+        font-size: .61rem;
+        text-transform: uppercase;
+        padding: 7px 9px;
+        white-space: nowrap;
+    }
+
+    .servicios-table td {
+        padding: 7px 9px;
+        vertical-align: middle;
+    }
+
+    .servicio-nombre {
+        font-weight: 700;
+        color: #f8fafc;
+    }
+
+    .servicio-modalidad {
+        color: #94a3b8;
+        font-size: .62rem;
+        margin-top: 1px;
+    }
+
+    .estado {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: .61rem;
+        font-weight: 700;
+    }
+
+    .estado-pendiente {
+        background: rgba(245, 158, 11, .18);
+        color: #fde68a;
+        border: 1px solid rgba(245, 158, 11, .35);
+    }
+
+    .estado-proceso {
+        background: rgba(14, 165, 233, .18);
+        color: #bae6fd;
+        border: 1px solid rgba(14, 165, 233, .35);
+    }
+
+    .estado-completado {
+        background: rgba(34, 197, 94, .18);
+        color: #bbf7d0;
+        border: 1px solid rgba(34, 197, 94, .35);
+    }
+
+    .lista-vacia {
+        padding: 24px 14px;
+        text-align: center;
+        color: #64748b;
+        font-size: .73rem;
+    }
+
+    .privacidad {
+        margin-top: 10px;
+        padding: 9px 11px;
+        border-radius: 8px;
+        border: 1px solid rgba(56, 189, 248, .25);
+        background: rgba(14, 165, 233, .07);
+        color: #94a3b8;
+        font-size: .64rem;
+    }
+
+    @media (max-width: 900px) {
+        .stats-servicios {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .servicios-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+
+<div class="servicios-wrap">
+
+    <div class="servicios-header">
+
+        <div>
+            <h1 class="servicios-title">
+                Servicios del paciente
+            </h1>
+
+            <div class="servicios-subtitle">
+                Vista administrativa para recepción y cobro.
+            </div>
+        </div>
+
+        <a
+            href="{% url 'panel_recepcion' %}"
+            class="btn btn-outline-secondary btn-sm"
+        >
+            ← Volver a Recepción
+        </a>
+
+    </div>
+
+
+    <div class="paciente-card">
+
+        <div>
+            <div class="paciente-nombre">
+                {{ paciente.nombre }} {{ paciente.apellido }}
+            </div>
+
+            <div class="paciente-dato">
+                Registro {{ paciente.identificacion }}
+                · {{ paciente.telefono|default:"Sin teléfono" }}
+            </div>
+        </div>
+
+        <span class="badge bg-secondary">
+            {{ total_servicios }} servicio{{ total_servicios|pluralize }}
+        </span>
+
+    </div>
+
+
+    <div class="stats-servicios">
+
+        <div class="stat-servicio">
+            <div class="stat-label">
+                Total registrados
+            </div>
+            <div class="stat-value">
+                {{ total_servicios }}
+            </div>
+        </div>
+
+        <div class="stat-servicio">
+            <div class="stat-label">
+                Realizados
+            </div>
+            <div class="stat-value">
+                {{ total_realizados }}
+            </div>
+        </div>
+
+        <div class="stat-servicio">
+            <div class="stat-label">
+                En proceso
+            </div>
+            <div class="stat-value">
+                {{ total_en_proceso }}
+            </div>
+        </div>
+
+        <div class="stat-servicio">
+            <div class="stat-label">
+                Pendientes
+            </div>
+            <div class="stat-value">
+                {{ total_pendientes }}
+            </div>
+        </div>
+
+    </div>
+
+
+    <div class="servicios-grid">
+
+        <section class="panel-servicios">
+
+            <div class="panel-header">
+                Resumen por servicio
+            </div>
+
+            {% if resumen_servicios %}
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover servicios-table">
+
+                        <thead>
+                            <tr>
+                                <th>Servicio</th>
+                                <th>Cantidad</th>
+                                <th>Realizados</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for item in resumen_servicios %}
+
+                                <tr>
+                                    <td class="servicio-nombre">
+                                        {{ item.nombre }}
+                                    </td>
+                                    <td>
+                                        {{ item.cantidad }}
+                                    </td>
+                                    <td>
+                                        {{ item.realizados }}
+                                    </td>
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="lista-vacia">
+                    Este paciente todavía no tiene servicios registrados.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+
+        <section class="panel-servicios">
+
+            <div class="panel-header">
+                Detalle de servicios
+            </div>
+
+            {% if estudios %}
+
+                <div class="table-responsive">
+
+                    <table class="table table-dark table-hover servicios-table">
+
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Servicio</th>
+                                <th>Modalidad</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for estudio in estudios %}
+
+                                <tr>
+
+                                    <td>
+                                        {{ estudio.fecha_creacion|date:"d/m/Y H:i" }}
+                                    </td>
+
+                                    <td class="servicio-nombre">
+                                        {{ estudio.tipo_estudio.nombre }}
+                                    </td>
+
+                                    <td>
+                                        {{ estudio.tipo_estudio.get_modalidad_display }}
+                                    </td>
+
+                                    <td>
+
+                                        {% if estudio.estado == 'PENDIENTE' %}
+
+                                            <span class="estado estado-pendiente">
+                                                Pendiente
+                                            </span>
+
+                                        {% elif estudio.estado == 'EN_PROCESO' %}
+
+                                            <span class="estado estado-proceso">
+                                                En proceso
+                                            </span>
+
+                                        {% else %}
+
+                                            <span class="estado estado-completado">
+                                                Completado
+                                            </span>
+
+                                        {% endif %}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="lista-vacia">
+                    No existen servicios registrados para este paciente.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+    </div>
+
+
+    <div class="privacidad">
+        Esta pantalla es exclusivamente administrativa. No muestra diagnósticos,
+        recetas, notas médicas, reportes radiológicos ni imágenes del paciente.
+    </div>
+
+</div>
+
+{% endblock %}
