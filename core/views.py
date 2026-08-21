@@ -325,28 +325,48 @@ def login_view(request):
                 'sesion_trabajo_id'
             ] = sesion_trabajo.id
 
-            if user.groups.filter(
-                name='MÃ©dico'
-            ).exists():
+            membresia = (
+                MembresiaInstitucion.objects
+                .select_related('institucion')
+                .filter(
+                    usuario=user,
+                    activa=True,
+                    institucion__activa=True,
+                )
+                .first()
+            )
 
+            if user.is_superuser:
+                return redirect(
+                    'panel_config'
+                )
+
+            if membresia is None:
+                return redirect(
+                    'panel_config'
+                )
+
+            if membresia.rol == 'RECEPCION':
+                return redirect(
+                    'panel_recepcion'
+                )
+
+            if membresia.rol == 'MEDICO':
                 return redirect(
                     'panel_medico'
                 )
 
-            if user.groups.filter(
-                name='RadiÃ³logo'
-            ).exists():
-
+            if membresia.rol in [
+                'RADIOLOGIA',
+                'TECNICO',
+            ]:
                 return redirect(
                     'panel_radiologo'
                 )
 
-            if user.groups.filter(
-                name='RecepciÃ³n'
-            ).exists():
-
+            if membresia.rol == 'ADMIN':
                 return redirect(
-                    'panel_recepcion'
+                    'panel_config'
                 )
 
             return redirect(
@@ -2337,6 +2357,44 @@ def nuevo_estudio_paciente(
 
 @login_required
 def panel_config(request):
+    if request.user.is_superuser:
+        return render(
+            request,
+            'core/panel_config.html'
+        )
+
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return render(
+            request,
+            'core/panel_config.html'
+        )
+
+    if membresia.rol == 'RECEPCION':
+        return redirect(
+            'panel_recepcion'
+        )
+
+    if membresia.rol == 'MEDICO':
+        return redirect(
+            'panel_medico'
+        )
+
+    if membresia.rol in [
+        'RADIOLOGIA',
+        'TECNICO',
+    ]:
+        return redirect(
+            'panel_radiologo'
+        )
+
+    if membresia.rol == 'ADMIN':
+        return render(
+            request,
+            'core/panel_config.html'
+        )
+
     return render(
         request,
         'core/panel_config.html'
