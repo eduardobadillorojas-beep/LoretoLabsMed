@@ -28,6 +28,7 @@ from .models import (
     MedicamentoReceta,
     MembresiaInstitucion,
     Paciente,
+    PerfilMedico,
     RecetaMedica,
     SesionTrabajo,
     SolicitudEstudio,
@@ -465,6 +466,93 @@ def logout_view(request):
 # =========================================================
 # MÃ‰DICOS
 # =========================================================
+
+@login_required
+def perfil_medico(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    perfil, _ = PerfilMedico.objects.get_or_create(
+        institucion=membresia.institucion,
+        usuario=request.user,
+        defaults={
+            'activo': True,
+        }
+    )
+
+    guardado = False
+
+    if request.method == 'POST':
+        perfil.especialidad = (
+            request.POST.get(
+                'especialidad',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        perfil.cedula_profesional = (
+            request.POST.get(
+                'cedula_profesional',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        perfil.telefono_profesional = (
+            request.POST.get(
+                'telefono_profesional',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        firma = request.FILES.get(
+            'firma'
+        )
+
+        if firma:
+            perfil.firma = firma
+
+        if request.POST.get(
+            'eliminar_firma'
+        ) == '1':
+            if perfil.firma:
+                perfil.firma.delete(
+                    save=False
+                )
+
+            perfil.firma = None
+
+        perfil.activo = True
+        perfil.save()
+
+        guardado = True
+
+    context = {
+        'membresia': membresia,
+        'institucion': membresia.institucion,
+        'perfil': perfil,
+        'guardado': guardado,
+    }
+
+    return render(
+        request,
+        'core/perfil_medico.html',
+        context
+    )
+
 
 @login_required
 def panel_medico(request):
@@ -2758,47 +2846,155 @@ def nuevo_estudio_paciente(
 
 @login_required
 def panel_config(request):
-    if request.user.is_superuser:
-        return render(
-            request,
-            'core/panel_config.html'
-        )
-
     membresia = obtener_membresia_usuario(request)
 
-    if membresia is None:
-        return render(
-            request,
-            'core/panel_config.html'
-        )
+    if membresia is not None:
+        if membresia.rol == 'RECEPCION':
+            return redirect(
+                'panel_recepcion'
+            )
 
-    if membresia.rol == 'RECEPCION':
+        if membresia.rol == 'MEDICO':
+            return redirect(
+                'panel_medico'
+            )
+
+        if membresia.rol in [
+            'RADIOLOGIA',
+            'TECNICO',
+        ]:
+            return redirect(
+                'panel_radiologo'
+            )
+
+        if (
+            membresia.rol != 'ADMIN'
+            and not request.user.is_superuser
+        ):
+            return redirect(
+                'inicio'
+            )
+
+    elif not request.user.is_superuser:
         return redirect(
-            'panel_recepcion'
+            'inicio'
         )
 
-    if membresia.rol == 'MEDICO':
-        return redirect(
-            'panel_medico'
+    institucion = (
+        membresia.institucion
+        if membresia is not None
+        else None
+    )
+
+    guardado = False
+
+    if (
+        request.method == 'POST'
+        and institucion is not None
+    ):
+        institucion.nombre = (
+            request.POST.get(
+                'nombre',
+                ''
+            )
+            .strip()
+            or institucion.nombre
         )
 
-    if membresia.rol in [
-        'RADIOLOGIA',
-        'TECNICO',
-    ]:
-        return redirect(
-            'panel_radiologo'
+        institucion.nombre_comercial = (
+            request.POST.get(
+                'nombre_comercial',
+                ''
+            )
+            .strip()
+            or None
         )
 
-    if membresia.rol == 'ADMIN':
-        return render(
-            request,
-            'core/panel_config.html'
+        institucion.telefono = (
+            request.POST.get(
+                'telefono',
+                ''
+            )
+            .strip()
+            or None
         )
+
+        institucion.telefono_secundario = (
+            request.POST.get(
+                'telefono_secundario',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        institucion.email = (
+            request.POST.get(
+                'email',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        institucion.direccion = (
+            request.POST.get(
+                'direccion',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        institucion.horarios_servicio = (
+            request.POST.get(
+                'horarios_servicio',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        institucion.pie_documentos = (
+            request.POST.get(
+                'pie_documentos',
+                ''
+            )
+            .strip()
+            or None
+        )
+
+        logo = request.FILES.get(
+            'logo'
+        )
+
+        if logo:
+            institucion.logo = logo
+
+        if request.POST.get(
+            'eliminar_logo'
+        ) == '1':
+            if institucion.logo:
+                institucion.logo.delete(
+                    save=False
+                )
+
+            institucion.logo = None
+
+        institucion.save()
+
+        guardado = True
+
+    context = {
+        'membresia': membresia,
+        'institucion': institucion,
+        'guardado': guardado,
+    }
 
     return render(
         request,
-        'core/panel_config.html'
+        'core/panel_config.html',
+        context
     )
 
 

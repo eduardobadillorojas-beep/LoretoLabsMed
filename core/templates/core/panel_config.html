@@ -1,20 +1,493 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8"><title>Configuración - Loreto Labs Med</title>
-    <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0F172A; color: white; padding: 30px; }
-        .card { background: #1E293B; padding: 20px; border-radius: 10px; border-left: 5px solid #F59E0B; margin-top: 20px; }
-        a { color: #CBD5E1; text-decoration: none; }
-    </style>
-</head>
-<body>
-    <a href="/">← Inicio</a>
-    <h1>⚙️ Configuración del Sistema</h1>
-    <p>Ajustes generales y control de usuarios de Loreto Labs Med.</p>
-    <div class="card">
-        <h3>🔒 Control de Accesos</h3>
-        <p>Gestión de roles, permisos, catálogos e integración del sistema.</p>
-    </div>
-</body>
-</html>
+{% extends 'core/base.html' %}
+
+{% block title %}
+Configuración | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .config-wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 18px 18px 45px;
+    }
+
+    .config-header {
+        margin-bottom: 18px;
+    }
+
+    .config-title {
+        margin: 0;
+        font-size: 1.65rem;
+        font-weight: 800;
+    }
+
+    .config-subtitle {
+        color: #94a3b8;
+        font-size: .78rem;
+        margin-top: 4px;
+    }
+
+    .config-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .config-card-header {
+        padding: 11px 14px;
+        border-bottom: 1px solid #334155;
+        font-weight: 800;
+        font-size: .9rem;
+    }
+
+    .config-card-body {
+        padding: 14px;
+    }
+
+    .config-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .config-full {
+        grid-column: 1 / -1;
+    }
+
+    .config-label {
+        display: block;
+        color: #cbd5e1;
+        font-size: .7rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .config-input,
+    .config-textarea {
+        width: 100%;
+        border: 1px solid #475569;
+        border-radius: 7px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 9px 10px;
+        font-size: .8rem;
+    }
+
+    .config-textarea {
+        min-height: 95px;
+        resize: vertical;
+    }
+
+    .config-input:focus,
+    .config-textarea:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
+    }
+
+    .logo-box {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px;
+        border: 1px dashed #475569;
+        border-radius: 9px;
+        background: #0f172a;
+    }
+
+    .logo-preview {
+        width: 140px;
+        height: 90px;
+        object-fit: contain;
+        background: white;
+        border-radius: 7px;
+        padding: 6px;
+    }
+
+    .logo-empty {
+        width: 140px;
+        height: 90px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed #64748b;
+        border-radius: 7px;
+        color: #64748b;
+        font-size: .72rem;
+        text-align: center;
+    }
+
+    .hint {
+        color: #94a3b8;
+        font-size: .68rem;
+        margin-top: 5px;
+    }
+
+    .preview-doc {
+        border: 1px solid #334155;
+        border-radius: 9px;
+        background: white;
+        color: #111827;
+        padding: 18px;
+    }
+
+    .preview-doc-head {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border-bottom: 2px solid #0f172a;
+        padding-bottom: 12px;
+        margin-bottom: 12px;
+    }
+
+    .preview-doc-logo {
+        width: 80px;
+        height: 58px;
+        object-fit: contain;
+    }
+
+    .preview-name {
+        font-size: 1rem;
+        font-weight: 800;
+    }
+
+    .preview-small {
+        font-size: .7rem;
+        line-height: 1.5;
+    }
+
+    .preview-footer {
+        margin-top: 28px;
+        border-top: 1px solid #cbd5e1;
+        padding-top: 9px;
+        font-size: .67rem;
+        text-align: center;
+    }
+
+    @media (max-width: 760px) {
+        .config-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .config-full {
+            grid-column: auto;
+        }
+    }
+</style>
+
+<div class="config-wrap">
+
+    <header class="config-header">
+        <h1 class="config-title">
+            ⚙️ Configuración
+        </h1>
+
+        <div class="config-subtitle">
+            Identidad institucional y datos que aparecerán en recetas,
+            solicitudes e indicaciones.
+        </div>
+    </header>
+
+    {% if guardado %}
+        <div class="alert alert-success py-2">
+            Configuración institucional guardada correctamente.
+        </div>
+    {% endif %}
+
+    {% if institucion %}
+
+        <form
+            method="post"
+            enctype="multipart/form-data"
+        >
+            {% csrf_token %}
+
+            <section class="config-card">
+
+                <div class="config-card-header">
+                    🏥 Datos de la institución
+                </div>
+
+                <div class="config-card-body">
+
+                    <div class="config-grid">
+
+                        <div>
+                            <label class="config-label">
+                                Nombre legal / institucional
+                            </label>
+
+                            <input
+                                type="text"
+                                name="nombre"
+                                class="config-input"
+                                value="{{ institucion.nombre }}"
+                                required
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
+                                Nombre comercial
+                            </label>
+
+                            <input
+                                type="text"
+                                name="nombre_comercial"
+                                class="config-input"
+                                value="{{ institucion.nombre_comercial|default_if_none:'' }}"
+                                placeholder="Nombre que verá el paciente"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
+                                Teléfono principal
+                            </label>
+
+                            <input
+                                type="text"
+                                name="telefono"
+                                class="config-input"
+                                value="{{ institucion.telefono|default_if_none:'' }}"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
+                                Teléfono secundario
+                            </label>
+
+                            <input
+                                type="text"
+                                name="telefono_secundario"
+                                class="config-input"
+                                value="{{ institucion.telefono_secundario|default_if_none:'' }}"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
+                                Correo electrónico
+                            </label>
+
+                            <input
+                                type="email"
+                                name="email"
+                                class="config-input"
+                                value="{{ institucion.email|default_if_none:'' }}"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
+                                Horarios de servicio
+                            </label>
+
+                            <input
+                                type="text"
+                                name="horarios_servicio"
+                                class="config-input"
+                                value="{{ institucion.horarios_servicio|default_if_none:'' }}"
+                                placeholder="Ej. Lunes a viernes 8:00–19:00"
+                            >
+                        </div>
+
+                        <div class="config-full">
+                            <label class="config-label">
+                                Dirección
+                            </label>
+
+                            <textarea
+                                name="direccion"
+                                class="config-textarea"
+                            >{{ institucion.direccion|default_if_none:"" }}</textarea>
+                        </div>
+
+                        <div class="config-full">
+                            <label class="config-label">
+                                Pie de documentos
+                            </label>
+
+                            <textarea
+                                name="pie_documentos"
+                                class="config-textarea"
+                                placeholder="Texto opcional que aparecerá al final de recetas y solicitudes."
+                            >{{ institucion.pie_documentos|default_if_none:"" }}</textarea>
+
+                            <div class="hint">
+                                Puede usarse para avisos, redes, página web o información institucional.
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section class="config-card">
+
+                <div class="config-card-header">
+                    🖼️ Logo institucional
+                </div>
+
+                <div class="config-card-body">
+
+                    <div class="logo-box">
+
+                        {% if institucion.logo %}
+                            <img
+                                src="{{ institucion.logo.url }}"
+                                alt="Logo institucional"
+                                class="logo-preview"
+                            >
+                        {% else %}
+                            <div class="logo-empty">
+                                Sin logo cargado
+                            </div>
+                        {% endif %}
+
+                        <div class="flex-grow-1">
+
+                            <label class="config-label">
+                                Cargar o reemplazar logo
+                            </label>
+
+                            <input
+                                type="file"
+                                name="logo"
+                                class="form-control form-control-sm"
+                                accept="image/png,image/jpeg,image/webp"
+                            >
+
+                            <div class="hint">
+                                Recomendado: PNG o JPG con fondo transparente o blanco.
+                            </div>
+
+                            {% if institucion.logo %}
+                                <div class="form-check mt-2">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        name="eliminar_logo"
+                                        value="1"
+                                        id="eliminarLogo"
+                                    >
+
+                                    <label
+                                        class="form-check-label small"
+                                        for="eliminarLogo"
+                                    >
+                                        Eliminar logo actual
+                                    </label>
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section class="config-card">
+
+                <div class="config-card-header">
+                    👁️ Vista previa institucional
+                </div>
+
+                <div class="config-card-body">
+
+                    <div class="preview-doc">
+
+                        <div class="preview-doc-head">
+
+                            {% if institucion.logo %}
+                                <img
+                                    src="{{ institucion.logo.url }}"
+                                    alt="Logo"
+                                    class="preview-doc-logo"
+                                >
+                            {% endif %}
+
+                            <div>
+                                <div class="preview-name">
+                                    {{ institucion.nombre_comercial|default:institucion.nombre }}
+                                </div>
+
+                                <div class="preview-small">
+                                    {{ institucion.direccion|default:"Dirección pendiente de configurar" }}
+                                </div>
+
+                                <div class="preview-small">
+                                    {% if institucion.telefono %}
+                                        Tel. {{ institucion.telefono }}
+                                    {% endif %}
+
+                                    {% if institucion.telefono_secundario %}
+                                        · {{ institucion.telefono_secundario }}
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="preview-small">
+                            Aquí aparecerá el contenido de la receta,
+                            solicitud de estudios o indicaciones médicas.
+                        </div>
+
+                        <div class="preview-footer">
+
+                            {% if institucion.horarios_servicio %}
+                                {{ institucion.horarios_servicio }}
+                            {% endif %}
+
+                            {% if institucion.pie_documentos %}
+                                <br>
+                                {{ institucion.pie_documentos }}
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <div class="d-flex justify-content-end">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary"
+                >
+                    💾 Guardar configuración
+                </button>
+
+            </div>
+
+        </form>
+
+    {% else %}
+
+        <div class="alert alert-warning">
+            Tu usuario no tiene una institución asociada.
+            Asigna una membresía institucional antes de configurar estos datos.
+        </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}

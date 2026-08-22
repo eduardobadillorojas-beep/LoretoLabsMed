@@ -1,0 +1,428 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+Mi perfil profesional | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .perfil-wrap {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px 18px 45px;
+    }
+
+    .perfil-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .perfil-title {
+        margin: 0;
+        font-size: 1.55rem;
+        font-weight: 800;
+    }
+
+    .perfil-subtitle {
+        color: #94a3b8;
+        font-size: .75rem;
+        margin-top: 4px;
+    }
+
+    .perfil-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .perfil-card-header {
+        padding: 11px 14px;
+        border-bottom: 1px solid #334155;
+        font-weight: 800;
+        font-size: .88rem;
+    }
+
+    .perfil-card-body {
+        padding: 14px;
+    }
+
+    .perfil-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .perfil-label {
+        display: block;
+        color: #cbd5e1;
+        font-size: .7rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .perfil-input {
+        width: 100%;
+        border: 1px solid #475569;
+        border-radius: 7px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 9px 10px;
+        font-size: .8rem;
+    }
+
+    .perfil-input:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
+    }
+
+    .dato-readonly {
+        border: 1px solid #334155;
+        border-radius: 7px;
+        background: #111827;
+        padding: 9px 10px;
+        color: #e2e8f0;
+        font-size: .8rem;
+    }
+
+    .firma-box {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 12px;
+        border: 1px dashed #475569;
+        border-radius: 9px;
+        background: #0f172a;
+    }
+
+    .firma-preview {
+        width: 220px;
+        height: 105px;
+        object-fit: contain;
+        background: white;
+        border-radius: 7px;
+        padding: 8px;
+    }
+
+    .firma-empty {
+        width: 220px;
+        height: 105px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px dashed #64748b;
+        border-radius: 7px;
+        color: #64748b;
+        text-align: center;
+        font-size: .7rem;
+    }
+
+    .hint {
+        color: #94a3b8;
+        font-size: .68rem;
+        margin-top: 5px;
+    }
+
+    .credencial-preview {
+        background: white;
+        color: #111827;
+        border-radius: 10px;
+        padding: 20px;
+        border: 1px solid #cbd5e1;
+    }
+
+    .credencial-name {
+        font-size: 1.05rem;
+        font-weight: 800;
+    }
+
+    .credencial-small {
+        font-size: .73rem;
+        line-height: 1.55;
+    }
+
+    .credencial-firma {
+        display: block;
+        max-width: 180px;
+        max-height: 75px;
+        object-fit: contain;
+        margin: 24px auto 4px;
+    }
+
+    .firma-linea {
+        width: 230px;
+        max-width: 100%;
+        border-top: 1px solid #111827;
+        margin: 55px auto 4px;
+    }
+
+    @media (max-width: 700px) {
+        .perfil-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="perfil-wrap">
+
+    <div class="perfil-top">
+        <div>
+            <h1 class="perfil-title">
+                👤 Mi perfil profesional
+            </h1>
+
+            <div class="perfil-subtitle">
+                Estos datos aparecerán automáticamente en recetas,
+                solicitudes de estudios e indicaciones.
+            </div>
+        </div>
+
+        <a
+            href="{% url 'panel_medico' %}"
+            class="btn btn-outline-secondary btn-sm"
+        >
+            ← Volver al panel médico
+        </a>
+    </div>
+
+    {% if guardado %}
+        <div class="alert alert-success py-2">
+            Perfil profesional guardado correctamente.
+        </div>
+    {% endif %}
+
+    <form
+        method="post"
+        enctype="multipart/form-data"
+    >
+        {% csrf_token %}
+
+        <section class="perfil-card">
+
+            <div class="perfil-card-header">
+                🩺 Datos profesionales
+            </div>
+
+            <div class="perfil-card-body">
+
+                <div class="perfil-grid">
+
+                    <div>
+                        <label class="perfil-label">
+                            Nombre del médico
+                        </label>
+
+                        <div class="dato-readonly">
+                            {% if request.user.get_full_name %}
+                                {{ request.user.get_full_name }}
+                            {% else %}
+                                {{ request.user.username }}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="perfil-label">
+                            Institución
+                        </label>
+
+                        <div class="dato-readonly">
+                            {{ institucion.nombre_comercial|default:institucion.nombre }}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="perfil-label">
+                            Especialidad
+                        </label>
+
+                        <input
+                            type="text"
+                            name="especialidad"
+                            class="perfil-input"
+                            value="{{ perfil.especialidad|default_if_none:'' }}"
+                            placeholder="Ej. Medicina general, Radiología, Traumatología"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="perfil-label">
+                            Cédula profesional
+                        </label>
+
+                        <input
+                            type="text"
+                            name="cedula_profesional"
+                            class="perfil-input"
+                            value="{{ perfil.cedula_profesional|default_if_none:'' }}"
+                            placeholder="Número de cédula"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="perfil-label">
+                            Teléfono profesional
+                        </label>
+
+                        <input
+                            type="text"
+                            name="telefono_profesional"
+                            class="perfil-input"
+                            value="{{ perfil.telefono_profesional|default_if_none:'' }}"
+                            placeholder="Opcional"
+                        >
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section class="perfil-card">
+
+            <div class="perfil-card-header">
+                ✍️ Firma digitalizada
+            </div>
+
+            <div class="perfil-card-body">
+
+                <div class="firma-box">
+
+                    {% if perfil.firma %}
+                        <img
+                            src="{{ perfil.firma.url }}"
+                            alt="Firma del médico"
+                            class="firma-preview"
+                        >
+                    {% else %}
+                        <div class="firma-empty">
+                            Sin firma digitalizada.<br>
+                            Los documentos mostrarán espacio para firma manual.
+                        </div>
+                    {% endif %}
+
+                    <div class="flex-grow-1">
+
+                        <label class="perfil-label">
+                            Cargar o reemplazar firma
+                        </label>
+
+                        <input
+                            type="file"
+                            name="firma"
+                            class="form-control form-control-sm"
+                            accept="image/png,image/jpeg,image/webp"
+                        >
+
+                        <div class="hint">
+                            Recomendado: PNG con fondo transparente o imagen
+                            clara de la firma sobre fondo blanco.
+                        </div>
+
+                        {% if perfil.firma %}
+                            <div class="form-check mt-2">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    name="eliminar_firma"
+                                    value="1"
+                                    id="eliminarFirma"
+                                >
+
+                                <label
+                                    class="form-check-label small"
+                                    for="eliminarFirma"
+                                >
+                                    Eliminar firma actual y usar espacio para firma manual
+                                </label>
+                            </div>
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section class="perfil-card">
+
+            <div class="perfil-card-header">
+                👁️ Vista previa de firma profesional
+            </div>
+
+            <div class="perfil-card-body">
+
+                <div class="credencial-preview">
+
+                    <div class="credencial-name">
+                        {% if request.user.get_full_name %}
+                            {{ request.user.get_full_name }}
+                        {% else %}
+                            {{ request.user.username }}
+                        {% endif %}
+                    </div>
+
+                    <div class="credencial-small">
+                        {% if perfil.especialidad %}
+                            {{ perfil.especialidad }}
+                        {% else %}
+                            Especialidad pendiente de configurar
+                        {% endif %}
+                    </div>
+
+                    <div class="credencial-small">
+                        {% if perfil.cedula_profesional %}
+                            Cédula profesional: {{ perfil.cedula_profesional }}
+                        {% else %}
+                            Cédula profesional pendiente de configurar
+                        {% endif %}
+                    </div>
+
+                    {% if perfil.firma %}
+                        <img
+                            src="{{ perfil.firma.url }}"
+                            alt="Firma"
+                            class="credencial-firma"
+                        >
+                    {% else %}
+                        <div class="firma-linea"></div>
+                    {% endif %}
+
+                    <div class="text-center credencial-small">
+                        Firma del médico
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <div class="d-flex justify-content-end">
+            <button
+                type="submit"
+                class="btn btn-primary"
+            >
+                💾 Guardar perfil profesional
+            </button>
+        </div>
+
+    </form>
+
+</div>
+
+{% endblock %}

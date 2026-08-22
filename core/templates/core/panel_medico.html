@@ -1,7 +1,7 @@
 {% extends 'core/base.html' %}
 
 {% block title %}
-Panel médico | Loreto One
+Panel mÃ©dico | Loreto One
 {% endblock %}
 
 {% block content %}
@@ -53,6 +53,13 @@ Panel médico | Loreto One
       <h1>👨‍⚕️ Panel Médico</h1>
       <p>{{ institucion.nombre }} · atención clínica, pacientes y resultados.</p>
     </div>
+
+    <a
+      href="{% url 'perfil_medico' %}"
+      class="btn btn-outline-info btn-sm"
+    >
+      👤 Mi perfil profesional
+    </a>
   </div>
 
   <div class="med-stats">
@@ -74,7 +81,7 @@ Panel médico | Loreto One
     <div class="med-column">
       <section class="med-panel">
         <div class="med-panel-header">
-          <div><div class="med-panel-title">🕒 Pacientes en espera</div><div class="med-panel-subtitle">Prioridad de atención</div></div>
+          <div><div class="med-panel-title">ðŸ•’ Pacientes en espera</div><div class="med-panel-subtitle">Prioridad de atenciÃ³n</div></div>
           <span class="badge bg-primary">{{ consultas_en_espera.count }}</span>
         </div>
         <div class="med-panel-scroll tall">
@@ -106,12 +113,12 @@ Panel médico | Loreto One
 
       <section class="med-panel">
         <div class="med-panel-header">
-          <div><div class="med-panel-title">🩻 Estudios y resultados recientes</div><div class="med-panel-subtitle">Acceso rápido al expediente e interpretación</div></div>
+          <div><div class="med-panel-title">ðŸ©» Estudios y resultados recientes</div><div class="med-panel-subtitle">Acceso rÃ¡pido al expediente e interpretaciÃ³n</div></div>
         </div>
         <div class="med-panel-scroll tall">
           <div class="table-responsive">
             <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th>Estudio</th><th>Servicio</th><th>Reporte</th><th class="text-end">Acción</th></tr></thead>
+              <thead><tr><th>Paciente</th><th>Estudio</th><th>Servicio</th><th>Reporte</th><th class="text-end">AcciÃ³n</th></tr></thead>
               <tbody>
               {% for estudio in estudios_recientes %}
                 <tr class="med-search-row" data-search="{{ estudio.paciente.identificacion }} {{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }} {{ estudio.tipo_estudio.nombre }}">
@@ -142,22 +149,22 @@ Panel médico | Loreto One
     <div class="med-column">
       <section class="med-panel">
         <div class="med-panel-header">
-          <div><div class="med-panel-title">🩺 Consultas en curso</div><div class="med-panel-subtitle">Consultas activas</div></div>
+          <div><div class="med-panel-title">ðŸ©º Consultas en curso</div><div class="med-panel-subtitle">Consultas activas</div></div>
           <span class="badge bg-warning text-dark">{{ consultas_en_curso.count }}</span>
         </div>
         <div class="med-panel-scroll">
           <div class="table-responsive">
             <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th>Inicio</th><th class="text-end">Acción</th></tr></thead>
+              <thead><tr><th>Paciente</th><th>Inicio</th><th class="text-end">AcciÃ³n</th></tr></thead>
               <tbody>
               {% for consulta in consultas_en_curso %}
                 <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}">
                   <td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="tiny">{{ consulta.paciente.identificacion }}</div></td>
-                  <td>{{ consulta.fecha_inicio|date:"H:i"|default:"—" }}</td>
+                  <td>{{ consulta.fecha_inicio|date:"H:i"|default:"â€”" }}</td>
                   <td class="text-end">
                     <div class="d-flex gap-1 justify-content-end">
                       <a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-info btn-med">Continuar</a>
-                      <form method="post" action="{% url 'finalizar_consulta_medica' consulta.id %}" onsubmit="return confirm('¿Finalizar esta consulta?');">{% csrf_token %}<button type="submit" class="btn btn-success btn-med">Finalizar</button></form>
+                      <form method="post" action="{% url 'finalizar_consulta_medica' consulta.id %}" onsubmit="return confirm('Â¿Finalizar esta consulta?');">{% csrf_token %}<button type="submit" class="btn btn-success btn-med">Finalizar</button></form>
                     </div>
                   </td>
                 </tr>
@@ -172,7 +179,7 @@ Panel médico | Loreto One
 
       <div class="med-mini-grid">
         <section class="med-panel">
-          <div class="med-panel-header"><div class="med-panel-title">📅 Citas de hoy</div><span class="badge bg-primary">{{ citas_medicas_hoy.count }}</span></div>
+          <div class="med-panel-header"><div class="med-panel-title">ðŸ“… Citas de hoy</div><span class="badge bg-primary">{{ citas_medicas_hoy.count }}</span></div>
           <div class="med-panel-scroll">
             <table class="table table-dark table-hover med-table">
               <thead><tr><th>Hora</th><th>Paciente</th></tr></thead>
@@ -188,13 +195,13 @@ Panel médico | Loreto One
         </section>
 
         <section class="med-panel">
-          <div class="med-panel-header"><div class="med-panel-title">✅ Atendidos</div></div>
+          <div class="med-panel-header"><div class="med-panel-title">âœ… Atendidos</div></div>
           <div class="med-panel-scroll">
             <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th class="text-end">Acción</th></tr></thead>
+              <thead><tr><th>Paciente</th><th class="text-end">AcciÃ³n</th></tr></thead>
               <tbody>
               {% for consulta in pacientes_atendidos %}
-                <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}"><td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="tiny">{{ consulta.fecha_finalizacion|date:"d/m H:i"|default:"—" }}</div></td><td class="text-end"><a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-secondary btn-med">Ver</a></td></tr>
+                <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}"><td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="tiny">{{ consulta.fecha_finalizacion|date:"d/m H:i"|default:"â€”" }}</div></td><td class="text-end"><a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-secondary btn-med">Ver</a></td></tr>
               {% empty %}
                 <tr><td colspan="2"><div class="empty-state">Sin consultas finalizadas.</div></td></tr>
               {% endfor %}
@@ -205,7 +212,7 @@ Panel médico | Loreto One
       </div>
 
       <section class="med-panel">
-        <div class="med-panel-header"><div><div class="med-panel-title">🗓️ Próximas citas</div><div class="med-panel-subtitle">Agenda próxima</div></div><span class="badge bg-secondary">{{ proximas_citas_medicas|length }}</span></div>
+        <div class="med-panel-header"><div><div class="med-panel-title">ðŸ—“ï¸ PrÃ³ximas citas</div><div class="med-panel-subtitle">Agenda prÃ³xima</div></div><span class="badge bg-secondary">{{ proximas_citas_medicas|length }}</span></div>
         <div class="med-panel-scroll">
           <table class="table table-dark table-hover med-table">
             <thead><tr><th>Fecha</th><th>Paciente</th></tr></thead>
@@ -213,7 +220,7 @@ Panel médico | Loreto One
             {% for cita in proximas_citas_medicas %}
               <tr class="med-search-row" data-search="{{ cita.nombre_paciente }} {{ cita.get_area_display }}"><td>{{ cita.fecha_hora|date:"d/m H:i" }}</td><td>{{ cita.nombre_paciente }}</td></tr>
             {% empty %}
-              <tr><td colspan="2"><div class="empty-state">No hay próximas citas.</div></td></tr>
+              <tr><td colspan="2"><div class="empty-state">No hay prÃ³ximas citas.</div></td></tr>
             {% endfor %}
             </tbody>
           </table>

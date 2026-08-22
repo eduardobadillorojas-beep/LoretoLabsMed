@@ -41,6 +41,12 @@ urlpatterns = [
     ),
 
     path(
+        'medicos/perfil/',
+        views.perfil_medico,
+        name='perfil_medico'
+    ),
+
+    path(
         'medicos/consulta/<int:consulta_id>/atender/',
         views.atender_consulta_medica,
         name='atender_consulta_medica'
