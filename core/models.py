@@ -608,6 +608,13 @@ class MedicamentoReceta(models.Model):
         null=True
     )
 
+    cantidad = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        verbose_name='Cantidad total'
+    )
+
     duracion = models.CharField(
         max_length=150,
         blank=True,

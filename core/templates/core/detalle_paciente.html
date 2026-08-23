@@ -874,7 +874,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                     </select>
                                                                 </div>
 
-                                                                <div class="col-md-4">
+                                                                <div class="col-md-3">
                                                                     <label class="field-label">Frecuencia</label>
                                                                     <input
                                                                         type="text"
@@ -885,18 +885,29 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                     >
                                                                 </div>
 
-                                                                <div class="col-md-4">
-                                                                    <label class="field-label">DuraciÃ³n</label>
+                                                                <div class="col-md-3">
+                                                                    <label class="field-label">Cantidad total</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        name="cantidad"
+                                                                        class="clinical-input"
+                                                                        value="{{ medicamento.cantidad|default_if_none:'' }}"
+                                                                        placeholder="Ej. 10 tabletas"
+                                                                    >
+                                                                </div>
+
+                                                                <div class="col-md-3">
+                                                                    <label class="field-label">Duración</label>
                                                                     <input
                                                                         type="text"
                                                                         name="duracion"
                                                                         class="clinical-input"
                                                                         value="{{ medicamento.duracion|default_if_none:'' }}"
-                                                                        placeholder="Ej. 5 dÃ­as"
+                                                                        placeholder="Ej. 5 días"
                                                                     >
                                                                 </div>
 
-                                                                <div class="col-md-8">
+                                                                <div class="col-md-6">
                                                                     <label class="field-label">Indicaciones del medicamento</label>
                                                                     <input
                                                                         type="text"
@@ -954,15 +965,19 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                     <option value="OTRA">Otra</option>
                                                                 </select>
                                                             </div>
-                                                            <div class="col-md-4">
+                                                            <div class="col-md-3">
                                                                 <label class="field-label">Frecuencia</label>
                                                                 <input type="text" name="frecuencia" class="clinical-input" placeholder="Ej. cada 8 horas">
                                                             </div>
-                                                            <div class="col-md-4">
-                                                                <label class="field-label">DuraciÃ³n</label>
-                                                                <input type="text" name="duracion" class="clinical-input" placeholder="Ej. 5 dÃ­as">
+                                                            <div class="col-md-3">
+                                                                <label class="field-label">Cantidad total</label>
+                                                                <input type="text" name="cantidad" class="clinical-input" placeholder="Ej. 10 tabletas">
                                                             </div>
-                                                            <div class="col-md-8">
+                                                            <div class="col-md-3">
+                                                                <label class="field-label">Duración</label>
+                                                                <input type="text" name="duracion" class="clinical-input" placeholder="Ej. 5 días">
+                                                            </div>
+                                                            <div class="col-md-6">
                                                                 <label class="field-label">Indicaciones del medicamento</label>
                                                                 <input type="text" name="indicaciones_medicamento" class="clinical-input" placeholder="Ej. tomar despuÃ©s de alimentos">
                                                             </div>

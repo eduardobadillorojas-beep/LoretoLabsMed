@@ -2,6 +2,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 import logging
+from xml.sax.saxutils import escape
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -2291,7 +2292,7 @@ def generar_documentos_clinicos_pdf(
         .first()
     )
 
-    solicitudes = (
+    solicitudes = list(
         SolicitudEstudio.objects
         .filter(
             consulta=consulta
@@ -2321,11 +2322,11 @@ def generar_documentos_clinicos_pdf(
     documento = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=1.6 * cm,
-        leftMargin=1.6 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.6 * cm,
-        title='Documentos clÃ­nicos',
+        rightMargin=1.05 * cm,
+        leftMargin=1.05 * cm,
+        topMargin=0.8 * cm,
+        bottomMargin=0.85 * cm,
+        title='Documentos clínicos',
         author=obtener_nombre_usuario(
             medico_documento
         ),
@@ -2334,61 +2335,94 @@ def generar_documentos_clinicos_pdf(
     estilos_base = getSampleStyleSheet()
 
     estilo_institucion = ParagraphStyle(
-        'Institucion',
+        'InstitucionCompacta',
         parent=estilos_base['Heading1'],
         fontName='Helvetica-Bold',
-        fontSize=14,
-        leading=17,
+        fontSize=11.5,
+        leading=13,
         alignment=TA_LEFT,
-        textColor=colors.HexColor('#0f172a'),
-        spaceAfter=3,
+        textColor=colors.HexColor('#0f2747'),
+        spaceAfter=1,
     )
 
-    estilo_dato = ParagraphStyle(
-        'Dato',
+    estilo_institucion_sub = ParagraphStyle(
+        'InstitucionSub',
         parent=estilos_base['Normal'],
         fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
+        fontSize=6.7,
+        leading=8.2,
         textColor=colors.HexColor('#334155'),
     )
 
     estilo_titulo = ParagraphStyle(
-        'TituloSeccion',
+        'TituloCompacto',
         parent=estilos_base['Heading2'],
         fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=15,
-        textColor=colors.HexColor('#0f172a'),
-        spaceBefore=4,
-        spaceAfter=8,
+        fontSize=9.2,
+        leading=10.5,
+        textColor=colors.HexColor('#0f2747'),
+        spaceBefore=2,
+        spaceAfter=3,
     )
 
     estilo_texto = ParagraphStyle(
-        'Texto',
+        'TextoCompacto',
         parent=estilos_base['Normal'],
         fontName='Helvetica',
-        fontSize=9.5,
-        leading=13,
+        fontSize=7.0,
+        leading=8.5,
         textColor=colors.HexColor('#111827'),
     )
 
+    estilo_texto_65 = ParagraphStyle(
+        'Texto65',
+        parent=estilo_texto,
+        fontSize=6.5,
+        leading=7.7,
+    )
+
     estilo_pequeno = ParagraphStyle(
-        'Pequeno',
+        'PequenoCompacto',
         parent=estilos_base['Normal'],
         fontName='Helvetica',
-        fontSize=8,
-        leading=10,
+        fontSize=5.8,
+        leading=6.8,
         textColor=colors.HexColor('#475569'),
     )
 
+    estilo_tabla = ParagraphStyle(
+        'TablaCompacta',
+        parent=estilos_base['Normal'],
+        fontName='Helvetica',
+        fontSize=5.8,
+        leading=6.7,
+        textColor=colors.HexColor('#111827'),
+    )
+
+    estilo_tabla_negrita = ParagraphStyle(
+        'TablaCompactaNegrita',
+        parent=estilo_tabla,
+        fontName='Helvetica-Bold',
+    )
+
     estilo_centrado = ParagraphStyle(
-        'Centrado',
+        'CentradoCompacto',
         parent=estilo_pequeno,
         alignment=TA_CENTER,
     )
 
     historia = []
+
+    def limpio(valor):
+        if valor is None:
+            return ''
+        return escape(str(valor))
+
+    def parrafo(valor, estilo=estilo_texto):
+        return Paragraph(
+            limpio(valor).replace('\n', '<br/>'),
+            estilo
+        )
 
     def imagen_desde_campo(campo, ancho, alto):
         if not campo:
@@ -2417,27 +2451,6 @@ def generar_documentos_clinicos_pdf(
             or institucion.nombre
         )
 
-    logo = imagen_desde_campo(
-        institucion.logo,
-        3.0 * cm,
-        2.1 * cm,
-    )
-
-    datos_institucion = [
-        Paragraph(
-            nombre_institucion(),
-            estilo_institucion
-        ),
-    ]
-
-    if institucion.direccion:
-        datos_institucion.append(
-            Paragraph(
-                institucion.direccion,
-                estilo_dato
-            )
-        )
-
     telefonos = [
         valor
         for valor in [
@@ -2447,53 +2460,89 @@ def generar_documentos_clinicos_pdf(
         if valor
     ]
 
+    logo = imagen_desde_campo(
+        institucion.logo,
+        2.15 * cm,
+        1.65 * cm,
+    )
+
+    bloque_institucion = [
+        Paragraph(
+            limpio(nombre_institucion()),
+            estilo_institucion
+        )
+    ]
+
+    if institucion.direccion:
+        bloque_institucion.append(
+            parrafo(
+                institucion.direccion,
+                estilo_institucion_sub
+            )
+        )
+
     if telefonos:
-        datos_institucion.append(
-            Paragraph(
+        bloque_institucion.append(
+            parrafo(
                 'Tel. ' + ' / '.join(telefonos),
-                estilo_dato
+                estilo_institucion_sub
             )
         )
 
     if institucion.email:
-        datos_institucion.append(
-            Paragraph(
+        bloque_institucion.append(
+            parrafo(
                 institucion.email,
-                estilo_dato
+                estilo_institucion_sub
             )
         )
+
+    bloque_horarios = []
 
     if institucion.horarios_servicio:
-        datos_institucion.append(
+        bloque_horarios.extend([
             Paragraph(
+                '<b>HORARIO DE ATENCIÓN</b>',
+                estilo_institucion_sub
+            ),
+            parrafo(
                 institucion.horarios_servicio,
-                estilo_dato
-            )
-        )
+                estilo_institucion_sub
+            ),
+        ])
 
     encabezado = Table(
-        [
-            [
-                logo or '',
-                datos_institucion,
-            ]
-        ],
+        [[
+            logo or '',
+            bloque_institucion,
+            bloque_horarios,
+        ]],
         colWidths=[
-            3.4 * cm,
-            14.0 * cm,
+            2.5 * cm,
+            10.4 * cm,
+            6.25 * cm,
         ],
     )
 
     encabezado.setStyle(
         TableStyle([
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
-            ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#0f172a')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 0), (-1, -1), 1),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            (
+                'LINEBELOW',
+                (0, 0),
+                (-1, -1),
+                1.1,
+                colors.HexColor('#17365d')
+            ),
         ])
     )
 
     historia.append(encabezado)
-    historia.append(Spacer(1, 0.3 * cm))
+    historia.append(Spacer(1, 0.12 * cm))
 
     edad = calcular_edad(
         consulta.paciente.fecha_nacimiento
@@ -2502,32 +2551,41 @@ def generar_documentos_clinicos_pdf(
     paciente_info = [
         [
             Paragraph(
-                '<b>Paciente:</b> '
-                f'{consulta.paciente.nombre} '
-                f'{consulta.paciente.apellido}',
-                estilo_texto
+                '<b>PACIENTE:</b> '
+                + limpio(
+                    f'{consulta.paciente.nombre} '
+                    f'{consulta.paciente.apellido}'
+                ),
+                estilo_texto_65
             ),
             Paragraph(
-                '<b>Registro:</b> '
-                f'{consulta.paciente.identificacion}',
-                estilo_texto
+                '<b>REGISTRO:</b> '
+                + limpio(
+                    consulta.paciente.identificacion
+                ),
+                estilo_texto_65
             ),
         ],
         [
             Paragraph(
-                '<b>Fecha de nacimiento:</b> '
-                f'{consulta.paciente.fecha_nacimiento:%d/%m/%Y}'
+                '<b>FECHA DE NACIMIENTO:</b> '
+                + limpio(
+                    f'{consulta.paciente.fecha_nacimiento:%d/%m/%Y}'
+                )
                 + (
-                    f' Â· {edad} aÃ±os'
+                    ' &nbsp;|&nbsp; '
+                    + limpio(f'{edad} años')
                     if edad is not None
                     else ''
                 ),
-                estilo_texto
+                estilo_texto_65
             ),
             Paragraph(
-                '<b>Fecha:</b> '
-                f'{timezone.localdate():%d/%m/%Y}',
-                estilo_texto
+                '<b>FECHA:</b> '
+                + limpio(
+                    f'{timezone.localdate():%d/%m/%Y}'
+                ),
+                estilo_texto_65
             ),
         ],
     ]
@@ -2535,26 +2593,43 @@ def generar_documentos_clinicos_pdf(
     tabla_paciente = Table(
         paciente_info,
         colWidths=[
-            10.2 * cm,
-            7.2 * cm,
+            12.7 * cm,
+            6.45 * cm,
         ],
     )
 
     tabla_paciente.setStyle(
         TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
-            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-            ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
-            ('LEFTPADDING', (0, 0), (-1, -1), 7),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 7),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            (
+                'BACKGROUND',
+                (0, 0),
+                (-1, -1),
+                colors.HexColor('#fbfdff')
+            ),
+            (
+                'BOX',
+                (0, 0),
+                (-1, -1),
+                0.45,
+                colors.HexColor('#94a3b8')
+            ),
+            (
+                'INNERGRID',
+                (0, 0),
+                (-1, -1),
+                0.25,
+                colors.HexColor('#cbd5e1')
+            ),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
         ])
     )
 
     historia.append(tabla_paciente)
-    historia.append(Spacer(1, 0.45 * cm))
+    historia.append(Spacer(1, 0.16 * cm))
 
     secciones_agregadas = 0
 
@@ -2565,6 +2640,8 @@ def generar_documentos_clinicos_pdf(
                 estilo_titulo
             )
         )
+
+        datos_resumen = []
 
         fecha_atencion = (
             consulta.fecha_inicio
@@ -2579,29 +2656,32 @@ def generar_documentos_clinicos_pdf(
             except Exception:
                 pass
 
-            historia.append(
-                Paragraph(
-                    '<b>Fecha y hora de atención:</b> '
-                    + fecha_atencion.strftime(
+            datos_resumen.append(
+                '<b>Fecha y hora de atención:</b> '
+                + limpio(
+                    fecha_atencion.strftime(
                         '%d/%m/%Y %H:%M'
-                    ),
-                    estilo_texto
+                    )
                 )
-            )
-            historia.append(
-                Spacer(1, 0.16 * cm)
             )
 
         if consulta.motivo_consulta:
+            datos_resumen.append(
+                '<b>Motivo de consulta:</b> '
+                + limpio(
+                    consulta.motivo_consulta
+                )
+            )
+
+        for dato in datos_resumen:
             historia.append(
                 Paragraph(
-                    '<b>Motivo de consulta:</b><br/>'
-                    + str(consulta.motivo_consulta),
-                    estilo_texto
+                    dato,
+                    estilo_texto_65
                 )
             )
             historia.append(
-                Spacer(1, 0.25 * cm)
+                Spacer(1, 0.05 * cm)
             )
 
         signos = []
@@ -2621,187 +2701,188 @@ def generar_documentos_clinicos_pdf(
                 else '—'
             )
             signos.append(
-                (
-                    'Presión arterial',
-                    f'{sistolica}/{diastolica} mmHg'
-                )
+                ('TA', f'{sistolica}/{diastolica} mmHg')
             )
 
         if consulta.frecuencia_cardiaca is not None:
             signos.append(
-                (
-                    'Frecuencia cardiaca',
-                    f'{consulta.frecuencia_cardiaca} lpm'
-                )
+                ('FC', f'{consulta.frecuencia_cardiaca} lpm')
             )
 
         if consulta.frecuencia_respiratoria is not None:
             signos.append(
-                (
-                    'Frecuencia respiratoria',
-                    f'{consulta.frecuencia_respiratoria} rpm'
-                )
+                ('FR', f'{consulta.frecuencia_respiratoria} rpm')
             )
 
         if consulta.temperatura is not None:
             signos.append(
-                (
-                    'Temperatura',
-                    f'{consulta.temperatura} °C'
-                )
+                ('Temp.', f'{consulta.temperatura} °C')
             )
 
         if consulta.saturacion_oxigeno is not None:
             signos.append(
-                (
-                    'Saturación de oxígeno',
-                    f'{consulta.saturacion_oxigeno}%'
-                )
+                ('SpO₂', f'{consulta.saturacion_oxigeno}%')
             )
 
         if consulta.peso_kg is not None:
             signos.append(
-                (
-                    'Peso',
-                    f'{consulta.peso_kg} kg'
-                )
+                ('Peso', f'{consulta.peso_kg} kg')
             )
 
         if consulta.talla_cm is not None:
             signos.append(
-                (
-                    'Talla',
-                    f'{consulta.talla_cm} cm'
-                )
+                ('Talla', f'{consulta.talla_cm} cm')
             )
 
         if signos:
-            filas_signos = [
-                [
-                    Paragraph(
-                        '<b>Signo vital</b>',
-                        estilo_pequeno
-                    ),
-                    Paragraph(
-                        '<b>Valor</b>',
-                        estilo_pequeno
-                    ),
-                ]
-            ]
+            celdas = []
 
             for etiqueta, valor in signos:
-                filas_signos.append([
+                celdas.append(
                     Paragraph(
-                        etiqueta,
-                        estilo_texto
-                    ),
-                    Paragraph(
-                        valor,
-                        estilo_texto
-                    ),
-                ])
+                        '<b>'
+                        + limpio(etiqueta)
+                        + '</b><br/>'
+                        + limpio(valor),
+                        estilo_centrado
+                    )
+                )
+
+            ancho_total = 19.15 * cm
+            ancho_columna = ancho_total / len(celdas)
 
             tabla_signos = Table(
-                filas_signos,
+                [celdas],
                 colWidths=[
-                    8.7 * cm,
-                    8.7 * cm,
+                    ancho_columna
+                    for _ in celdas
                 ],
-                repeatRows=1,
             )
 
             tabla_signos.setStyle(
                 TableStyle([
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
-                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
-                    ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5e1')),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 7),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 7),
-                    ('TOPPADDING', (0, 0), (-1, -1), 6),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    (
+                        'BACKGROUND',
+                        (0, 0),
+                        (-1, -1),
+                        colors.HexColor('#f4f7fb')
+                    ),
+                    (
+                        'BOX',
+                        (0, 0),
+                        (-1, -1),
+                        0.5,
+                        colors.HexColor('#7b95b7')
+                    ),
+                    (
+                        'INNERGRID',
+                        (0, 0),
+                        (-1, -1),
+                        0.3,
+                        colors.HexColor('#aebdd0')
+                    ),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 2),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 2),
                 ])
             )
 
-            historia.append(tabla_signos)
-        else:
             historia.append(
-                Paragraph(
-                    'Sin signos vitales registrados en esta consulta.',
-                    estilo_texto
-                )
+                Spacer(1, 0.05 * cm)
             )
+            historia.append(tabla_signos)
 
         secciones_agregadas += 1
 
     if incluir_receta:
+        if secciones_agregadas:
+            historia.append(
+                Spacer(1, 0.12 * cm)
+            )
+
         historia.append(
             Paragraph(
-                'RECETA MÃ‰DICA',
+                'RECETA MÉDICA',
                 estilo_titulo
             )
         )
 
         if receta and receta.medicamentos.exists():
-            filas = [
-                [
-                    Paragraph('<b>Medicamento</b>', estilo_pequeno),
-                    Paragraph('<b>Indicaciones</b>', estilo_pequeno),
-                ]
+            encabezados = [
+                'Medicamento',
+                'Presentación',
+                'Dosis',
+                'Vía',
+                'Frecuencia',
+                'Cantidad',
+                'Duración',
+                'Indicaciones',
             ]
 
+            filas = [[
+                Paragraph(
+                    '<b>' + titulo + '</b>',
+                    estilo_tabla_negrita
+                )
+                for titulo in encabezados
+            ]]
+
             for medicamento in receta.medicamentos.all():
-                datos_dosis = []
-
-                if medicamento.presentacion:
-                    datos_dosis.append(
-                        medicamento.presentacion
-                    )
-
-                if medicamento.dosis:
-                    datos_dosis.append(
-                        f'Dosis: {medicamento.dosis}'
-                    )
-
-                if medicamento.via:
-                    datos_dosis.append(
-                        f'VÃ­a: {medicamento.get_via_display()}'
-                    )
-
-                if medicamento.frecuencia:
-                    datos_dosis.append(
-                        f'Frecuencia: {medicamento.frecuencia}'
-                    )
-
-                if medicamento.duracion:
-                    datos_dosis.append(
-                        f'DuraciÃ³n: {medicamento.duracion}'
-                    )
-
-                indicaciones_med = (
-                    medicamento.indicaciones
-                    or 'Sin indicaciones adicionales.'
+                via = (
+                    medicamento.get_via_display()
+                    if medicamento.via
+                    else ''
                 )
 
                 filas.append([
-                    Paragraph(
-                        '<b>'
-                        + medicamento.medicamento
-                        + '</b><br/>'
-                        + '<br/>'.join(datos_dosis),
-                        estilo_texto
+                    parrafo(
+                        medicamento.medicamento,
+                        estilo_tabla_negrita
                     ),
-                    Paragraph(
-                        indicaciones_med,
-                        estilo_texto
+                    parrafo(
+                        medicamento.presentacion,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        medicamento.dosis,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        via,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        medicamento.frecuencia,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        medicamento.cantidad,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        medicamento.duracion,
+                        estilo_tabla
+                    ),
+                    parrafo(
+                        medicamento.indicaciones,
+                        estilo_tabla
                     ),
                 ])
 
             tabla_receta = Table(
                 filas,
                 colWidths=[
-                    9.5 * cm,
-                    7.9 * cm,
+                    3.2 * cm,
+                    2.45 * cm,
+                    2.05 * cm,
+                    1.55 * cm,
+                    2.2 * cm,
+                    1.85 * cm,
+                    1.65 * cm,
+                    4.2 * cm,
                 ],
                 repeatRows=1,
             )
@@ -2809,32 +2890,53 @@ def generar_documentos_clinicos_pdf(
             tabla_receta.setStyle(
                 TableStyle([
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
-                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
-                    ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5e1')),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 7),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 7),
-                    ('TOPPADDING', (0, 0), (-1, -1), 6),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    (
+                        'BACKGROUND',
+                        (0, 0),
+                        (-1, 0),
+                        colors.HexColor('#e9eff6')
+                    ),
+                    (
+                        'BOX',
+                        (0, 0),
+                        (-1, -1),
+                        0.45,
+                        colors.HexColor('#7b95b7')
+                    ),
+                    (
+                        'INNERGRID',
+                        (0, 0),
+                        (-1, -1),
+                        0.22,
+                        colors.HexColor('#c7d2e0')
+                    ),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 2.6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 2.6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
                 ])
             )
 
             historia.append(tabla_receta)
 
             if receta.observaciones:
-                historia.append(Spacer(1, 0.25 * cm))
+                historia.append(
+                    Spacer(1, 0.06 * cm)
+                )
                 historia.append(
                     Paragraph(
                         '<b>Observaciones:</b> '
-                        + receta.observaciones,
-                        estilo_texto
+                        + limpio(
+                            receta.observaciones
+                        ),
+                        estilo_pequeno
                     )
                 )
         else:
             historia.append(
                 Paragraph(
                     'No hay medicamentos guardados en esta consulta.',
-                    estilo_texto
+                    estilo_texto_65
                 )
             )
 
@@ -2842,7 +2944,9 @@ def generar_documentos_clinicos_pdf(
 
     if incluir_solicitudes:
         if secciones_agregadas:
-            historia.append(Spacer(1, 0.55 * cm))
+            historia.append(
+                Spacer(1, 0.12 * cm)
+            )
 
         historia.append(
             Paragraph(
@@ -2851,87 +2955,102 @@ def generar_documentos_clinicos_pdf(
             )
         )
 
-        if solicitudes.exists():
+        if solicitudes:
             for numero, solicitud in enumerate(
                 solicitudes,
                 start=1
             ):
-                bloque = [
+                linea_solicitud = (
+                    '<b>Solicitud '
+                    + limpio(numero)
+                    + ':</b> '
+                    + limpio(
+                        solicitud.get_tipo_display()
+                    )
+                    + ' · '
+                    + limpio(
+                        solicitud.get_prioridad_display()
+                    )
+                )
+
+                historia.append(
                     Paragraph(
-                        '<b>Solicitud '
-                        f'{numero}:</b> '
-                        f'{solicitud.get_tipo_display()}'
-                        ' Â· '
-                        f'{solicitud.get_prioridad_display()}',
-                        estilo_texto
-                    ),
-                    Spacer(1, 0.12 * cm),
-                ]
+                        linea_solicitud,
+                        estilo_texto_65
+                    )
+                )
 
                 if solicitud.motivo_clinico:
-                    bloque.append(
+                    historia.append(
                         Paragraph(
-                            '<b>Motivo clÃ­nico / diagnÃ³stico presuntivo:</b> '
-                            + solicitud.motivo_clinico,
-                            estilo_texto
+                            '<b>Motivo clínico:</b> '
+                            + limpio(
+                                solicitud.motivo_clinico
+                            ),
+                            estilo_pequeno
                         )
                     )
-                    bloque.append(
-                        Spacer(1, 0.12 * cm)
-                    )
+
+                estudios_texto = []
 
                 for estudio_solicitado in (
                     solicitud.estudios_solicitados.all()
                 ):
-                    texto_estudio = (
-                        'â€¢ '
-                        + estudio_solicitado.nombre
+                    item = (
+                        '• '
+                        + limpio(
+                            estudio_solicitado.nombre
+                        )
                     )
 
                     if estudio_solicitado.region_o_detalle:
-                        texto_estudio += (
-                            ' â€” '
-                            + estudio_solicitado.region_o_detalle
+                        item += (
+                            ' — '
+                            + limpio(
+                                estudio_solicitado.region_o_detalle
+                            )
                         )
 
                     if estudio_solicitado.indicaciones:
-                        texto_estudio += (
-                            '<br/><font size="8">'
-                            'Indicaciones: '
-                            + estudio_solicitado.indicaciones
-                            + '</font>'
+                        item += (
+                            ' | '
+                            + limpio(
+                                estudio_solicitado.indicaciones
+                            )
                         )
 
-                    bloque.append(
+                    estudios_texto.append(item)
+
+                if estudios_texto:
+                    historia.append(
                         Paragraph(
-                            texto_estudio,
-                            estilo_texto
+                            '<br/>'.join(
+                                estudios_texto
+                            ),
+                            estilo_pequeno
                         )
-                    )
-                    bloque.append(
-                        Spacer(1, 0.08 * cm)
                     )
 
                 if solicitud.observaciones:
-                    bloque.append(
+                    historia.append(
                         Paragraph(
-                            '<b>Observaciones:</b> '
-                            + solicitud.observaciones,
-                            estilo_texto
+                            '<b>Obs.:</b> '
+                            + limpio(
+                                solicitud.observaciones
+                            ),
+                            estilo_pequeno
                         )
                     )
 
-                historia.append(
-                    KeepTogether(bloque)
-                )
-                historia.append(
-                    Spacer(1, 0.28 * cm)
-                )
+                if numero < len(solicitudes):
+                    historia.append(
+                        Spacer(1, 0.05 * cm)
+                    )
         else:
             historia.append(
                 Paragraph(
                     'No hay solicitudes de estudio guardadas en esta consulta.',
-                    estilo_texto
+                    estilo_texto_65
                 )
             )
 
@@ -2939,46 +3058,50 @@ def generar_documentos_clinicos_pdf(
 
     if incluir_indicaciones:
         if secciones_agregadas:
-            historia.append(Spacer(1, 0.55 * cm))
+            historia.append(
+                Spacer(1, 0.12 * cm)
+            )
 
         historia.append(
             Paragraph(
-                'INDICACIONES MÃ‰DICAS',
+                'INDICACIONES MÉDICAS',
                 estilo_titulo
             )
         )
 
         if indicacion and indicacion.indicaciones:
-            for linea in indicacion.indicaciones.splitlines():
-                if linea.strip():
-                    historia.append(
-                        Paragraph(
-                            linea.strip(),
-                            estilo_texto
-                        )
-                    )
-                    historia.append(
-                        Spacer(1, 0.08 * cm)
-                    )
+            historia.append(
+                Paragraph(
+                    limpio(
+                        indicacion.indicaciones
+                    ).replace(
+                        '\n',
+                        '<br/>'
+                    ),
+                    estilo_texto_65
+                )
+            )
         else:
             historia.append(
                 Paragraph(
-                    'No hay indicaciones mÃ©dicas guardadas en esta consulta.',
-                    estilo_texto
+                    'No hay indicaciones médicas guardadas en esta consulta.',
+                    estilo_texto_65
                 )
             )
 
         secciones_agregadas += 1
 
-    historia.append(Spacer(1, 0.8 * cm))
+    historia.append(
+        Spacer(1, 0.18 * cm)
+    )
 
     firma = None
 
     if perfil_medico:
         firma = imagen_desde_campo(
             perfil_medico.firma,
-            4.3 * cm,
-            1.8 * cm,
+            3.4 * cm,
+            1.05 * cm,
         )
 
     firma_contenido = []
@@ -2987,7 +3110,7 @@ def generar_documentos_clinicos_pdf(
         firma_contenido.append(firma)
     else:
         firma_contenido.append(
-            Spacer(1, 1.7 * cm)
+            Spacer(1, 0.75 * cm)
         )
 
     firma_contenido.extend([
@@ -2997,61 +3120,96 @@ def generar_documentos_clinicos_pdf(
         ),
         Paragraph(
             '<b>'
-            + obtener_nombre_usuario(
-                medico_documento
+            + limpio(
+                obtener_nombre_usuario(
+                    medico_documento
+                )
             )
             + '</b>',
             estilo_centrado
         ),
     ])
 
+    datos_medico = []
+
     if perfil_medico and perfil_medico.especialidad:
-        firma_contenido.append(
-            Paragraph(
-                perfil_medico.especialidad,
-                estilo_centrado
+        datos_medico.append(
+            limpio(
+                perfil_medico.especialidad
             )
         )
 
     if perfil_medico and perfil_medico.cedula_profesional:
+        datos_medico.append(
+            'Céd. Prof. '
+            + limpio(
+                perfil_medico.cedula_profesional
+            )
+        )
+
+    if datos_medico:
         firma_contenido.append(
             Paragraph(
-                'CÃ©dula profesional: '
-                + perfil_medico.cedula_profesional,
+                ' | '.join(datos_medico),
                 estilo_centrado
             )
         )
 
-    historia.append(
-        KeepTogether(firma_contenido)
+    tabla_firma = Table(
+        [['', firma_contenido, '']],
+        colWidths=[
+            5.5 * cm,
+            8.15 * cm,
+            5.5 * cm,
+        ],
     )
 
-    historia.append(Spacer(1, 0.55 * cm))
+    tabla_firma.setStyle(
+        TableStyle([
+            ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'BOTTOM'),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ])
+    )
+
+    historia.append(
+        KeepTogether([tabla_firma])
+    )
 
     pie = []
 
     if institucion.direccion:
-        pie.append(institucion.direccion)
+        pie.append(
+            limpio(institucion.direccion)
+        )
 
     if telefonos:
         pie.append(
-            'Tel. ' + ' / '.join(telefonos)
+            limpio(
+                'Tel. ' + ' / '.join(telefonos)
+            )
         )
 
-    if institucion.horarios_servicio:
+    if institucion.email:
         pie.append(
-            institucion.horarios_servicio
+            limpio(institucion.email)
         )
 
     if institucion.pie_documentos:
         pie.append(
-            institucion.pie_documentos
+            limpio(
+                institucion.pie_documentos
+            )
         )
 
     if pie:
         historia.append(
+            Spacer(1, 0.08 * cm)
+        )
+        historia.append(
             Paragraph(
-                '<br/>'.join(pie),
+                ' · '.join(pie),
                 estilo_centrado
             )
         )
@@ -3150,6 +3308,9 @@ def guardar_receta_medica(
         frecuencias = request.POST.getlist(
             'frecuencia'
         )
+        cantidades = request.POST.getlist(
+            'cantidad'
+        )
         duraciones = request.POST.getlist(
             'duracion'
         )
@@ -3193,6 +3354,10 @@ def guardar_receta_medica(
                 ),
                 frecuencia=valor_lista(
                     frecuencias,
+                    posicion
+                ),
+                cantidad=valor_lista(
+                    cantidades,
                     posicion
                 ),
                 duracion=valor_lista(
