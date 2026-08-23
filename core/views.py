@@ -398,7 +398,7 @@ def login_view(request):
             )
 
         error_message = (
-            'Usuario o contraseÃƒÂ±a incorrectos'
+            'Usuario o contraseÃƒÆ’Ã‚Â±a incorrectos'
         )
 
     return render(
@@ -482,7 +482,7 @@ def logout_view(request):
 
 
 # =========================================================
-# MÃƒâ€°DICOS
+# MÃƒÆ’Ã¢â‚¬Â°DICOS
 # =========================================================
 
 @login_required
@@ -824,7 +824,7 @@ def finalizar_consulta_medica(
 
 
 # =========================================================
-# PANEL RADIOLOGÃƒÂA
+# PANEL RADIOLOGÃƒÆ’Ã‚ÂA
 # =========================================================
 
 @login_required
@@ -983,8 +983,8 @@ def panel_radiologo(request):
         )
 
     # Evita cargar una tabla enorme de una sola vez.
-    # La bÃƒÂºsqueda sigue funcionando sobre todos los pacientes
-    # de la instituciÃƒÂ³n antes de aplicar este lÃƒÂ­mite.
+    # La bÃƒÆ’Ã‚Âºsqueda sigue funcionando sobre todos los pacientes
+    # de la instituciÃƒÆ’Ã‚Â³n antes de aplicar este lÃƒÆ’Ã‚Â­mite.
     pacientes_historial = (
         pacientes_historial[:50]
     )
@@ -1013,7 +1013,7 @@ def panel_radiologo(request):
     )
 
 # =========================================================
-# ESTACIÃƒâ€œN DE TRABAJO RADIOLOGÃƒÂA
+# ESTACIÃƒÆ’Ã¢â‚¬Å“N DE TRABAJO RADIOLOGÃƒÆ’Ã‚ÂA
 # =========================================================
 
 @login_required
@@ -1162,7 +1162,7 @@ def nuevo_estudio_desde_radiologia(
 
         if not estudio_nuevo.descripcion:
             estudio_nuevo.descripcion = (
-                'Estudio adicional generado desde RadiologÃƒÂ­a.'
+                'Estudio adicional generado desde RadiologÃƒÆ’Ã‚Â­a.'
             )
 
         estudio_nuevo.save()
@@ -1346,7 +1346,7 @@ def eliminar_archivo_estudio(
     )
 
 # =========================================================
-# PRE-REPORTE TÃƒâ€°CNICO
+# PRE-REPORTE TÃƒÆ’Ã¢â‚¬Â°CNICO
 # =========================================================
 
 @login_required
@@ -1429,7 +1429,7 @@ def guardar_pre_reporte_estudio(
 
 
 # =========================================================
-# REPORTE RADIOLÃƒâ€œGICO FINAL
+# REPORTE RADIOLÃƒÆ’Ã¢â‚¬Å“GICO FINAL
 # =========================================================
 
 @login_required
@@ -1448,8 +1448,8 @@ def guardar_reporte_final_estudio(
         paciente__institucion=membresia.institucion,
     )
 
-    # RADIOLOGIA representa al mÃƒÂ©dico radiÃƒÂ³logo
-    # dentro del flujo actual de membresÃƒÂ­as.
+    # RADIOLOGIA representa al mÃƒÆ’Ã‚Â©dico radiÃƒÆ’Ã‚Â³logo
+    # dentro del flujo actual de membresÃƒÆ’Ã‚Â­as.
     if membresia.rol != 'RADIOLOGIA':
         return redirect(
             'estudio_radiologia',
@@ -1563,7 +1563,7 @@ def finalizar_estudio_radiologia(
     )
 
 # =========================================================
-# RECEPCIÃƒâ€œN
+# RECEPCIÃƒÆ’Ã¢â‚¬Å“N
 # =========================================================
 
 @login_required
@@ -1662,7 +1662,7 @@ def panel_recepcion(request):
 
             if tipo_actividad == 'CONSULTA':
                 paciente.estado_atencion_area = (
-                    'Consulta mÃƒÂ©dica'
+                    'Consulta mÃƒÆ’Ã‚Â©dica'
                 )
 
                 if actividad.estado == 'EN_ESPERA':
@@ -1691,7 +1691,7 @@ def panel_recepcion(request):
 
             elif tipo_actividad == 'ESTUDIO':
                 paciente.estado_atencion_area = (
-                    'RadiologÃƒÂ­a'
+                    'RadiologÃƒÆ’Ã‚Â­a'
                 )
 
                 if actividad.estado == 'PENDIENTE':
@@ -2243,10 +2243,15 @@ def generar_documentos_clinicos_pdf(
         request.GET.get('indicaciones') == '1'
     )
 
+    incluir_resumen = (
+        request.GET.get('resumen') == '1'
+    )
+
     if not any([
         incluir_receta,
         incluir_solicitudes,
         incluir_indicaciones,
+        incluir_resumen,
     ]):
         incluir_receta = True
 
@@ -2320,7 +2325,7 @@ def generar_documentos_clinicos_pdf(
         leftMargin=1.6 * cm,
         topMargin=1.5 * cm,
         bottomMargin=1.6 * cm,
-        title='Documentos clínicos',
+        title='Documentos clÃ­nicos',
         author=obtener_nombre_usuario(
             medico_documento
         ),
@@ -2513,7 +2518,7 @@ def generar_documentos_clinicos_pdf(
                 '<b>Fecha de nacimiento:</b> '
                 f'{consulta.paciente.fecha_nacimiento:%d/%m/%Y}'
                 + (
-                    f' · {edad} años'
+                    f' Â· {edad} aÃ±os'
                     if edad is not None
                     else ''
                 ),
@@ -2553,10 +2558,186 @@ def generar_documentos_clinicos_pdf(
 
     secciones_agregadas = 0
 
+    if incluir_resumen:
+        historia.append(
+            Paragraph(
+                'RESUMEN CLÍNICO / REFERENCIA',
+                estilo_titulo
+            )
+        )
+
+        fecha_atencion = (
+            consulta.fecha_inicio
+            or consulta.fecha_llegada
+        )
+
+        if fecha_atencion:
+            try:
+                fecha_atencion = timezone.localtime(
+                    fecha_atencion
+                )
+            except Exception:
+                pass
+
+            historia.append(
+                Paragraph(
+                    '<b>Fecha y hora de atención:</b> '
+                    + fecha_atencion.strftime(
+                        '%d/%m/%Y %H:%M'
+                    ),
+                    estilo_texto
+                )
+            )
+            historia.append(
+                Spacer(1, 0.16 * cm)
+            )
+
+        if consulta.motivo_consulta:
+            historia.append(
+                Paragraph(
+                    '<b>Motivo de consulta:</b><br/>'
+                    + str(consulta.motivo_consulta),
+                    estilo_texto
+                )
+            )
+            historia.append(
+                Spacer(1, 0.25 * cm)
+            )
+
+        signos = []
+
+        if (
+            consulta.presion_sistolica is not None
+            or consulta.presion_diastolica is not None
+        ):
+            sistolica = (
+                str(consulta.presion_sistolica)
+                if consulta.presion_sistolica is not None
+                else '—'
+            )
+            diastolica = (
+                str(consulta.presion_diastolica)
+                if consulta.presion_diastolica is not None
+                else '—'
+            )
+            signos.append(
+                (
+                    'Presión arterial',
+                    f'{sistolica}/{diastolica} mmHg'
+                )
+            )
+
+        if consulta.frecuencia_cardiaca is not None:
+            signos.append(
+                (
+                    'Frecuencia cardiaca',
+                    f'{consulta.frecuencia_cardiaca} lpm'
+                )
+            )
+
+        if consulta.frecuencia_respiratoria is not None:
+            signos.append(
+                (
+                    'Frecuencia respiratoria',
+                    f'{consulta.frecuencia_respiratoria} rpm'
+                )
+            )
+
+        if consulta.temperatura is not None:
+            signos.append(
+                (
+                    'Temperatura',
+                    f'{consulta.temperatura} °C'
+                )
+            )
+
+        if consulta.saturacion_oxigeno is not None:
+            signos.append(
+                (
+                    'Saturación de oxígeno',
+                    f'{consulta.saturacion_oxigeno}%'
+                )
+            )
+
+        if consulta.peso_kg is not None:
+            signos.append(
+                (
+                    'Peso',
+                    f'{consulta.peso_kg} kg'
+                )
+            )
+
+        if consulta.talla_cm is not None:
+            signos.append(
+                (
+                    'Talla',
+                    f'{consulta.talla_cm} cm'
+                )
+            )
+
+        if signos:
+            filas_signos = [
+                [
+                    Paragraph(
+                        '<b>Signo vital</b>',
+                        estilo_pequeno
+                    ),
+                    Paragraph(
+                        '<b>Valor</b>',
+                        estilo_pequeno
+                    ),
+                ]
+            ]
+
+            for etiqueta, valor in signos:
+                filas_signos.append([
+                    Paragraph(
+                        etiqueta,
+                        estilo_texto
+                    ),
+                    Paragraph(
+                        valor,
+                        estilo_texto
+                    ),
+                ])
+
+            tabla_signos = Table(
+                filas_signos,
+                colWidths=[
+                    8.7 * cm,
+                    8.7 * cm,
+                ],
+                repeatRows=1,
+            )
+
+            tabla_signos.setStyle(
+                TableStyle([
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
+                    ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5e1')),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 7),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ])
+            )
+
+            historia.append(tabla_signos)
+        else:
+            historia.append(
+                Paragraph(
+                    'Sin signos vitales registrados en esta consulta.',
+                    estilo_texto
+                )
+            )
+
+        secciones_agregadas += 1
+
     if incluir_receta:
         historia.append(
             Paragraph(
-                'RECETA MÉDICA',
+                'RECETA MÃ‰DICA',
                 estilo_titulo
             )
         )
@@ -2584,7 +2765,7 @@ def generar_documentos_clinicos_pdf(
 
                 if medicamento.via:
                     datos_dosis.append(
-                        f'Vía: {medicamento.get_via_display()}'
+                        f'VÃ­a: {medicamento.get_via_display()}'
                     )
 
                 if medicamento.frecuencia:
@@ -2594,7 +2775,7 @@ def generar_documentos_clinicos_pdf(
 
                 if medicamento.duracion:
                     datos_dosis.append(
-                        f'Duración: {medicamento.duracion}'
+                        f'DuraciÃ³n: {medicamento.duracion}'
                     )
 
                 indicaciones_med = (
@@ -2680,7 +2861,7 @@ def generar_documentos_clinicos_pdf(
                         '<b>Solicitud '
                         f'{numero}:</b> '
                         f'{solicitud.get_tipo_display()}'
-                        ' · '
+                        ' Â· '
                         f'{solicitud.get_prioridad_display()}',
                         estilo_texto
                     ),
@@ -2690,7 +2871,7 @@ def generar_documentos_clinicos_pdf(
                 if solicitud.motivo_clinico:
                     bloque.append(
                         Paragraph(
-                            '<b>Motivo clínico / diagnóstico presuntivo:</b> '
+                            '<b>Motivo clÃ­nico / diagnÃ³stico presuntivo:</b> '
                             + solicitud.motivo_clinico,
                             estilo_texto
                         )
@@ -2703,13 +2884,13 @@ def generar_documentos_clinicos_pdf(
                     solicitud.estudios_solicitados.all()
                 ):
                     texto_estudio = (
-                        '• '
+                        'â€¢ '
                         + estudio_solicitado.nombre
                     )
 
                     if estudio_solicitado.region_o_detalle:
                         texto_estudio += (
-                            ' — '
+                            ' â€” '
                             + estudio_solicitado.region_o_detalle
                         )
 
@@ -2762,7 +2943,7 @@ def generar_documentos_clinicos_pdf(
 
         historia.append(
             Paragraph(
-                'INDICACIONES MÉDICAS',
+                'INDICACIONES MÃ‰DICAS',
                 estilo_titulo
             )
         )
@@ -2782,7 +2963,7 @@ def generar_documentos_clinicos_pdf(
         else:
             historia.append(
                 Paragraph(
-                    'No hay indicaciones médicas guardadas en esta consulta.',
+                    'No hay indicaciones mÃ©dicas guardadas en esta consulta.',
                     estilo_texto
                 )
             )
@@ -2835,7 +3016,7 @@ def generar_documentos_clinicos_pdf(
     if perfil_medico and perfil_medico.cedula_profesional:
         firma_contenido.append(
             Paragraph(
-                'Cédula profesional: '
+                'CÃ©dula profesional: '
                 + perfil_medico.cedula_profesional,
                 estilo_centrado
             )
@@ -3431,7 +3612,7 @@ def guardar_consulta_clinica(
 
 
 # =========================================================
-# REPORTE FINAL DESDE EXPEDIENTE MÃƒâ€°DICO
+# REPORTE FINAL DESDE EXPEDIENTE MÃƒÆ’Ã¢â‚¬Â°DICO
 # =========================================================
 
 @login_required
@@ -3560,7 +3741,7 @@ def nuevo_estudio_paciente(
 
 
 # =========================================================
-# CONFIGURACIÃƒâ€œN
+# CONFIGURACIÃƒÆ’Ã¢â‚¬Å“N
 # =========================================================
 
 @login_required
@@ -3718,7 +3899,7 @@ def panel_config(request):
 
 
 # =========================================================
-# REGISTRO DESDE RECEPCIÃƒâ€œN
+# REGISTRO DESDE RECEPCIÃƒÆ’Ã¢â‚¬Å“N
 # =========================================================
 
 @login_required
