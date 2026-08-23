@@ -1,4 +1,5 @@
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 import logging
 
@@ -6,8 +7,25 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Prefetch, Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import (
+    Image,
+    KeepTogether,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from .forms import (
     CitaForm,
@@ -380,7 +398,7 @@ def login_view(request):
             )
 
         error_message = (
-            'Usuario o contraseÃ±a incorrectos'
+            'Usuario o contraseÃƒÂ±a incorrectos'
         )
 
     return render(
@@ -464,7 +482,7 @@ def logout_view(request):
 
 
 # =========================================================
-# MÃ‰DICOS
+# MÃƒâ€°DICOS
 # =========================================================
 
 @login_required
@@ -806,7 +824,7 @@ def finalizar_consulta_medica(
 
 
 # =========================================================
-# PANEL RADIOLOGÃA
+# PANEL RADIOLOGÃƒÂA
 # =========================================================
 
 @login_required
@@ -965,8 +983,8 @@ def panel_radiologo(request):
         )
 
     # Evita cargar una tabla enorme de una sola vez.
-    # La bÃºsqueda sigue funcionando sobre todos los pacientes
-    # de la instituciÃ³n antes de aplicar este lÃ­mite.
+    # La bÃƒÂºsqueda sigue funcionando sobre todos los pacientes
+    # de la instituciÃƒÂ³n antes de aplicar este lÃƒÂ­mite.
     pacientes_historial = (
         pacientes_historial[:50]
     )
@@ -995,7 +1013,7 @@ def panel_radiologo(request):
     )
 
 # =========================================================
-# ESTACIÃ“N DE TRABAJO RADIOLOGÃA
+# ESTACIÃƒâ€œN DE TRABAJO RADIOLOGÃƒÂA
 # =========================================================
 
 @login_required
@@ -1144,7 +1162,7 @@ def nuevo_estudio_desde_radiologia(
 
         if not estudio_nuevo.descripcion:
             estudio_nuevo.descripcion = (
-                'Estudio adicional generado desde RadiologÃ­a.'
+                'Estudio adicional generado desde RadiologÃƒÂ­a.'
             )
 
         estudio_nuevo.save()
@@ -1328,7 +1346,7 @@ def eliminar_archivo_estudio(
     )
 
 # =========================================================
-# PRE-REPORTE TÃ‰CNICO
+# PRE-REPORTE TÃƒâ€°CNICO
 # =========================================================
 
 @login_required
@@ -1411,7 +1429,7 @@ def guardar_pre_reporte_estudio(
 
 
 # =========================================================
-# REPORTE RADIOLÃ“GICO FINAL
+# REPORTE RADIOLÃƒâ€œGICO FINAL
 # =========================================================
 
 @login_required
@@ -1430,8 +1448,8 @@ def guardar_reporte_final_estudio(
         paciente__institucion=membresia.institucion,
     )
 
-    # RADIOLOGIA representa al mÃ©dico radiÃ³logo
-    # dentro del flujo actual de membresÃ­as.
+    # RADIOLOGIA representa al mÃƒÂ©dico radiÃƒÂ³logo
+    # dentro del flujo actual de membresÃƒÂ­as.
     if membresia.rol != 'RADIOLOGIA':
         return redirect(
             'estudio_radiologia',
@@ -1545,7 +1563,7 @@ def finalizar_estudio_radiologia(
     )
 
 # =========================================================
-# RECEPCIÃ“N
+# RECEPCIÃƒâ€œN
 # =========================================================
 
 @login_required
@@ -1644,7 +1662,7 @@ def panel_recepcion(request):
 
             if tipo_actividad == 'CONSULTA':
                 paciente.estado_atencion_area = (
-                    'Consulta mÃ©dica'
+                    'Consulta mÃƒÂ©dica'
                 )
 
                 if actividad.estado == 'EN_ESPERA':
@@ -1673,7 +1691,7 @@ def panel_recepcion(request):
 
             elif tipo_actividad == 'ESTUDIO':
                 paciente.estado_atencion_area = (
-                    'RadiologÃ­a'
+                    'RadiologÃƒÂ­a'
                 )
 
                 if actividad.estado == 'PENDIENTE':
@@ -2174,6 +2192,707 @@ def detalle_paciente(
         'core/detalle_paciente.html',
         context
     )
+
+
+
+@login_required
+def generar_documentos_clinicos_pdf(
+    request,
+    consulta_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'MEDICO',
+        'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    consulta = get_object_or_404(
+        Consulta.objects.select_related(
+            'paciente',
+            'medico',
+            'paciente__institucion',
+        ),
+        pk=consulta_id,
+        paciente__institucion=membresia.institucion,
+    )
+
+    if (
+        membresia.rol != 'ADMIN'
+        and consulta.medico_id
+        and consulta.medico_id != request.user.id
+    ):
+        return redirect(
+            'detalle_paciente',
+            paciente_id=consulta.paciente_id
+        )
+
+    incluir_receta = (
+        request.GET.get('receta') == '1'
+    )
+
+    incluir_solicitudes = (
+        request.GET.get('solicitudes') == '1'
+    )
+
+    incluir_indicaciones = (
+        request.GET.get('indicaciones') == '1'
+    )
+
+    if not any([
+        incluir_receta,
+        incluir_solicitudes,
+        incluir_indicaciones,
+    ]):
+        incluir_receta = True
+
+    institucion = consulta.paciente.institucion
+
+    medico_documento = (
+        consulta.medico
+        or request.user
+    )
+
+    perfil_medico = (
+        PerfilMedico.objects
+        .filter(
+            institucion=institucion,
+            usuario=medico_documento,
+            activo=True,
+        )
+        .first()
+    )
+
+    receta = (
+        RecetaMedica.objects
+        .filter(
+            consulta=consulta
+        )
+        .prefetch_related(
+            'medicamentos'
+        )
+        .first()
+    )
+
+    indicacion = (
+        IndicacionMedica.objects
+        .filter(
+            consulta=consulta
+        )
+        .first()
+    )
+
+    solicitudes = (
+        SolicitudEstudio.objects
+        .filter(
+            consulta=consulta
+        )
+        .prefetch_related(
+            'estudios_solicitados'
+        )
+        .order_by(
+            'creada_el'
+        )
+    )
+
+    buffer = BytesIO()
+
+    response_disposition = (
+        'attachment'
+        if request.GET.get('descargar') == '1'
+        else 'inline'
+    )
+
+    nombre_archivo = (
+        'documentos_'
+        f'{consulta.paciente.identificacion}_'
+        f'{timezone.localdate():%Y%m%d}.pdf'
+    )
+
+    documento = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=1.6 * cm,
+        leftMargin=1.6 * cm,
+        topMargin=1.5 * cm,
+        bottomMargin=1.6 * cm,
+        title='Documentos clínicos',
+        author=obtener_nombre_usuario(
+            medico_documento
+        ),
+    )
+
+    estilos_base = getSampleStyleSheet()
+
+    estilo_institucion = ParagraphStyle(
+        'Institucion',
+        parent=estilos_base['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=14,
+        leading=17,
+        alignment=TA_LEFT,
+        textColor=colors.HexColor('#0f172a'),
+        spaceAfter=3,
+    )
+
+    estilo_dato = ParagraphStyle(
+        'Dato',
+        parent=estilos_base['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#334155'),
+    )
+
+    estilo_titulo = ParagraphStyle(
+        'TituloSeccion',
+        parent=estilos_base['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=15,
+        textColor=colors.HexColor('#0f172a'),
+        spaceBefore=4,
+        spaceAfter=8,
+    )
+
+    estilo_texto = ParagraphStyle(
+        'Texto',
+        parent=estilos_base['Normal'],
+        fontName='Helvetica',
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor('#111827'),
+    )
+
+    estilo_pequeno = ParagraphStyle(
+        'Pequeno',
+        parent=estilos_base['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor('#475569'),
+    )
+
+    estilo_centrado = ParagraphStyle(
+        'Centrado',
+        parent=estilo_pequeno,
+        alignment=TA_CENTER,
+    )
+
+    historia = []
+
+    def imagen_desde_campo(campo, ancho, alto):
+        if not campo:
+            return None
+
+        try:
+            campo.open('rb')
+            datos = campo.read()
+            campo.close()
+
+            if not datos:
+                return None
+
+            return Image(
+                BytesIO(datos),
+                width=ancho,
+                height=alto,
+                kind='proportional',
+            )
+        except Exception:
+            return None
+
+    def nombre_institucion():
+        return (
+            institucion.nombre_comercial
+            or institucion.nombre
+        )
+
+    logo = imagen_desde_campo(
+        institucion.logo,
+        3.0 * cm,
+        2.1 * cm,
+    )
+
+    datos_institucion = [
+        Paragraph(
+            nombre_institucion(),
+            estilo_institucion
+        ),
+    ]
+
+    if institucion.direccion:
+        datos_institucion.append(
+            Paragraph(
+                institucion.direccion,
+                estilo_dato
+            )
+        )
+
+    telefonos = [
+        valor
+        for valor in [
+            institucion.telefono,
+            institucion.telefono_secundario,
+        ]
+        if valor
+    ]
+
+    if telefonos:
+        datos_institucion.append(
+            Paragraph(
+                'Tel. ' + ' / '.join(telefonos),
+                estilo_dato
+            )
+        )
+
+    if institucion.email:
+        datos_institucion.append(
+            Paragraph(
+                institucion.email,
+                estilo_dato
+            )
+        )
+
+    if institucion.horarios_servicio:
+        datos_institucion.append(
+            Paragraph(
+                institucion.horarios_servicio,
+                estilo_dato
+            )
+        )
+
+    encabezado = Table(
+        [
+            [
+                logo or '',
+                datos_institucion,
+            ]
+        ],
+        colWidths=[
+            3.4 * cm,
+            14.0 * cm,
+        ],
+    )
+
+    encabezado.setStyle(
+        TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+            ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#0f172a')),
+        ])
+    )
+
+    historia.append(encabezado)
+    historia.append(Spacer(1, 0.3 * cm))
+
+    edad = calcular_edad(
+        consulta.paciente.fecha_nacimiento
+    )
+
+    paciente_info = [
+        [
+            Paragraph(
+                '<b>Paciente:</b> '
+                f'{consulta.paciente.nombre} '
+                f'{consulta.paciente.apellido}',
+                estilo_texto
+            ),
+            Paragraph(
+                '<b>Registro:</b> '
+                f'{consulta.paciente.identificacion}',
+                estilo_texto
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Fecha de nacimiento:</b> '
+                f'{consulta.paciente.fecha_nacimiento:%d/%m/%Y}'
+                + (
+                    f' · {edad} años'
+                    if edad is not None
+                    else ''
+                ),
+                estilo_texto
+            ),
+            Paragraph(
+                '<b>Fecha:</b> '
+                f'{timezone.localdate():%d/%m/%Y}',
+                estilo_texto
+            ),
+        ],
+    ]
+
+    tabla_paciente = Table(
+        paciente_info,
+        colWidths=[
+            10.2 * cm,
+            7.2 * cm,
+        ],
+    )
+
+    tabla_paciente.setStyle(
+        TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+            ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 7),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ])
+    )
+
+    historia.append(tabla_paciente)
+    historia.append(Spacer(1, 0.45 * cm))
+
+    secciones_agregadas = 0
+
+    if incluir_receta:
+        historia.append(
+            Paragraph(
+                'RECETA MÉDICA',
+                estilo_titulo
+            )
+        )
+
+        if receta and receta.medicamentos.exists():
+            filas = [
+                [
+                    Paragraph('<b>Medicamento</b>', estilo_pequeno),
+                    Paragraph('<b>Indicaciones</b>', estilo_pequeno),
+                ]
+            ]
+
+            for medicamento in receta.medicamentos.all():
+                datos_dosis = []
+
+                if medicamento.presentacion:
+                    datos_dosis.append(
+                        medicamento.presentacion
+                    )
+
+                if medicamento.dosis:
+                    datos_dosis.append(
+                        f'Dosis: {medicamento.dosis}'
+                    )
+
+                if medicamento.via:
+                    datos_dosis.append(
+                        f'Vía: {medicamento.get_via_display()}'
+                    )
+
+                if medicamento.frecuencia:
+                    datos_dosis.append(
+                        f'Frecuencia: {medicamento.frecuencia}'
+                    )
+
+                if medicamento.duracion:
+                    datos_dosis.append(
+                        f'Duración: {medicamento.duracion}'
+                    )
+
+                indicaciones_med = (
+                    medicamento.indicaciones
+                    or 'Sin indicaciones adicionales.'
+                )
+
+                filas.append([
+                    Paragraph(
+                        '<b>'
+                        + medicamento.medicamento
+                        + '</b><br/>'
+                        + '<br/>'.join(datos_dosis),
+                        estilo_texto
+                    ),
+                    Paragraph(
+                        indicaciones_med,
+                        estilo_texto
+                    ),
+                ])
+
+            tabla_receta = Table(
+                filas,
+                colWidths=[
+                    9.5 * cm,
+                    7.9 * cm,
+                ],
+                repeatRows=1,
+            )
+
+            tabla_receta.setStyle(
+                TableStyle([
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#94a3b8')),
+                    ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5e1')),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 7),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ])
+            )
+
+            historia.append(tabla_receta)
+
+            if receta.observaciones:
+                historia.append(Spacer(1, 0.25 * cm))
+                historia.append(
+                    Paragraph(
+                        '<b>Observaciones:</b> '
+                        + receta.observaciones,
+                        estilo_texto
+                    )
+                )
+        else:
+            historia.append(
+                Paragraph(
+                    'No hay medicamentos guardados en esta consulta.',
+                    estilo_texto
+                )
+            )
+
+        secciones_agregadas += 1
+
+    if incluir_solicitudes:
+        if secciones_agregadas:
+            historia.append(Spacer(1, 0.55 * cm))
+
+        historia.append(
+            Paragraph(
+                'SOLICITUD DE ESTUDIOS',
+                estilo_titulo
+            )
+        )
+
+        if solicitudes.exists():
+            for numero, solicitud in enumerate(
+                solicitudes,
+                start=1
+            ):
+                bloque = [
+                    Paragraph(
+                        '<b>Solicitud '
+                        f'{numero}:</b> '
+                        f'{solicitud.get_tipo_display()}'
+                        ' · '
+                        f'{solicitud.get_prioridad_display()}',
+                        estilo_texto
+                    ),
+                    Spacer(1, 0.12 * cm),
+                ]
+
+                if solicitud.motivo_clinico:
+                    bloque.append(
+                        Paragraph(
+                            '<b>Motivo clínico / diagnóstico presuntivo:</b> '
+                            + solicitud.motivo_clinico,
+                            estilo_texto
+                        )
+                    )
+                    bloque.append(
+                        Spacer(1, 0.12 * cm)
+                    )
+
+                for estudio_solicitado in (
+                    solicitud.estudios_solicitados.all()
+                ):
+                    texto_estudio = (
+                        '• '
+                        + estudio_solicitado.nombre
+                    )
+
+                    if estudio_solicitado.region_o_detalle:
+                        texto_estudio += (
+                            ' — '
+                            + estudio_solicitado.region_o_detalle
+                        )
+
+                    if estudio_solicitado.indicaciones:
+                        texto_estudio += (
+                            '<br/><font size="8">'
+                            'Indicaciones: '
+                            + estudio_solicitado.indicaciones
+                            + '</font>'
+                        )
+
+                    bloque.append(
+                        Paragraph(
+                            texto_estudio,
+                            estilo_texto
+                        )
+                    )
+                    bloque.append(
+                        Spacer(1, 0.08 * cm)
+                    )
+
+                if solicitud.observaciones:
+                    bloque.append(
+                        Paragraph(
+                            '<b>Observaciones:</b> '
+                            + solicitud.observaciones,
+                            estilo_texto
+                        )
+                    )
+
+                historia.append(
+                    KeepTogether(bloque)
+                )
+                historia.append(
+                    Spacer(1, 0.28 * cm)
+                )
+        else:
+            historia.append(
+                Paragraph(
+                    'No hay solicitudes de estudio guardadas en esta consulta.',
+                    estilo_texto
+                )
+            )
+
+        secciones_agregadas += 1
+
+    if incluir_indicaciones:
+        if secciones_agregadas:
+            historia.append(Spacer(1, 0.55 * cm))
+
+        historia.append(
+            Paragraph(
+                'INDICACIONES MÉDICAS',
+                estilo_titulo
+            )
+        )
+
+        if indicacion and indicacion.indicaciones:
+            for linea in indicacion.indicaciones.splitlines():
+                if linea.strip():
+                    historia.append(
+                        Paragraph(
+                            linea.strip(),
+                            estilo_texto
+                        )
+                    )
+                    historia.append(
+                        Spacer(1, 0.08 * cm)
+                    )
+        else:
+            historia.append(
+                Paragraph(
+                    'No hay indicaciones médicas guardadas en esta consulta.',
+                    estilo_texto
+                )
+            )
+
+        secciones_agregadas += 1
+
+    historia.append(Spacer(1, 0.8 * cm))
+
+    firma = None
+
+    if perfil_medico:
+        firma = imagen_desde_campo(
+            perfil_medico.firma,
+            4.3 * cm,
+            1.8 * cm,
+        )
+
+    firma_contenido = []
+
+    if firma:
+        firma_contenido.append(firma)
+    else:
+        firma_contenido.append(
+            Spacer(1, 1.7 * cm)
+        )
+
+    firma_contenido.extend([
+        Paragraph(
+            '_______________________________',
+            estilo_centrado
+        ),
+        Paragraph(
+            '<b>'
+            + obtener_nombre_usuario(
+                medico_documento
+            )
+            + '</b>',
+            estilo_centrado
+        ),
+    ])
+
+    if perfil_medico and perfil_medico.especialidad:
+        firma_contenido.append(
+            Paragraph(
+                perfil_medico.especialidad,
+                estilo_centrado
+            )
+        )
+
+    if perfil_medico and perfil_medico.cedula_profesional:
+        firma_contenido.append(
+            Paragraph(
+                'Cédula profesional: '
+                + perfil_medico.cedula_profesional,
+                estilo_centrado
+            )
+        )
+
+    historia.append(
+        KeepTogether(firma_contenido)
+    )
+
+    historia.append(Spacer(1, 0.55 * cm))
+
+    pie = []
+
+    if institucion.direccion:
+        pie.append(institucion.direccion)
+
+    if telefonos:
+        pie.append(
+            'Tel. ' + ' / '.join(telefonos)
+        )
+
+    if institucion.horarios_servicio:
+        pie.append(
+            institucion.horarios_servicio
+        )
+
+    if institucion.pie_documentos:
+        pie.append(
+            institucion.pie_documentos
+        )
+
+    if pie:
+        historia.append(
+            Paragraph(
+                '<br/>'.join(pie),
+                estilo_centrado
+            )
+        )
+
+    documento.build(historia)
+
+    pdf = buffer.getvalue()
+    buffer.close()
+
+    respuesta = HttpResponse(
+        pdf,
+        content_type='application/pdf'
+    )
+
+    respuesta[
+        'Content-Disposition'
+    ] = (
+        f'{response_disposition}; '
+        f'filename="{nombre_archivo}"'
+    )
+
+    return respuesta
 
 
 @login_required
@@ -2712,7 +3431,7 @@ def guardar_consulta_clinica(
 
 
 # =========================================================
-# REPORTE FINAL DESDE EXPEDIENTE MÃ‰DICO
+# REPORTE FINAL DESDE EXPEDIENTE MÃƒâ€°DICO
 # =========================================================
 
 @login_required
@@ -2841,7 +3560,7 @@ def nuevo_estudio_paciente(
 
 
 # =========================================================
-# CONFIGURACIÃ“N
+# CONFIGURACIÃƒâ€œN
 # =========================================================
 
 @login_required
@@ -2999,7 +3718,7 @@ def panel_config(request):
 
 
 # =========================================================
-# REGISTRO DESDE RECEPCIÃ“N
+# REGISTRO DESDE RECEPCIÃƒâ€œN
 # =========================================================
 
 @login_required

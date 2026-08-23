@@ -646,6 +646,107 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                     <div class="exp-box-body">
 
+
+                        <div class="study-card mb-3">
+
+                            <div class="study-top mb-2">
+                                <div>
+                                    <div class="study-name">
+                                        Generar documento para el paciente
+                                    </div>
+
+                                    <div class="tiny">
+                                        Selecciona qué secciones incluir en el PDF.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form
+                                method="get"
+                                action="{% url 'generar_documentos_clinicos_pdf' consulta_activa.id %}"
+                                target="_blank"
+                                class="row g-2 align-items-end"
+                            >
+
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            name="receta"
+                                            value="1"
+                                            id="pdfReceta"
+                                            {% if receta_activa %}checked{% endif %}
+                                        >
+                                        <label
+                                            class="form-check-label"
+                                            for="pdfReceta"
+                                        >
+                                            Receta médica
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            name="solicitudes"
+                                            value="1"
+                                            id="pdfSolicitudes"
+                                            {% if solicitudes_activas %}checked{% endif %}
+                                        >
+                                        <label
+                                            class="form-check-label"
+                                            for="pdfSolicitudes"
+                                        >
+                                            Solicitud de estudios
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            name="indicaciones"
+                                            value="1"
+                                            id="pdfIndicaciones"
+                                            {% if indicacion_activa %}checked{% endif %}
+                                        >
+                                        <label
+                                            class="form-check-label"
+                                            for="pdfIndicaciones"
+                                        >
+                                            Indicaciones
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3 d-flex gap-2">
+                                    <button
+                                        type="submit"
+                                        class="btn btn-outline-info btn-sm flex-grow-1"
+                                    >
+                                        Ver PDF
+                                    </button>
+
+                                    <button
+                                        type="submit"
+                                        name="descargar"
+                                        value="1"
+                                        class="btn btn-primary btn-sm flex-grow-1"
+                                    >
+                                        Descargar
+                                    </button>
+                                </div>
+
+                            </form>
+
+                        </div>
+
                         <div class="accordion" id="documentosClinicos">
 
                             <!-- RECETA MÉDICA -->

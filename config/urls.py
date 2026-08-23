@@ -71,6 +71,12 @@ urlpatterns = [
     ),
 
     path(
+        'medicos/consulta/<int:consulta_id>/documentos/pdf/',
+        views.generar_documentos_clinicos_pdf,
+        name='generar_documentos_clinicos_pdf'
+    ),
+
+    path(
         'medicos/consulta/<int:consulta_id>/indicaciones/guardar/',
         views.guardar_indicacion_medica,
         name='guardar_indicacion_medica'
