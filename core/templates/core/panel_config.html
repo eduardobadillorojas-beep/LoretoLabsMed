@@ -128,6 +128,30 @@ Configuración | Loreto One
         margin-top: 5px;
     }
 
+    .config-module {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+    }
+
+    .config-module-title {
+        margin: 0 0 4px;
+        font-size: .94rem;
+        font-weight: 800;
+    }
+
+    .config-module-text {
+        margin: 0;
+        color: #94a3b8;
+        font-size: .74rem;
+        line-height: 1.5;
+    }
+
+    .config-module-button {
+        white-space: nowrap;
+    }
+
     .preview-doc {
         border: 1px solid #334155;
         border-radius: 9px;
@@ -177,6 +201,11 @@ Configuración | Loreto One
         .config-full {
             grid-column: auto;
         }
+
+        .config-module {
+            align-items: stretch;
+            flex-direction: column;
+        }
     }
 </style>
 
@@ -197,6 +226,35 @@ Configuración | Loreto One
         <div class="alert alert-success py-2">
             Configuración institucional guardada correctamente.
         </div>
+    {% endif %}
+
+    {% if institucion %}
+        <section class="config-card">
+            <div class="config-card-header">
+                Catálogo y cobros
+            </div>
+
+            <div class="config-card-body">
+                <div class="config-module">
+                    <div>
+                        <h2 class="config-module-title">
+                            Catálogo de servicios
+                        </h2>
+
+                        <p class="config-module-text">
+                            Administra estudios, procedimientos, precios y disponibilidad para {{ institucion.nombre_comercial|default:institucion.nombre }}.
+                        </p>
+                    </div>
+
+                    <a
+                        href="{% url 'catalogo_servicios' %}"
+                        class="btn btn-primary config-module-button"
+                    >
+                        Abrir catálogo
+                    </a>
+                </div>
+            </div>
+        </section>
     {% endif %}
 
     {% if institucion %}

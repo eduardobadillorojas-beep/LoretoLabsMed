@@ -1,0 +1,565 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+Catálogo de servicios | Loreto One
+{% endblock %}
+
+{% block content %}
+
+<style>
+    .catalog-wrap {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 18px 18px 45px;
+    }
+
+    .catalog-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .catalog-title {
+        margin: 0;
+        font-size: 1.65rem;
+        font-weight: 800;
+    }
+
+    .catalog-subtitle {
+        color: #94a3b8;
+        font-size: .78rem;
+        margin-top: 4px;
+    }
+
+    .catalog-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 14px;
+    }
+
+    .catalog-card-header {
+        padding: 11px 14px;
+        border-bottom: 1px solid #334155;
+        font-size: .9rem;
+        font-weight: 800;
+    }
+
+    .catalog-card-body {
+        padding: 14px;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .summary-card {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 9px;
+        padding: 14px;
+    }
+
+    .summary-label {
+        color: #94a3b8;
+        font-size: .7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .summary-value {
+        margin-top: 4px;
+        font-size: 1.45rem;
+        font-weight: 800;
+    }
+
+    .catalog-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 12px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 12px;
+    }
+
+    .form-full {
+        grid-column: 1 / -1;
+    }
+
+    .catalog-label {
+        display: block;
+        color: #cbd5e1;
+        font-size: .7rem;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .catalog-input,
+    .catalog-select {
+        width: 100%;
+        border: 1px solid #475569;
+        border-radius: 7px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 9px 10px;
+        font-size: .8rem;
+    }
+
+    .catalog-input:focus,
+    .catalog-select:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
+    }
+
+    .checks-row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding-top: 7px;
+    }
+
+    .check-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #cbd5e1;
+        font-size: .75rem;
+    }
+
+    .catalog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .table-wrap {
+        overflow-x: auto;
+    }
+
+    .catalog-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 900px;
+    }
+
+    .catalog-table th {
+        color: #94a3b8;
+        font-size: .67rem;
+        text-align: left;
+        text-transform: uppercase;
+        padding: 9px 10px;
+        border-bottom: 1px solid #334155;
+    }
+
+    .catalog-table td {
+        padding: 10px;
+        border-bottom: 1px solid #334155;
+        font-size: .76rem;
+        vertical-align: middle;
+    }
+
+    .service-name {
+        font-weight: 700;
+    }
+
+    .service-code {
+        color: #94a3b8;
+        font-size: .66rem;
+        margin-top: 2px;
+    }
+
+    .badge-status {
+        display: inline-flex;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: .64rem;
+        font-weight: 800;
+    }
+
+    .badge-active {
+        background: rgba(34, 197, 94, .16);
+        color: #86efac;
+    }
+
+    .badge-inactive {
+        background: rgba(239, 68, 68, .16);
+        color: #fca5a5;
+    }
+
+    .row-actions {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .row-actions form {
+        margin: 0;
+    }
+
+    .pagination-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding-top: 14px;
+        color: #94a3b8;
+        font-size: .72rem;
+    }
+
+    .pagination-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    @media (max-width: 800px) {
+        .catalog-header {
+            flex-direction: column;
+        }
+
+        .summary-grid,
+        .catalog-grid,
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-full {
+            grid-column: auto;
+        }
+    }
+</style>
+
+<div class="catalog-wrap">
+    <header class="catalog-header">
+        <div>
+            <h1 class="catalog-title">
+                Catálogo de servicios
+            </h1>
+
+            <div class="catalog-subtitle">
+                Precios y disponibilidad para {{ institucion.nombre_comercial|default:institucion.nombre }}.
+            </div>
+        </div>
+
+        <a
+            href="{% url 'panel_config' %}"
+            class="btn btn-outline-light btn-sm"
+        >
+            Volver a Configuración
+        </a>
+    </header>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} py-2">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-label">Servicios totales</div>
+            <div class="summary-value">{{ resumen.total }}</div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-label">Activos</div>
+            <div class="summary-value">{{ resumen.activos }}</div>
+        </div>
+
+        <div class="summary-card">
+            <div class="summary-label">Inactivos</div>
+            <div class="summary-value">{{ resumen.inactivos }}</div>
+        </div>
+    </div>
+
+    <section class="catalog-card">
+        <div class="catalog-card-header">
+            {% if servicio_edicion %}
+                Editar servicio
+            {% else %}
+                Nuevo servicio
+            {% endif %}
+        </div>
+
+        <div class="catalog-card-body">
+            <form
+                method="post"
+                action="{% if servicio_edicion %}{% url 'guardar_servicio' servicio_edicion.id %}{% else %}{% url 'nuevo_servicio' %}{% endif %}"
+            >
+                {% csrf_token %}
+
+                <div class="form-grid">
+                    <div>
+                        <label class="catalog-label">Nombre</label>
+                        <input
+                            type="text"
+                            name="nombre"
+                            class="catalog-input"
+                            maxlength="200"
+                            value="{% if servicio_edicion %}{{ servicio_edicion.nombre }}{% endif %}"
+                            required
+                        >
+                    </div>
+
+                    <div>
+                        <label class="catalog-label">Tipo</label>
+                        <select name="tipo" class="catalog-select" required>
+                            {% for valor, etiqueta in tipos_servicio %}
+                                <option
+                                    value="{{ valor }}"
+                                    {% if servicio_edicion and servicio_edicion.tipo == valor %}selected{% elif not servicio_edicion and valor == 'OTRO' %}selected{% endif %}
+                                >
+                                    {{ etiqueta }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="catalog-label">Precio base</label>
+                        <input
+                            type="number"
+                            name="precio_base"
+                            class="catalog-input"
+                            min="0"
+                            max="9999999999.99"
+                            step="0.01"
+                            value="{% if servicio_edicion %}{{ servicio_edicion.precio_base }}{% else %}0.00{% endif %}"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-full">
+                        <label class="catalog-label">
+                            Tipo de estudio relacionado
+                        </label>
+
+                        <select name="tipo_estudio" class="catalog-select">
+                            <option value="">Sin estudio relacionado</option>
+                            {% for tipo_estudio in tipos_estudio %}
+                                <option
+                                    value="{{ tipo_estudio.id }}"
+                                    {% if servicio_edicion and servicio_edicion.tipo_estudio_id == tipo_estudio.id %}selected{% endif %}
+                                >
+                                    {{ tipo_estudio.codigo }} · {{ tipo_estudio.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-full checks-row">
+                        <label class="check-label">
+                            <input
+                                type="checkbox"
+                                name="precio_editable"
+                                value="1"
+                                {% if servicio_edicion and servicio_edicion.precio_editable %}checked{% endif %}
+                            >
+                            Permitir cambiar el precio al cobrar
+                        </label>
+
+                        <label class="check-label">
+                            <input
+                                type="checkbox"
+                                name="activo"
+                                value="1"
+                                {% if not servicio_edicion or servicio_edicion.activo %}checked{% endif %}
+                            >
+                            Servicio activo
+                        </label>
+                    </div>
+                </div>
+
+                <div class="catalog-actions">
+                    {% if servicio_edicion %}
+                        <a
+                            href="{% url 'catalogo_servicios' %}"
+                            class="btn btn-outline-light btn-sm"
+                        >
+                            Cancelar edición
+                        </a>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        {% if servicio_edicion %}
+                            Guardar cambios
+                        {% else %}
+                            Crear servicio
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="catalog-card">
+        <div class="catalog-card-header">
+            Buscar y filtrar
+        </div>
+
+        <div class="catalog-card-body">
+            <form method="get">
+                <div class="catalog-grid">
+                    <div>
+                        <label class="catalog-label">Buscar</label>
+                        <input
+                            type="search"
+                            name="q"
+                            class="catalog-input"
+                            value="{{ busqueda }}"
+                            placeholder="Nombre o código del estudio"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="catalog-label">Tipo</label>
+                        <select name="tipo" class="catalog-select">
+                            <option value="">Todos</option>
+                            {% for valor, etiqueta in tipos_servicio %}
+                                <option value="{{ valor }}" {% if tipo_seleccionado == valor %}selected{% endif %}>
+                                    {{ etiqueta }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="catalog-label">Estado</label>
+                        <select name="estado" class="catalog-select">
+                            <option value="">Todos</option>
+                            <option value="ACTIVOS" {% if estado_seleccionado == 'ACTIVOS' %}selected{% endif %}>Activos</option>
+                            <option value="INACTIVOS" {% if estado_seleccionado == 'INACTIVOS' %}selected{% endif %}>Inactivos</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="catalog-actions">
+                    <a href="{% url 'catalogo_servicios' %}" class="btn btn-outline-light btn-sm">
+                        Limpiar
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        Aplicar filtros
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="catalog-card">
+        <div class="catalog-card-header">
+            Servicios encontrados: {{ pagina.paginator.count }}
+        </div>
+
+        <div class="catalog-card-body">
+            <div class="table-wrap">
+                <table class="catalog-table">
+                    <thead>
+                        <tr>
+                            <th>Servicio</th>
+                            <th>Tipo</th>
+                            <th>Precio</th>
+                            <th>Precio manual</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for servicio in pagina %}
+                            <tr>
+                                <td>
+                                    <div class="service-name">{{ servicio.nombre }}</div>
+                                    {% if servicio.tipo_estudio %}
+                                        <div class="service-code">{{ servicio.tipo_estudio.codigo }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ servicio.get_tipo_display }}</td>
+                                <td>${{ servicio.precio_base|floatformat:2 }}</td>
+                                <td>{% if servicio.precio_editable %}Sí{% else %}No{% endif %}</td>
+                                <td>
+                                    {% if servicio.activo %}
+                                        <span class="badge-status badge-active">Activo</span>
+                                    {% else %}
+                                        <span class="badge-status badge-inactive">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="row-actions">
+                                        <a
+                                            href="{% url 'catalogo_servicios' %}?editar={{ servicio.id }}"
+                                            class="btn btn-outline-light btn-sm"
+                                        >
+                                            Editar
+                                        </a>
+
+                                        <form
+                                            method="post"
+                                            action="{% url 'cambiar_estado_servicio' servicio.id %}"
+                                        >
+                                            {% csrf_token %}
+                                            <button
+                                                type="submit"
+                                                class="btn {% if servicio.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %} btn-sm"
+                                            >
+                                                {% if servicio.activo %}Desactivar{% else %}Activar{% endif %}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6">
+                                    No se encontraron servicios con estos filtros.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if pagina.paginator.num_pages > 1 %}
+                <div class="pagination-row">
+                    <div>
+                        Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+                    </div>
+
+                    <div class="pagination-actions">
+                        {% if pagina.has_previous %}
+                            <a
+                                href="?q={{ busqueda|urlencode }}&tipo={{ tipo_seleccionado|urlencode }}&estado={{ estado_seleccionado|urlencode }}&pagina={{ pagina.previous_page_number }}"
+                                class="btn btn-outline-light btn-sm"
+                            >
+                                Anterior
+                            </a>
+                        {% endif %}
+
+                        {% if pagina.has_next %}
+                            <a
+                                href="?q={{ busqueda|urlencode }}&tipo={{ tipo_seleccionado|urlencode }}&estado={{ estado_seleccionado|urlencode }}&pagina={{ pagina.next_page_number }}"
+                                class="btn btn-outline-light btn-sm"
+                            >
+                                Siguiente
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+</div>
+
+{% endblock %}

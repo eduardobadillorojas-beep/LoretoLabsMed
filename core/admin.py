@@ -1,10 +1,12 @@
 from django.contrib import admin
 
 from .models import (
-    Paciente,
+    CargoPaciente,
     Estudio,
     Institucion,
     MembresiaInstitucion,
+    Paciente,
+    Servicio,
 )
 
 
@@ -90,4 +92,94 @@ class EstudioAdmin(admin.ModelAdmin):
         'paciente__nombre',
         'paciente__apellido',
         'tipo_estudio__nombre',
+    )
+
+
+@admin.register(Servicio)
+class ServicioAdmin(admin.ModelAdmin):
+    list_display = (
+        'nombre',
+        'tipo',
+        'institucion',
+        'tipo_estudio',
+        'precio_base',
+        'precio_editable',
+        'activo',
+    )
+
+    list_filter = (
+        'institucion',
+        'tipo',
+        'precio_editable',
+        'activo',
+    )
+
+    search_fields = (
+        'nombre',
+        'institucion__nombre',
+        'tipo_estudio__nombre',
+    )
+
+    list_select_related = (
+        'institucion',
+        'tipo_estudio',
+    )
+
+    readonly_fields = (
+        'creado_el',
+        'actualizado_el',
+    )
+
+    ordering = (
+        'tipo',
+        'nombre',
+    )
+
+
+@admin.register(CargoPaciente)
+class CargoPacienteAdmin(admin.ModelAdmin):
+    list_display = (
+        'paciente',
+        'descripcion',
+        'cantidad',
+        'precio_unitario',
+        'subtotal',
+        'estado',
+        'origen',
+        'institucion',
+        'creado_el',
+    )
+
+    list_filter = (
+        'institucion',
+        'estado',
+        'origen',
+        'creado_el',
+    )
+
+    search_fields = (
+        'paciente__identificacion',
+        'paciente__nombre',
+        'paciente__apellido',
+        'descripcion',
+        'servicio__nombre',
+    )
+
+    list_select_related = (
+        'institucion',
+        'paciente',
+        'servicio',
+        'consulta',
+        'estudio',
+        'agregado_por',
+    )
+
+    readonly_fields = (
+        'subtotal',
+        'creado_el',
+        'actualizado_el',
+    )
+
+    ordering = (
+        '-creado_el',
     )

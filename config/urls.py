@@ -213,6 +213,30 @@ urlpatterns = [
         views.panel_config,
         name='panel_config'
     ),
+
+    path(
+        'configuracion/servicios/',
+        views.catalogo_servicios,
+        name='catalogo_servicios'
+    ),
+
+    path(
+        'configuracion/servicios/nuevo/',
+        views.guardar_servicio,
+        name='nuevo_servicio'
+    ),
+
+    path(
+        'configuracion/servicios/<int:servicio_id>/guardar/',
+        views.guardar_servicio,
+        name='guardar_servicio'
+    ),
+
+    path(
+        'configuracion/servicios/<int:servicio_id>/estado/',
+        views.cambiar_estado_servicio,
+        name='cambiar_estado_servicio'
+    ),
 ]
 
 

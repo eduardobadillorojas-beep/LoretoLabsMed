@@ -1,13 +1,16 @@
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 import logging
 from xml.sax.saxutils import escape
 
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Prefetch, Q
+from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -51,6 +54,8 @@ from .models import (
     RecetaMedica,
     SesionTrabajo,
     SolicitudEstudio,
+    Servicio,
+    TipoEstudio,
 )
 
 
@@ -81,6 +86,19 @@ def obtener_institucion_usuario(request):
         return None
 
     return membresia.institucion
+
+
+def puede_administrar_configuracion(request, membresia=None):
+    if request.user.is_superuser:
+        return True
+
+    if membresia is None:
+        membresia = obtener_membresia_usuario(request)
+
+    return bool(
+        membresia
+        and membresia.rol == 'ADMIN'
+    )
 
 
 def obtener_ip(request):
@@ -4061,6 +4079,335 @@ def panel_config(request):
         'core/panel_config.html',
         context
     )
+
+
+@login_required
+def catalogo_servicios(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if not puede_administrar_configuracion(
+        request,
+        membresia
+    ):
+        return redirect('panel_config')
+
+    institucion = (
+        membresia.institucion
+        if membresia is not None
+        else None
+    )
+
+    if institucion is None:
+        messages.warning(
+            request,
+            'Tu usuario no tiene una institución asociada.'
+        )
+        return redirect('panel_config')
+
+    busqueda = request.GET.get(
+        'q',
+        ''
+    ).strip()
+
+    tipo = request.GET.get(
+        'tipo',
+        ''
+    ).strip()
+
+    estado = request.GET.get(
+        'estado',
+        ''
+    ).strip()
+
+    servicios = (
+        Servicio.objects
+        .filter(institucion=institucion)
+        .select_related(
+            'institucion',
+            'tipo_estudio',
+        )
+    )
+
+    if busqueda:
+        servicios = servicios.filter(
+            Q(nombre__icontains=busqueda)
+            | Q(tipo_estudio__codigo__icontains=busqueda)
+            | Q(tipo_estudio__nombre__icontains=busqueda)
+        )
+
+    tipos_validos = {
+        valor
+        for valor, etiqueta
+        in Servicio.TIPO_CHOICES
+    }
+
+    if tipo in tipos_validos:
+        servicios = servicios.filter(tipo=tipo)
+
+    if estado == 'ACTIVOS':
+        servicios = servicios.filter(activo=True)
+    elif estado == 'INACTIVOS':
+        servicios = servicios.filter(activo=False)
+
+    servicios = servicios.order_by(
+        'tipo',
+        'nombre',
+    )
+
+    paginador = Paginator(
+        servicios,
+        50
+    )
+
+    pagina = paginador.get_page(
+        request.GET.get('pagina')
+    )
+
+    servicio_edicion = None
+    servicio_edicion_id = request.GET.get(
+        'editar'
+    )
+
+    if servicio_edicion_id:
+        servicio_edicion = get_object_or_404(
+            Servicio,
+            pk=servicio_edicion_id,
+            institucion=institucion,
+        )
+
+    resumen = {
+        'total': Servicio.objects.filter(
+            institucion=institucion
+        ).count(),
+        'activos': Servicio.objects.filter(
+            institucion=institucion,
+            activo=True,
+        ).count(),
+        'inactivos': Servicio.objects.filter(
+            institucion=institucion,
+            activo=False,
+        ).count(),
+    }
+
+    context = {
+        'membresia': membresia,
+        'institucion': institucion,
+        'pagina': pagina,
+        'resumen': resumen,
+        'busqueda': busqueda,
+        'tipo_seleccionado': tipo,
+        'estado_seleccionado': estado,
+        'tipos_servicio': Servicio.TIPO_CHOICES,
+        'tipos_estudio': TipoEstudio.objects.filter(
+            activo=True
+        ).order_by(
+            'modalidad',
+            'nombre',
+        ),
+        'servicio_edicion': servicio_edicion,
+    }
+
+    return render(
+        request,
+        'core/catalogo_servicios.html',
+        context
+    )
+
+
+@login_required
+def guardar_servicio(
+    request,
+    servicio_id=None
+):
+    if request.method != 'POST':
+        return redirect('catalogo_servicios')
+
+    membresia = obtener_membresia_usuario(request)
+
+    if not puede_administrar_configuracion(
+        request,
+        membresia
+    ):
+        return redirect('panel_config')
+
+    institucion = (
+        membresia.institucion
+        if membresia is not None
+        else None
+    )
+
+    if institucion is None:
+        messages.warning(
+            request,
+            'Tu usuario no tiene una institución asociada.'
+        )
+        return redirect('panel_config')
+
+    servicio = None
+
+    if servicio_id is not None:
+        servicio = get_object_or_404(
+            Servicio,
+            pk=servicio_id,
+            institucion=institucion,
+        )
+
+    nombre = request.POST.get(
+        'nombre',
+        ''
+    ).strip()
+
+    tipo = request.POST.get(
+        'tipo',
+        'OTRO'
+    ).strip()
+
+    precio_texto = request.POST.get(
+        'precio_base',
+        '0'
+    ).strip()
+
+    tipo_estudio_id = request.POST.get(
+        'tipo_estudio',
+        ''
+    ).strip()
+
+    tipos_validos = {
+        valor
+        for valor, etiqueta
+        in Servicio.TIPO_CHOICES
+    }
+
+    errores = []
+
+    if not nombre:
+        errores.append(
+            'Escribe el nombre del servicio.'
+        )
+
+    if tipo not in tipos_validos:
+        errores.append(
+            'Selecciona un tipo de servicio válido.'
+        )
+
+    try:
+        precio_base = Decimal(precio_texto)
+
+        if precio_base < 0:
+            raise InvalidOperation
+
+        if precio_base > Decimal('9999999999.99'):
+            raise InvalidOperation
+
+        precio_base = precio_base.quantize(
+            Decimal('0.01')
+        )
+    except (InvalidOperation, ValueError):
+        precio_base = Decimal('0.00')
+        errores.append(
+            'Escribe un precio válido mayor o igual a cero.'
+        )
+
+    tipo_estudio = None
+
+    if tipo_estudio_id:
+        tipo_estudio = TipoEstudio.objects.filter(
+            pk=tipo_estudio_id,
+            activo=True,
+        ).first()
+
+        if tipo_estudio is None:
+            errores.append(
+                'El tipo de estudio seleccionado no es válido.'
+            )
+
+    if errores:
+        for error in errores:
+            messages.error(
+                request,
+                error
+            )
+
+        return redirect('catalogo_servicios')
+
+    if servicio is None:
+        servicio = Servicio(
+            institucion=institucion
+        )
+
+    servicio.nombre = nombre
+    servicio.tipo = tipo
+    servicio.tipo_estudio = tipo_estudio
+    servicio.precio_base = precio_base
+    servicio.precio_editable = (
+        request.POST.get('precio_editable') == '1'
+    )
+    servicio.activo = (
+        request.POST.get('activo') == '1'
+    )
+    servicio.save()
+
+    messages.success(
+        request,
+        (
+            'Servicio actualizado correctamente.'
+            if servicio_id is not None
+            else 'Servicio creado correctamente.'
+        )
+    )
+
+    return redirect('catalogo_servicios')
+
+
+@login_required
+def cambiar_estado_servicio(
+    request,
+    servicio_id
+):
+    if request.method != 'POST':
+        return redirect('catalogo_servicios')
+
+    membresia = obtener_membresia_usuario(request)
+
+    if not puede_administrar_configuracion(
+        request,
+        membresia
+    ):
+        return redirect('panel_config')
+
+    institucion = (
+        membresia.institucion
+        if membresia is not None
+        else None
+    )
+
+    if institucion is None:
+        return redirect('panel_config')
+
+    servicio = get_object_or_404(
+        Servicio,
+        pk=servicio_id,
+        institucion=institucion,
+    )
+
+    servicio.activo = not servicio.activo
+    servicio.save(
+        update_fields=[
+            'activo',
+            'actualizado_el',
+        ]
+    )
+
+    messages.success(
+        request,
+        (
+            'Servicio activado correctamente.'
+            if servicio.activo
+            else 'Servicio desactivado correctamente.'
+        )
+    )
+
+    return redirect('catalogo_servicios')
 
 
 # =========================================================

@@ -1373,3 +1373,215 @@ class SesionTrabajo(models.Model):
             return self.fin - self.inicio
 
         return None
+
+# =========================================================
+# CATÁLOGO DE SERVICIOS Y CUENTA DEL PACIENTE
+# =========================================================
+
+class Servicio(models.Model):
+    TIPO_CHOICES = [
+        ('CONSULTA', 'Consulta médica'),
+        ('RX', 'Radiografía'),
+        ('USG', 'Ultrasonido'),
+        ('TAC', 'Tomografía'),
+        ('MASTO', 'Mastografía'),
+        ('RM', 'Resonancia magnética'),
+        ('FLUORO', 'Fluoroscopia'),
+        ('PROCEDIMIENTO', 'Procedimiento'),
+        ('INMOVILIZACION', 'Inmovilización'),
+        ('MATERIAL', 'Material'),
+        ('OTRO', 'Otro'),
+    ]
+
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.CASCADE,
+        related_name='servicios',
+        verbose_name='Institución'
+    )
+
+    tipo_estudio = models.ForeignKey(
+        TipoEstudio,
+        on_delete=models.SET_NULL,
+        related_name='servicios_comerciales',
+        blank=True,
+        null=True,
+        verbose_name='Tipo de estudio relacionado'
+    )
+
+    nombre = models.CharField(
+        max_length=200,
+        verbose_name='Nombre del servicio'
+    )
+
+    tipo = models.CharField(
+        max_length=30,
+        choices=TIPO_CHOICES,
+        default='OTRO'
+    )
+
+    precio_base = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name='Precio base'
+    )
+
+    precio_editable = models.BooleanField(
+        default=False,
+        verbose_name='Permitir precio manual'
+    )
+
+    activo = models.BooleanField(
+        default=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    actualizado_el = models.DateTimeField(
+        auto_now=True
+    )
+
+    class Meta:
+        ordering = ['tipo', 'nombre']
+        indexes = [
+            models.Index(
+                fields=['institucion', 'tipo', 'activo']
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.nombre} - {self.institucion.nombre}'
+
+
+class CargoPaciente(models.Model):
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente'),
+        ('PAGADO', 'Pagado'),
+        ('CANCELADO', 'Cancelado'),
+    ]
+
+    ORIGEN_CHOICES = [
+        ('RECEPCION', 'Recepción'),
+        ('MEDICO', 'Médico'),
+        ('RADIOLOGIA', 'Radiología'),
+        ('TECNICO', 'Técnico radiológico'),
+        ('ENFERMERIA', 'Enfermería'),
+        ('SISTEMA', 'Sistema'),
+        ('OTRO', 'Otro'),
+    ]
+
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='cargos_pacientes',
+        verbose_name='Institución'
+    )
+
+    paciente = models.ForeignKey(
+        Paciente,
+        on_delete=models.PROTECT,
+        related_name='cargos',
+        verbose_name='Paciente'
+    )
+
+    servicio = models.ForeignKey(
+        Servicio,
+        on_delete=models.SET_NULL,
+        related_name='cargos',
+        blank=True,
+        null=True,
+        verbose_name='Servicio del catálogo'
+    )
+
+    consulta = models.ForeignKey(
+        Consulta,
+        on_delete=models.SET_NULL,
+        related_name='cargos',
+        blank=True,
+        null=True
+    )
+
+    estudio = models.ForeignKey(
+        Estudio,
+        on_delete=models.SET_NULL,
+        related_name='cargos',
+        blank=True,
+        null=True
+    )
+
+    descripcion = models.CharField(
+        max_length=250,
+        verbose_name='Concepto'
+    )
+
+    cantidad = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1
+    )
+
+    precio_unitario = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        verbose_name='Precio unitario'
+    )
+
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='PENDIENTE'
+    )
+
+    origen = models.CharField(
+        max_length=20,
+        choices=ORIGEN_CHOICES,
+        default='SISTEMA'
+    )
+
+    agregado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='cargos_agregados',
+        blank=True,
+        null=True,
+        verbose_name='Agregado por'
+    )
+
+    notas = models.TextField(
+        blank=True,
+        null=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    actualizado_el = models.DateTimeField(
+        auto_now=True
+    )
+
+    class Meta:
+        ordering = ['-creado_el']
+        indexes = [
+            models.Index(
+                fields=['institucion', 'paciente', 'estado']
+            ),
+            models.Index(
+                fields=['creado_el']
+            ),
+        ]
+
+    @property
+    def subtotal(self):
+        return self.cantidad * self.precio_unitario
+
+    def __str__(self):
+        return (
+            f'{self.paciente.identificacion} - '
+            f'{self.descripcion} - '
+            f'${self.subtotal:.2f}'
+        )
