@@ -222,14 +222,14 @@ Expediente {{ paciente.identificacion }} | Loreto One
                 href="{% url 'panel_medico' %}"
                 class="text-decoration-none text-secondary small"
             >
-                â† Volver al panel mÃ©dico
+                ← Volver al panel médico
             </a>
         {% else %}
             <a
                 href="{% url 'panel_recepcion' %}"
                 class="text-decoration-none text-secondary small"
             >
-                â† Volver a recepciÃ³n
+                ← Volver a recepción
             </a>
         {% endif %}
 
@@ -278,7 +278,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
             <section class="exp-box">
 
                 <div class="exp-box-header">
-                    ðŸ‘¤ Datos del paciente
+                    👤 Datos del paciente
                 </div>
 
                 <div class="exp-box-body">
@@ -306,13 +306,13 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             Edad
                         </div>
                         <div class="dato-value">
-                            {{ edad }} aÃ±os
+                            {{ edad }} años
                         </div>
                     </div>
 
                     <div class="dato">
                         <div class="dato-label">
-                            GÃ©nero
+                            Género
                         </div>
                         <div class="dato-value">
                             {{ paciente.get_genero_display }}
@@ -321,10 +321,10 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                     <div class="dato">
                         <div class="dato-label">
-                            TelÃ©fono
+                            Teléfono
                         </div>
                         <div class="dato-value">
-                            {{ paciente.telefono|default:"Sin telÃ©fono" }}
+                            {{ paciente.telefono|default:"Sin teléfono" }}
                         </div>
                     </div>
 
@@ -336,7 +336,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
             <section class="exp-box">
 
                 <div class="exp-box-header">
-                    ðŸ“… Citas
+                    📅 Citas
                 </div>
 
                 <div class="exp-box-body p-0">
@@ -348,7 +348,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             <thead>
                                 <tr>
                                     <th>Fecha</th>
-                                    <th>Ãrea</th>
+                                    <th>Área</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -395,7 +395,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
         </div>
 
 
-        <!-- PARTE CLÃNICA -->
+        <!-- PARTE CLÍNICA -->
 
         <div>
 
@@ -404,7 +404,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                 <section class="exp-box">
 
                     <div class="exp-box-header">
-                        ðŸ©º Consulta mÃ©dica activa
+                        🩺 Consulta médica activa
 
                         <span class="badge bg-warning text-dark">
                             En consulta
@@ -443,7 +443,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        TA sistÃ³lica
+                                        TA sistólica
                                     </label>
                                     <input
                                         type="number"
@@ -456,7 +456,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        TA diastÃ³lica
+                                        TA diastólica
                                     </label>
                                     <input
                                         type="number"
@@ -495,7 +495,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        Temperatura Â°C
+                                        Temperatura °C
                                     </label>
                                     <input
                                         type="number"
@@ -509,7 +509,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        SpOâ‚‚ %
+                                        SpO₂ %
                                     </label>
                                     <input
                                         type="number"
@@ -578,7 +578,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        ExploraciÃ³n fÃ­sica
+                                        Exploración física
                                     </label>
 
                                     <textarea
@@ -589,7 +589,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div>
                                     <label class="field-label">
-                                        DiagnÃ³stico
+                                        Diagnóstico
                                     </label>
 
                                     <textarea
@@ -611,7 +611,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                 <div class="full">
                                     <label class="field-label">
-                                        Notas mÃ©dicas
+                                        Notas médicas
                                     </label>
 
                                     <textarea
@@ -627,7 +627,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                 type="submit"
                                 class="btn btn-primary mt-3"
                             >
-                                ðŸ’¾ Guardar consulta
+                                💾 Guardar consulta
                             </button>
 
                         </form>
@@ -636,12 +636,12 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                 </section>
 
-                <!-- DOCUMENTOS CLÃNICOS -->
+                <!-- DOCUMENTOS CLÍNICOS -->
 
                 <section class="exp-box mt-3">
 
                     <div class="exp-box-header">
-                        ðŸ§¾ Documentos clÃ­nicos
+                        🧾 Documentos clínicos
                     </div>
 
                     <div class="exp-box-body">
@@ -767,7 +767,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                         <div class="accordion" id="documentosClinicos">
 
-                            <!-- RECETA MÃ‰DICA -->
+                            <!-- RECETA MÉDICA -->
 
                             <div class="accordion-item bg-dark border-secondary">
 
@@ -779,7 +779,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                         data-bs-toggle="collapse"
                                         data-bs-target="#panelReceta"
                                     >
-                                        ðŸ’Š Receta mÃ©dica
+                                        💊 Receta médica
                                     </button>
 
                                 </h2>
@@ -833,7 +833,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 </div>
 
                                                                 <div class="col-md-6">
-                                                                    <label class="field-label">PresentaciÃ³n</label>
+                                                                    <label class="field-label">Presentación</label>
                                                                     <input
                                                                         type="text"
                                                                         name="presentacion"
@@ -855,21 +855,21 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 </div>
 
                                                                 <div class="col-md-4">
-                                                                    <label class="field-label">VÃ­a</label>
+                                                                    <label class="field-label">Vía</label>
                                                                     <select name="via" class="clinical-input">
                                                                         <option value="">Seleccionar</option>
                                                                         <option value="ORAL" {% if medicamento.via == 'ORAL' %}selected{% endif %}>Oral</option>
                                                                         <option value="SUBLINGUAL" {% if medicamento.via == 'SUBLINGUAL' %}selected{% endif %}>Sublingual</option>
-                                                                        <option value="TOPICA" {% if medicamento.via == 'TOPICA' %}selected{% endif %}>TÃ³pica</option>
+                                                                        <option value="TOPICA" {% if medicamento.via == 'TOPICA' %}selected{% endif %}>Tópica</option>
                                                                         <option value="INHALADA" {% if medicamento.via == 'INHALADA' %}selected{% endif %}>Inhalada</option>
-                                                                        <option value="OFTALMICA" {% if medicamento.via == 'OFTALMICA' %}selected{% endif %}>OftÃ¡lmica</option>
-                                                                        <option value="OTICA" {% if medicamento.via == 'OTICA' %}selected{% endif %}>Ã“tica</option>
+                                                                        <option value="OFTALMICA" {% if medicamento.via == 'OFTALMICA' %}selected{% endif %}>Oftálmica</option>
+                                                                        <option value="OTICA" {% if medicamento.via == 'OTICA' %}selected{% endif %}>Ótica</option>
                                                                         <option value="NASAL" {% if medicamento.via == 'NASAL' %}selected{% endif %}>Nasal</option>
                                                                         <option value="RECTAL" {% if medicamento.via == 'RECTAL' %}selected{% endif %}>Rectal</option>
                                                                         <option value="VAGINAL" {% if medicamento.via == 'VAGINAL' %}selected{% endif %}>Vaginal</option>
                                                                         <option value="INTRAMUSCULAR" {% if medicamento.via == 'INTRAMUSCULAR' %}selected{% endif %}>Intramuscular</option>
                                                                         <option value="INTRAVENOSA" {% if medicamento.via == 'INTRAVENOSA' %}selected{% endif %}>Intravenosa</option>
-                                                                        <option value="SUBCUTANEA" {% if medicamento.via == 'SUBCUTANEA' %}selected{% endif %}>SubcutÃ¡nea</option>
+                                                                        <option value="SUBCUTANEA" {% if medicamento.via == 'SUBCUTANEA' %}selected{% endif %}>Subcutánea</option>
                                                                         <option value="OTRA" {% if medicamento.via == 'OTRA' %}selected{% endif %}>Otra</option>
                                                                     </select>
                                                                 </div>
@@ -914,7 +914,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                         name="indicaciones_medicamento"
                                                                         class="clinical-input"
                                                                         value="{{ medicamento.indicaciones|default_if_none:'' }}"
-                                                                        placeholder="Ej. tomar despuÃ©s de alimentos"
+                                                                        placeholder="Ej. tomar después de alimentos"
                                                                     >
                                                                 </div>
 
@@ -939,7 +939,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 <input type="text" name="medicamento" class="clinical-input" placeholder="Ej. Paracetamol">
                                                             </div>
                                                             <div class="col-md-6">
-                                                                <label class="field-label">PresentaciÃ³n</label>
+                                                                <label class="field-label">Presentación</label>
                                                                 <input type="text" name="presentacion" class="clinical-input" placeholder="Ej. tabletas 500 mg">
                                                             </div>
                                                             <div class="col-md-4">
@@ -947,21 +947,21 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                                 <input type="text" name="dosis" class="clinical-input" placeholder="Ej. 1 tableta">
                                                             </div>
                                                             <div class="col-md-4">
-                                                                <label class="field-label">VÃ­a</label>
+                                                                <label class="field-label">Vía</label>
                                                                 <select name="via" class="clinical-input">
                                                                     <option value="">Seleccionar</option>
                                                                     <option value="ORAL">Oral</option>
                                                                     <option value="SUBLINGUAL">Sublingual</option>
-                                                                    <option value="TOPICA">TÃ³pica</option>
+                                                                    <option value="TOPICA">Tópica</option>
                                                                     <option value="INHALADA">Inhalada</option>
-                                                                    <option value="OFTALMICA">OftÃ¡lmica</option>
-                                                                    <option value="OTICA">Ã“tica</option>
+                                                                    <option value="OFTALMICA">Oftálmica</option>
+                                                                    <option value="OTICA">Ótica</option>
                                                                     <option value="NASAL">Nasal</option>
                                                                     <option value="RECTAL">Rectal</option>
                                                                     <option value="VAGINAL">Vaginal</option>
                                                                     <option value="INTRAMUSCULAR">Intramuscular</option>
                                                                     <option value="INTRAVENOSA">Intravenosa</option>
-                                                                    <option value="SUBCUTANEA">SubcutÃ¡nea</option>
+                                                                    <option value="SUBCUTANEA">Subcutánea</option>
                                                                     <option value="OTRA">Otra</option>
                                                                 </select>
                                                             </div>
@@ -979,7 +979,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                             </div>
                                                             <div class="col-md-6">
                                                                 <label class="field-label">Indicaciones del medicamento</label>
-                                                                <input type="text" name="indicaciones_medicamento" class="clinical-input" placeholder="Ej. tomar despuÃ©s de alimentos">
+                                                                <input type="text" name="indicaciones_medicamento" class="clinical-input" placeholder="Ej. tomar después de alimentos">
                                                             </div>
                                                         </div>
 
@@ -1007,7 +1007,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                             </div>
 
                                             <button type="submit" class="btn btn-primary">
-                                                ðŸ’¾ Guardar receta
+                                                💾 Guardar receta
                                             </button>
 
                                         </form>
@@ -1031,7 +1031,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                         data-bs-toggle="collapse"
                                         data-bs-target="#panelSolicitud"
                                     >
-                                        ðŸ§ª Solicitud de estudios
+                                        🧪 Solicitud de estudios
                                     </button>
 
                                 </h2>
@@ -1057,10 +1057,10 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                     <label class="field-label">Tipo de solicitud</label>
                                                     <select name="tipo_solicitud" class="clinical-input" required>
                                                         <option value="">Seleccionar</option>
-                                                        <option value="LABORATORIO">Laboratorio clÃ­nico</option>
-                                                        <option value="IMAGEN">ImagenologÃ­a</option>
-                                                        <option value="PATOLOGIA">PatologÃ­a</option>
-                                                        <option value="CARDIOLOGIA">CardiologÃ­a</option>
+                                                        <option value="LABORATORIO">Laboratorio clínico</option>
+                                                        <option value="IMAGEN">Imagenología</option>
+                                                        <option value="PATOLOGIA">Patología</option>
+                                                        <option value="CARDIOLOGIA">Cardiología</option>
                                                         <option value="OTRO">Otro estudio o procedimiento</option>
                                                     </select>
                                                 </div>
@@ -1088,14 +1088,14 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                     <div class="row g-2">
                                                         <div class="col-md-5">
                                                             <label class="field-label">Estudio solicitado</label>
-                                                            <input type="text" name="estudio_nombre" class="clinical-input" placeholder="Ej. BiometrÃ­a hemÃ¡tica">
+                                                            <input type="text" name="estudio_nombre" class="clinical-input" placeholder="Ej. Biometría hemática">
                                                         </div>
                                                         <div class="col-md-3">
-                                                            <label class="field-label">RegiÃ³n / muestra / detalle</label>
+                                                            <label class="field-label">Región / muestra / detalle</label>
                                                             <input type="text" name="estudio_detalle" class="clinical-input" placeholder="Opcional">
                                                         </div>
                                                         <div class="col-md-4">
-                                                            <label class="field-label">Indicaciones especÃ­ficas</label>
+                                                            <label class="field-label">Indicaciones específicas</label>
                                                             <input type="text" name="estudio_indicaciones" class="clinical-input" placeholder="Ej. ayuno de 8 horas">
                                                         </div>
                                                     </div>
@@ -1113,7 +1113,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                             </button>
 
                                             <div class="mb-3">
-                                                <label class="field-label">Motivo clÃ­nico / diagnÃ³stico presuntivo</label>
+                                                <label class="field-label">Motivo clínico / diagnóstico presuntivo</label>
                                                 <textarea name="motivo_clinico" class="clinical-textarea"></textarea>
                                             </div>
 
@@ -1123,7 +1123,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                             </div>
 
                                             <button type="submit" class="btn btn-primary">
-                                                ðŸ’¾ Guardar solicitud
+                                                💾 Guardar solicitud
                                             </button>
 
                                         </form>
@@ -1146,9 +1146,9 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                                     {% for estudio in solicitud.estudios_solicitados.all %}
                                                         <div class="tiny mt-1">
-                                                            â€¢ {{ estudio.nombre }}
+                                                            • {{ estudio.nombre }}
                                                             {% if estudio.region_o_detalle %}
-                                                                â€” {{ estudio.region_o_detalle }}
+                                                                — {{ estudio.region_o_detalle }}
                                                             {% endif %}
                                                         </div>
                                                     {% endfor %}
@@ -1177,7 +1177,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                         data-bs-toggle="collapse"
                                         data-bs-target="#panelIndicaciones"
                                     >
-                                        ðŸ“„ Indicaciones mÃ©dicas
+                                        📄 Indicaciones médicas
                                     </button>
 
                                 </h2>
@@ -1206,12 +1206,12 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                     name="indicaciones_medicas"
                                                     class="clinical-textarea"
                                                     style="min-height: 180px;"
-                                                    placeholder="Cuidados, dieta, reposo, ejercicios, signos de alarma, prÃ³xima revisiÃ³n, etc."
+                                                    placeholder="Cuidados, dieta, reposo, ejercicios, signos de alarma, próxima revisión, etc."
                                                 >{% if indicacion_activa %}{{ indicacion_activa.indicaciones }}{% endif %}</textarea>
                                             </div>
 
                                             <button type="submit" class="btn btn-primary">
-                                                ðŸ’¾ Guardar indicaciones
+                                                💾 Guardar indicaciones
                                             </button>
 
                                         </form>
@@ -1231,20 +1231,20 @@ Expediente {{ paciente.identificacion }} | Loreto One
             {% elif puede_editar_clinica %}
 
                 <div class="alert alert-secondary">
-                    Este paciente no tiene una consulta mÃ©dica activa.
-                    InÃ­ciala desde el Panel MÃ©dico con el botÃ³n
+                    Este paciente no tiene una consulta médica activa.
+                    Iníciala desde el Panel Médico con el botón
                     <strong>Atender</strong>.
                 </div>
 
             {% endif %}
 
 
-            <!-- HISTORIAL MÃ‰DICO -->
+            <!-- HISTORIAL MÉDICO -->
 
             <section class="exp-box">
 
                 <div class="exp-box-header">
-                    ðŸ“‹ Historial de consultas
+                    📋 Historial de consultas
                 </div>
 
                 <div class="exp-box-body">
@@ -1290,24 +1290,24 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                     {% if consulta.presion_sistolica %}
                                         TA:
-                                        {{ consulta.presion_sistolica }}/{{ consulta.presion_diastolica|default:"â€”" }}
+                                        {{ consulta.presion_sistolica }}/{{ consulta.presion_diastolica|default:"—" }}
                                         mmHg
                                     {% endif %}
 
                                     {% if consulta.frecuencia_cardiaca %}
-                                        Â· FC: {{ consulta.frecuencia_cardiaca }}
+                                        · FC: {{ consulta.frecuencia_cardiaca }}
                                     {% endif %}
 
                                     {% if consulta.temperatura %}
-                                        Â· Temp: {{ consulta.temperatura }} Â°C
+                                        · Temp: {{ consulta.temperatura }} °C
                                     {% endif %}
 
                                     {% if consulta.saturacion_oxigeno %}
-                                        Â· SpOâ‚‚: {{ consulta.saturacion_oxigeno }}%
+                                        · SpO₂: {{ consulta.saturacion_oxigeno }}%
                                     {% endif %}
 
                                     {% if consulta.peso_kg %}
-                                        Â· Peso: {{ consulta.peso_kg }} kg
+                                        · Peso: {{ consulta.peso_kg }} kg
                                     {% endif %}
 
                                 </div>
@@ -1316,7 +1316,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                             {% if consulta.diagnostico %}
                                 <div class="note-readonly mt-2">
-                                    <strong>DiagnÃ³stico</strong><br>
+                                    <strong>Diagnóstico</strong><br>
                                     {{ consulta.diagnostico }}
                                 </div>
                             {% endif %}
@@ -1333,7 +1333,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                     {% empty %}
 
                         <div class="text-secondary text-center py-3">
-                            Este paciente todavÃ­a no tiene consultas registradas.
+                            Este paciente todavía no tiene consultas registradas.
                         </div>
 
                     {% endfor %}
@@ -1348,7 +1348,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
             <section class="exp-box">
 
                 <div class="exp-box-header">
-                    ðŸ©» Estudios y reportes
+                    🩻 Estudios y reportes
                 </div>
 
                 <div class="exp-box-body">
@@ -1378,7 +1378,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             </div>
 
                             <div class="mt-2">
-                                <strong>MÃ©dico solicitante:</strong>
+                                <strong>Médico solicitante:</strong>
                                 {{ estudio.medico_solicitante|default:"No especificado" }}
                             </div>
 
@@ -1449,7 +1449,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                             font-size:2rem;
                                                         "
                                                     >
-                                                        ðŸ“„
+                                                        📄
                                                     </div>
 
                                                 {% endif %}
@@ -1460,7 +1460,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
                                                 <div class="tiny">
                                                     {{ archivo.get_tipo_archivo_display }}
-                                                    Â·
+                                                    ·
                                                     {{ archivo.creado_el|date:"d/m/Y H:i" }}
                                                 </div>
 
@@ -1493,7 +1493,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             {% if estudio.estado_reporte == 'FINAL' and estudio.reporte_final %}
 
                                 <div class="report-box">
-                                    <strong>Reporte radiolÃ³gico final</strong>
+                                    <strong>Reporte radiológico final</strong>
 
                                     <br><br>
 
@@ -1509,7 +1509,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                             {% endif %}
 
                                             {% if estudio.fecha_reporte_final %}
-                                                Â· {{ estudio.fecha_reporte_final|date:"d/m/Y H:i" }}
+                                                · {{ estudio.fecha_reporte_final|date:"d/m/Y H:i" }}
                                             {% endif %}
                                         </div>
                                     {% endif %}
@@ -1518,13 +1518,13 @@ Expediente {{ paciente.identificacion }} | Loreto One
                             {% elif estudio.estado_reporte == 'POR_VALIDAR' %}
 
                                 <div class="alert alert-warning py-2 mt-2 mb-0">
-                                    Pre-reporte disponible. Pendiente de validaciÃ³n radiolÃ³gica.
+                                    Pre-reporte disponible. Pendiente de validación radiológica.
                                 </div>
 
                             {% else %}
 
                                 <div class="tiny mt-2">
-                                    Sin reporte radiolÃ³gico final.
+                                    Sin reporte radiológico final.
                                 </div>
 
                             {% endif %}
@@ -1534,7 +1534,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
                     {% empty %}
 
                         <div class="text-secondary text-center py-3">
-                            Este paciente todavÃ­a no tiene estudios registrados.
+                            Este paciente todavía no tiene estudios registrados.
                         </div>
 
                     {% endfor %}

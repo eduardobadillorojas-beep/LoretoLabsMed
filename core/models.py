@@ -5,7 +5,7 @@ from django.db import models
 class Institucion(models.Model):
     nombre = models.CharField(
         max_length=200,
-        verbose_name='Nombre de la instituciÃƒÂ³n'
+        verbose_name='Nombre de la institución'
     )
 
     nombre_comercial = models.CharField(
@@ -76,11 +76,11 @@ class Institucion(models.Model):
 class MembresiaInstitucion(models.Model):
     ROL_CHOICES = [
         ('ADMIN', 'Administrador'),
-        ('RECEPCION', 'RecepciÃƒÂ³n'),
-        ('MEDICO', 'MÃƒÂ©dico'),
-        ('RADIOLOGIA', 'RadiologÃƒÂ­a'),
-        ('TECNICO', 'TÃƒÂ©cnico'),
-        ('ENFERMERIA', 'EnfermerÃƒÂ­a'),
+        ('RECEPCION', 'Recepción'),
+        ('MEDICO', 'Médico'),
+        ('RADIOLOGIA', 'Radiología'),
+        ('TECNICO', 'Técnico'),
+        ('ENFERMERIA', 'Enfermería'),
         ('OTRO', 'Otro'),
     ]
 
@@ -193,7 +193,7 @@ class Paciente(models.Model):
         Institucion,
         on_delete=models.PROTECT,
         related_name='pacientes',
-        verbose_name='InstituciÃƒÂ³n'
+        verbose_name='Institución'
     )
 
     GENERO_CHOICES = [
@@ -259,13 +259,13 @@ class Paciente(models.Model):
 
 class TipoEstudio(models.Model):
     MODALIDAD_CHOICES = [
-        ('RX', 'RadiografÃƒÂ­a'),
-        ('TAC', 'TomografÃƒÂ­a'),
+        ('RX', 'Radiografía'),
+        ('TAC', 'Tomografía'),
         ('USG', 'Ultrasonido'),
-        ('MASTO', 'MastografÃƒÂ­a'),
+        ('MASTO', 'Mastografía'),
         ('FLUORO', 'Fluoroscopia'),
-        ('RM', 'Resonancia magnÃƒÂ©tica'),
-        ('DXA', 'DensitometrÃƒÂ­a'),
+        ('RM', 'Resonancia magnética'),
+        ('DXA', 'Densitometría'),
     ]
 
     codigo = models.CharField(
@@ -300,11 +300,11 @@ class TipoEstudio(models.Model):
 
 class EquipoRadiologico(models.Model):
     TIPO_CHOICES = [
-        ('RX', 'RadiografÃƒÂ­a'),
-        ('TAC', 'TomografÃƒÂ­a'),
+        ('RX', 'Radiografía'),
+        ('TAC', 'Tomografía'),
         ('FLUORO', 'Fluoroscopia'),
-        ('MASTO', 'MastografÃƒÂ­a'),
-        ('PORTATIL', 'Rayos X portÃƒÂ¡til'),
+        ('MASTO', 'Mastografía'),
+        ('PORTATIL', 'Rayos X portátil'),
         ('OTRO', 'Otro'),
     ]
 
@@ -334,7 +334,7 @@ class EquipoRadiologico(models.Model):
         max_length=100,
         blank=True,
         null=True,
-        verbose_name='NÃƒÂºmero de serie'
+        verbose_name='Número de serie'
     )
 
     ubicacion = models.CharField(
@@ -390,13 +390,13 @@ class Consulta(models.Model):
     presion_sistolica = models.PositiveIntegerField(
         blank=True,
         null=True,
-        verbose_name='TA sistÃƒÂ³lica'
+        verbose_name='TA sistólica'
     )
 
     presion_diastolica = models.PositiveIntegerField(
         blank=True,
         null=True,
-        verbose_name='TA diastÃƒÂ³lica'
+        verbose_name='TA diastólica'
     )
 
     frecuencia_cardiaca = models.PositiveIntegerField(
@@ -416,13 +416,13 @@ class Consulta(models.Model):
         decimal_places=1,
         blank=True,
         null=True,
-        verbose_name='Temperatura Ã‚Â°C'
+        verbose_name='Temperatura °C'
     )
 
     saturacion_oxigeno = models.PositiveIntegerField(
         blank=True,
         null=True,
-        verbose_name='SpOÃ¢â€šâ€š'
+        verbose_name='SpO₂'
     )
 
     peso_kg = models.DecimalField(
@@ -442,7 +442,7 @@ class Consulta(models.Model):
     )
 
     # =========================
-    # NOTA MÃƒâ€°DICA
+    # NOTA MÉDICA
     # =========================
 
     antecedentes = models.TextField(
@@ -454,13 +454,13 @@ class Consulta(models.Model):
     exploracion_fisica = models.TextField(
         blank=True,
         null=True,
-        verbose_name='ExploraciÃƒÂ³n fÃƒÂ­sica'
+        verbose_name='Exploración física'
     )
 
     diagnostico = models.TextField(
         blank=True,
         null=True,
-        verbose_name='DiagnÃƒÂ³stico'
+        verbose_name='Diagnóstico'
     )
 
     plan_tratamiento = models.TextField(
@@ -472,7 +472,7 @@ class Consulta(models.Model):
     notas_medicas = models.TextField(
         blank=True,
         null=True,
-        verbose_name='Notas mÃƒÂ©dicas'
+        verbose_name='Notas médicas'
     )
 
     estado = models.CharField(
@@ -558,16 +558,16 @@ class MedicamentoReceta(models.Model):
     VIA_CHOICES = [
         ('ORAL', 'Oral'),
         ('SUBLINGUAL', 'Sublingual'),
-        ('TOPICA', 'TÃ³pica'),
+        ('TOPICA', 'Tópica'),
         ('INHALADA', 'Inhalada'),
-        ('OFTALMICA', 'OftÃ¡lmica'),
-        ('OTICA', 'Ã“tica'),
+        ('OFTALMICA', 'Oftálmica'),
+        ('OTICA', 'Ótica'),
         ('NASAL', 'Nasal'),
         ('RECTAL', 'Rectal'),
         ('VAGINAL', 'Vaginal'),
         ('INTRAMUSCULAR', 'Intramuscular'),
         ('INTRAVENOSA', 'Intravenosa'),
-        ('SUBCUTANEA', 'SubcutÃ¡nea'),
+        ('SUBCUTANEA', 'Subcutánea'),
         ('OTRA', 'Otra'),
     ]
 
@@ -585,7 +585,7 @@ class MedicamentoReceta(models.Model):
         max_length=150,
         blank=True,
         null=True,
-        verbose_name='PresentaciÃ³n'
+        verbose_name='Presentación'
     )
 
     dosis = models.CharField(
@@ -599,7 +599,7 @@ class MedicamentoReceta(models.Model):
         choices=VIA_CHOICES,
         blank=True,
         null=True,
-        verbose_name='VÃ­a de administraciÃ³n'
+        verbose_name='Vía de administración'
     )
 
     frecuencia = models.CharField(
@@ -619,7 +619,7 @@ class MedicamentoReceta(models.Model):
         max_length=150,
         blank=True,
         null=True,
-        verbose_name='DuraciÃ³n'
+        verbose_name='Duración'
     )
 
     indicaciones = models.TextField(
@@ -658,7 +658,7 @@ class IndicacionMedica(models.Model):
     )
 
     indicaciones = models.TextField(
-        verbose_name='Indicaciones mÃ©dicas'
+        verbose_name='Indicaciones médicas'
     )
 
     creada_el = models.DateTimeField(
@@ -678,10 +678,10 @@ class IndicacionMedica(models.Model):
 
 class SolicitudEstudio(models.Model):
     TIPO_CHOICES = [
-        ('LABORATORIO', 'Laboratorio clÃ­nico'),
-        ('IMAGEN', 'ImagenologÃ­a'),
-        ('PATOLOGIA', 'PatologÃ­a'),
-        ('CARDIOLOGIA', 'CardiologÃ­a'),
+        ('LABORATORIO', 'Laboratorio clínico'),
+        ('IMAGEN', 'Imagenología'),
+        ('PATOLOGIA', 'Patología'),
+        ('CARDIOLOGIA', 'Cardiología'),
         ('OTRO', 'Otro estudio o procedimiento'),
     ]
 
@@ -719,7 +719,7 @@ class SolicitudEstudio(models.Model):
     motivo_clinico = models.TextField(
         blank=True,
         null=True,
-        verbose_name='Motivo clÃ­nico / diagnÃ³stico presuntivo'
+        verbose_name='Motivo clínico / diagnóstico presuntivo'
     )
 
     observaciones = models.TextField(
@@ -764,13 +764,13 @@ class EstudioSolicitado(models.Model):
         max_length=250,
         blank=True,
         null=True,
-        verbose_name='RegiÃ³n, muestra o detalle'
+        verbose_name='Región, muestra o detalle'
     )
 
     indicaciones = models.TextField(
         blank=True,
         null=True,
-        verbose_name='Indicaciones especÃ­ficas'
+        verbose_name='Indicaciones específicas'
     )
 
     orden = models.PositiveIntegerField(
@@ -825,7 +825,7 @@ class Estudio(models.Model):
         max_length=150,
         blank=True,
         null=True,
-        verbose_name='MÃƒÂ©dico solicitante'
+        verbose_name='Médico solicitante'
     )
 
     descripcion = models.TextField(
@@ -845,7 +845,7 @@ class Estudio(models.Model):
         related_name='estudios_realizados',
         blank=True,
         null=True,
-        verbose_name='TÃƒÂ©cnico radiÃƒÂ³logo'
+        verbose_name='Técnico radiólogo'
     )
 
     equipo = models.ForeignKey(
@@ -877,7 +877,7 @@ class Estudio(models.Model):
     pre_reporte = models.TextField(
         blank=True,
         null=True,
-        verbose_name='Pre-reporte tÃƒÂ©cnico'
+        verbose_name='Pre-reporte técnico'
     )
 
     pre_reporte_por = models.ForeignKey(
@@ -898,7 +898,7 @@ class Estudio(models.Model):
     reporte_final = models.TextField(
         blank=True,
         null=True,
-        verbose_name='Reporte radiolÃƒÂ³gico final'
+        verbose_name='Reporte radiológico final'
     )
 
     reporte_final_por = models.ForeignKey(
@@ -984,10 +984,10 @@ class ArchivoEstudio(models.Model):
 
 class BitacoraRadiologica(models.Model):
     MODALIDAD_CHOICES = [
-        ('RX', 'RadiografÃƒÂ­a'),
-        ('TAC', 'TomografÃƒÂ­a'),
+        ('RX', 'Radiografía'),
+        ('TAC', 'Tomografía'),
         ('FLUORO', 'Fluoroscopia'),
-        ('MASTO', 'MastografÃƒÂ­a'),
+        ('MASTO', 'Mastografía'),
         ('OTRA', 'Otra'),
     ]
 
@@ -998,7 +998,7 @@ class BitacoraRadiologica(models.Model):
     )
 
     fecha_realizacion = models.DateTimeField(
-        verbose_name='Fecha y hora de realizaciÃƒÂ³n'
+        verbose_name='Fecha y hora de realización'
     )
 
     paciente_nombre = models.CharField(
@@ -1071,7 +1071,7 @@ class BitacoraRadiologica(models.Model):
     )
 
     # ==================================
-    # PARÃƒÂMETROS DE RADIOGRAFÃƒÂA
+    # PARÁMETROS DE RADIOGRAFÍA
     # ==================================
 
     kvp = models.DecimalField(
@@ -1093,7 +1093,7 @@ class BitacoraRadiologica(models.Model):
     numero_exposiciones = models.PositiveIntegerField(
         blank=True,
         null=True,
-        verbose_name='NÃƒÂºmero de exposiciones'
+        verbose_name='Número de exposiciones'
     )
 
     proyecciones = models.TextField(
@@ -1102,7 +1102,7 @@ class BitacoraRadiologica(models.Model):
     )
 
     # ==================================
-    # PARÃƒÂMETROS DE TOMOGRAFÃƒÂA
+    # PARÁMETROS DE TOMOGRAFÍA
     # ==================================
 
     ctdi_vol = models.DecimalField(
@@ -1128,7 +1128,7 @@ class BitacoraRadiologica(models.Model):
     )
 
     # ==================================
-    # INFORMACIÃƒâ€œN GENERAL
+    # INFORMACIÓN GENERAL
     # ==================================
 
     observaciones = models.TextField(
@@ -1173,26 +1173,26 @@ class Cita(models.Model):
         Institucion,
         on_delete=models.PROTECT,
         related_name='citas',
-        verbose_name='InstituciÃƒÂ³n'
+        verbose_name='Institución'
     )
 
     AREA_CHOICES = [
-        ('CONSULTA', 'Consulta mÃƒÂ©dica'),
-        ('TRAUMATOLOGIA', 'TraumatologÃƒÂ­a'),
-        ('DERMATOLOGIA', 'DermatologÃƒÂ­a'),
-        ('ENDOCRINOLOGIA', 'EndocrinologÃƒÂ­a'),
-        ('RADIOLOGIA', 'RadiologÃƒÂ­a'),
+        ('CONSULTA', 'Consulta médica'),
+        ('TRAUMATOLOGIA', 'Traumatología'),
+        ('DERMATOLOGIA', 'Dermatología'),
+        ('ENDOCRINOLOGIA', 'Endocrinología'),
+        ('RADIOLOGIA', 'Radiología'),
     ]
 
     ESTADO_CHOICES = [
         ('PROGRAMADA', 'Programada'),
         ('CONFIRMADA', 'Confirmada'),
-        ('LLEGO', 'Paciente llegÃƒÂ³'),
+        ('LLEGO', 'Paciente llegó'),
         ('EN_ESPERA', 'En espera'),
-        ('EN_ATENCION', 'En atenciÃƒÂ³n'),
+        ('EN_ATENCION', 'En atención'),
         ('FINALIZADA', 'Finalizada'),
         ('CANCELADA', 'Cancelada'),
-        ('NO_ASISTIO', 'No asistiÃƒÂ³'),
+        ('NO_ASISTIO', 'No asistió'),
     ]
 
     nombre_paciente = models.CharField(
@@ -1204,7 +1204,7 @@ class Cita(models.Model):
         max_length=20,
         blank=True,
         null=True,
-        verbose_name='TelÃƒÂ©fono'
+        verbose_name='Teléfono'
     )
 
     paciente = models.ForeignKey(
@@ -1218,14 +1218,14 @@ class Cita(models.Model):
     area = models.CharField(
         max_length=30,
         choices=AREA_CHOICES,
-        verbose_name='ÃƒÂrea de atenciÃƒÂ³n'
+        verbose_name='Área de atención'
     )
 
     medico_nombre = models.CharField(
         max_length=150,
         blank=True,
         null=True,
-        verbose_name='MÃƒÂ©dico'
+        verbose_name='Médico'
     )
 
     tipo_estudio = models.ForeignKey(
@@ -1243,7 +1243,7 @@ class Cita(models.Model):
 
     duracion_minutos = models.PositiveIntegerField(
         default=30,
-        verbose_name='DuraciÃƒÂ³n estimada en minutos'
+        verbose_name='Duración estimada en minutos'
     )
 
     motivo = models.TextField(

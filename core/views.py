@@ -399,7 +399,7 @@ def login_view(request):
             )
 
         error_message = (
-            'Usuario o contraseÃƒÆ’Ã‚Â±a incorrectos'
+            'Usuario o contraseña incorrectos'
         )
 
     return render(
@@ -483,7 +483,7 @@ def logout_view(request):
 
 
 # =========================================================
-# MÃƒÆ’Ã¢â‚¬Â°DICOS
+# MÉDICOS
 # =========================================================
 
 @login_required
@@ -825,7 +825,7 @@ def finalizar_consulta_medica(
 
 
 # =========================================================
-# PANEL RADIOLOGÃƒÆ’Ã‚ÂA
+# PANEL RADIOLOGÍA
 # =========================================================
 
 @login_required
@@ -984,8 +984,8 @@ def panel_radiologo(request):
         )
 
     # Evita cargar una tabla enorme de una sola vez.
-    # La bÃƒÆ’Ã‚Âºsqueda sigue funcionando sobre todos los pacientes
-    # de la instituciÃƒÆ’Ã‚Â³n antes de aplicar este lÃƒÆ’Ã‚Â­mite.
+    # La búsqueda sigue funcionando sobre todos los pacientes
+    # de la institución antes de aplicar este límite.
     pacientes_historial = (
         pacientes_historial[:50]
     )
@@ -1014,7 +1014,7 @@ def panel_radiologo(request):
     )
 
 # =========================================================
-# ESTACIÃƒÆ’Ã¢â‚¬Å“N DE TRABAJO RADIOLOGÃƒÆ’Ã‚ÂA
+# ESTACIÓN DE TRABAJO RADIOLOGÍA
 # =========================================================
 
 @login_required
@@ -1163,7 +1163,7 @@ def nuevo_estudio_desde_radiologia(
 
         if not estudio_nuevo.descripcion:
             estudio_nuevo.descripcion = (
-                'Estudio adicional generado desde RadiologÃƒÆ’Ã‚Â­a.'
+                'Estudio adicional generado desde Radiología.'
             )
 
         estudio_nuevo.save()
@@ -1347,7 +1347,7 @@ def eliminar_archivo_estudio(
     )
 
 # =========================================================
-# PRE-REPORTE TÃƒÆ’Ã¢â‚¬Â°CNICO
+# PRE-REPORTE TÉCNICO
 # =========================================================
 
 @login_required
@@ -1430,7 +1430,7 @@ def guardar_pre_reporte_estudio(
 
 
 # =========================================================
-# REPORTE RADIOLÃƒÆ’Ã¢â‚¬Å“GICO FINAL
+# REPORTE RADIOLÓGICO FINAL
 # =========================================================
 
 @login_required
@@ -1449,8 +1449,8 @@ def guardar_reporte_final_estudio(
         paciente__institucion=membresia.institucion,
     )
 
-    # RADIOLOGIA representa al mÃƒÆ’Ã‚Â©dico radiÃƒÆ’Ã‚Â³logo
-    # dentro del flujo actual de membresÃƒÆ’Ã‚Â­as.
+    # RADIOLOGIA representa al médico radiólogo
+    # dentro del flujo actual de membresías.
     if membresia.rol != 'RADIOLOGIA':
         return redirect(
             'estudio_radiologia',
@@ -1564,7 +1564,7 @@ def finalizar_estudio_radiologia(
     )
 
 # =========================================================
-# RECEPCIÃƒÆ’Ã¢â‚¬Å“N
+# RECEPCIÓN
 # =========================================================
 
 @login_required
@@ -1663,7 +1663,7 @@ def panel_recepcion(request):
 
             if tipo_actividad == 'CONSULTA':
                 paciente.estado_atencion_area = (
-                    'Consulta mÃƒÆ’Ã‚Â©dica'
+                    'Consulta médica'
                 )
 
                 if actividad.estado == 'EN_ESPERA':
@@ -1692,7 +1692,7 @@ def panel_recepcion(request):
 
             elif tipo_actividad == 'ESTUDIO':
                 paciente.estado_atencion_area = (
-                    'RadiologÃƒÆ’Ã‚Â­a'
+                    'Radiología'
                 )
 
                 if actividad.estado == 'PENDIENTE':
@@ -3777,7 +3777,7 @@ def guardar_consulta_clinica(
 
 
 # =========================================================
-# REPORTE FINAL DESDE EXPEDIENTE MÃƒÆ’Ã¢â‚¬Â°DICO
+# REPORTE FINAL DESDE EXPEDIENTE MÉDICO
 # =========================================================
 
 @login_required
@@ -3906,7 +3906,7 @@ def nuevo_estudio_paciente(
 
 
 # =========================================================
-# CONFIGURACIÃƒÆ’Ã¢â‚¬Å“N
+# CONFIGURACIÓN
 # =========================================================
 
 @login_required
@@ -4064,7 +4064,7 @@ def panel_config(request):
 
 
 # =========================================================
-# REGISTRO DESDE RECEPCIÃƒÆ’Ã¢â‚¬Å“N
+# REGISTRO DESDE RECEPCIÓN
 # =========================================================
 
 @login_required
