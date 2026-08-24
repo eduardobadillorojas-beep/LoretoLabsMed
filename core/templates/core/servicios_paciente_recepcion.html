@@ -1,19 +1,19 @@
 {% extends 'core/base.html' %}
 
 {% block title %}
-Servicios del paciente | Loreto One
+Cuenta del paciente | Loreto One
 {% endblock %}
 
 {% block content %}
 
 <style>
-    .servicios-wrap {
-        max-width: 1180px;
+    .cuenta-wrap {
+        max-width: 1320px;
         margin: 0 auto;
         padding: 14px 18px 35px;
     }
 
-    .servicios-header {
+    .cuenta-header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
@@ -21,13 +21,13 @@ Servicios del paciente | Loreto One
         margin-bottom: 12px;
     }
 
-    .servicios-title {
+    .cuenta-title {
         margin: 0;
         font-size: 1.45rem;
         font-weight: 800;
     }
 
-    .servicios-subtitle {
+    .cuenta-subtitle {
         color: #94a3b8;
         font-size: .72rem;
         margin-top: 3px;
@@ -56,18 +56,18 @@ Servicios del paciente | Loreto One
         margin-top: 2px;
     }
 
-    .stats-servicios {
+    .stats-cuenta {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 8px;
         margin-bottom: 10px;
     }
 
-    .stat-servicio {
+    .stat-cuenta {
         background: #1e293b;
         border: 1px solid #334155;
         border-radius: 9px;
-        padding: 9px 11px;
+        padding: 10px 12px;
     }
 
     .stat-label {
@@ -77,23 +77,25 @@ Servicios del paciente | Loreto One
     }
 
     .stat-value {
-        font-size: 1.25rem;
+        font-size: 1.3rem;
         font-weight: 800;
         margin-top: 2px;
     }
 
-    .servicios-grid {
-        display: grid;
-        grid-template-columns: .8fr 1.4fr;
-        gap: 10px;
-        align-items: start;
+    .stat-pendiente {
+        color: #fde68a;
     }
 
-    .panel-servicios {
+    .stat-pagado {
+        color: #86efac;
+    }
+
+    .panel-cuenta {
         background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
         border: 1px solid #334155;
         border-radius: 10px;
         overflow: hidden;
+        margin-bottom: 10px;
     }
 
     .panel-header {
@@ -103,21 +105,85 @@ Servicios del paciente | Loreto One
         font-weight: 800;
     }
 
-    .servicios-table {
-        margin: 0;
-        font-size: .73rem;
+    .panel-body {
+        padding: 12px;
     }
 
-    .servicios-table th {
+    .cargo-grid {
+        display: grid;
+        grid-template-columns: 2fr .55fr .75fr;
+        gap: 10px;
+    }
+
+    .cargo-full {
+        grid-column: 1 / -1;
+    }
+
+    .campo-label {
+        display: block;
+        color: #cbd5e1;
+        font-size: .66rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .campo-input,
+    .campo-select {
+        width: 100%;
+        border: 1px solid #475569;
+        border-radius: 7px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 8px 9px;
+        font-size: .75rem;
+    }
+
+    .campo-input:focus,
+    .campo-select:focus {
+        outline: none;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
+    }
+
+    .campo-input[readonly] {
         color: #94a3b8;
-        font-size: .61rem;
+        cursor: not-allowed;
+    }
+
+    .cargo-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 10px;
+    }
+
+    .total-previo {
+        color: #94a3b8;
+        font-size: .7rem;
+    }
+
+    .total-previo strong {
+        color: #f8fafc;
+        font-size: .95rem;
+    }
+
+    .cuenta-table {
+        width: 100%;
+        margin: 0;
+        font-size: .71rem;
+    }
+
+    .cuenta-table th {
+        color: #94a3b8;
+        font-size: .59rem;
         text-transform: uppercase;
-        padding: 7px 9px;
+        padding: 7px 8px;
         white-space: nowrap;
     }
 
-    .servicios-table td {
-        padding: 7px 9px;
+    .cuenta-table td {
+        padding: 8px;
         vertical-align: middle;
     }
 
@@ -126,9 +192,9 @@ Servicios del paciente | Loreto One
         color: #f8fafc;
     }
 
-    .servicio-modalidad {
+    .servicio-detalle {
         color: #94a3b8;
-        font-size: .62rem;
+        font-size: .61rem;
         margin-top: 1px;
     }
 
@@ -136,7 +202,7 @@ Servicios del paciente | Loreto One
         display: inline-block;
         border-radius: 999px;
         padding: 3px 8px;
-        font-size: .61rem;
+        font-size: .59rem;
         font-weight: 700;
     }
 
@@ -146,16 +212,26 @@ Servicios del paciente | Loreto One
         border: 1px solid rgba(245, 158, 11, .35);
     }
 
-    .estado-proceso {
-        background: rgba(14, 165, 233, .18);
-        color: #bae6fd;
-        border: 1px solid rgba(14, 165, 233, .35);
-    }
-
-    .estado-completado {
+    .estado-pagado {
         background: rgba(34, 197, 94, .18);
         color: #bbf7d0;
         border: 1px solid rgba(34, 197, 94, .35);
+    }
+
+    .estado-cancelado {
+        background: rgba(239, 68, 68, .14);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, .3);
+    }
+
+    .acciones-cargo {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+    }
+
+    .acciones-cargo form {
+        margin: 0;
     }
 
     .lista-vacia {
@@ -163,6 +239,12 @@ Servicios del paciente | Loreto One
         text-align: center;
         color: #64748b;
         font-size: .73rem;
+    }
+
+    .historial-title {
+        margin: 0;
+        font-size: .78rem;
+        font-weight: 800;
     }
 
     .privacidad {
@@ -175,29 +257,30 @@ Servicios del paciente | Loreto One
         font-size: .64rem;
     }
 
-    @media (max-width: 900px) {
-        .stats-servicios {
-            grid-template-columns: repeat(2, 1fr);
+    @media (max-width: 800px) {
+        .stats-cuenta,
+        .cargo-grid {
+            grid-template-columns: 1fr;
         }
 
-        .servicios-grid {
-            grid-template-columns: 1fr;
+        .cargo-full {
+            grid-column: auto;
+        }
+
+        .cuenta-header,
+        .cargo-footer {
+            align-items: stretch;
+            flex-direction: column;
         }
     }
 </style>
 
-
-<div class="servicios-wrap">
-
-    <div class="servicios-header">
-
+<div class="cuenta-wrap">
+    <div class="cuenta-header">
         <div>
-            <h1 class="servicios-title">
-                Servicios del paciente
-            </h1>
-
-            <div class="servicios-subtitle">
-                Vista administrativa para recepción y cobro.
+            <h1 class="cuenta-title">Cuenta del paciente</h1>
+            <div class="cuenta-subtitle">
+                Registro administrativo de servicios, cargos y cobros.
             </div>
         </div>
 
@@ -205,221 +288,289 @@ Servicios del paciente | Loreto One
             href="{% url 'panel_recepcion' %}"
             class="btn btn-outline-secondary btn-sm"
         >
-            ← Volver a Recepción
+            Volver a Recepción
         </a>
-
     </div>
 
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} py-2">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
 
     <div class="paciente-card">
-
         <div>
             <div class="paciente-nombre">
                 {{ paciente.nombre }} {{ paciente.apellido }}
             </div>
-
             <div class="paciente-dato">
-                Registro {{ paciente.identificacion }}
-                · {{ paciente.telefono|default:"Sin teléfono" }}
+                Registro {{ paciente.identificacion }} · {{ paciente.telefono|default:"Sin teléfono" }}
             </div>
         </div>
 
         <span class="badge bg-secondary">
-            {{ total_servicios }} servicio{{ total_servicios|pluralize }}
+            {{ cargos|length }} cargo{{ cargos|length|pluralize }}
         </span>
-
     </div>
 
-
-    <div class="stats-servicios">
-
-        <div class="stat-servicio">
-            <div class="stat-label">
-                Total registrados
-            </div>
-            <div class="stat-value">
-                {{ total_servicios }}
+    <div class="stats-cuenta">
+        <div class="stat-cuenta">
+            <div class="stat-label">Total pendiente</div>
+            <div class="stat-value stat-pendiente">
+                ${{ total_pendiente|floatformat:2 }}
             </div>
         </div>
 
-        <div class="stat-servicio">
-            <div class="stat-label">
-                Realizados
-            </div>
-            <div class="stat-value">
-                {{ total_realizados }}
+        <div class="stat-cuenta">
+            <div class="stat-label">Total pagado</div>
+            <div class="stat-value stat-pagado">
+                ${{ total_pagado|floatformat:2 }}
             </div>
         </div>
 
-        <div class="stat-servicio">
-            <div class="stat-label">
-                En proceso
-            </div>
+        <div class="stat-cuenta">
+            <div class="stat-label">Cargos pendientes</div>
             <div class="stat-value">
-                {{ total_en_proceso }}
+                {{ cargos_pendientes|length }}
             </div>
         </div>
-
-        <div class="stat-servicio">
-            <div class="stat-label">
-                Pendientes
-            </div>
-            <div class="stat-value">
-                {{ total_pendientes }}
-            </div>
-        </div>
-
     </div>
 
+    <section class="panel-cuenta">
+        <div class="panel-header">Agregar servicio a la cuenta</div>
 
-    <div class="servicios-grid">
+        <div class="panel-body">
+            <form method="post" id="formAgregarCargo">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="AGREGAR">
 
-        <section class="panel-servicios">
-
-            <div class="panel-header">
-                Resumen por servicio
-            </div>
-
-            {% if resumen_servicios %}
-
-                <div class="table-responsive">
-
-                    <table class="table table-dark table-hover servicios-table">
-
-                        <thead>
-                            <tr>
-                                <th>Servicio</th>
-                                <th>Cantidad</th>
-                                <th>Realizados</th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-
-                            {% for item in resumen_servicios %}
-
-                                <tr>
-                                    <td class="servicio-nombre">
-                                        {{ item.nombre }}
-                                    </td>
-                                    <td>
-                                        {{ item.cantidad }}
-                                    </td>
-                                    <td>
-                                        {{ item.realizados }}
-                                    </td>
-                                </tr>
-
+                <div class="cargo-grid">
+                    <div>
+                        <label class="campo-label">Servicio</label>
+                        <select
+                            name="servicio_id"
+                            id="servicioSeleccionado"
+                            class="campo-select"
+                            required
+                        >
+                            <option value="">Selecciona un servicio</option>
+                            {% for servicio in servicios_catalogo %}
+                                <option
+                                    value="{{ servicio.id }}"
+                                    data-precio="{{ servicio.precio_base }}"
+                                    data-editable="{% if servicio.precio_editable %}1{% else %}0{% endif %}"
+                                >
+                                    {{ servicio.get_tipo_display }} · {{ servicio.nombre }}
+                                </option>
                             {% endfor %}
+                        </select>
+                    </div>
 
-                        </tbody>
+                    <div>
+                        <label class="campo-label">Cantidad</label>
+                        <input
+                            type="number"
+                            name="cantidad"
+                            id="cantidadCargo"
+                            class="campo-input"
+                            min="0.01"
+                            max="99999999.99"
+                            step="0.01"
+                            value="1.00"
+                            required
+                        >
+                    </div>
 
-                    </table>
+                    <div>
+                        <label class="campo-label">Precio unitario</label>
+                        <input
+                            type="number"
+                            name="precio_unitario"
+                            id="precioCargo"
+                            class="campo-input"
+                            min="0"
+                            max="9999999999.99"
+                            step="0.01"
+                            value="0.00"
+                            required
+                        >
+                    </div>
 
+                    <div class="cargo-full">
+                        <label class="campo-label">Notas administrativas opcionales</label>
+                        <input
+                            type="text"
+                            name="notas"
+                            class="campo-input"
+                            placeholder="Ej. Descuento autorizado, material adicional o referencia interna"
+                        >
+                    </div>
                 </div>
 
-            {% else %}
+                <div class="cargo-footer">
+                    <div class="total-previo">
+                        Total del cargo: <strong id="totalCargo">$0.00</strong>
+                        <span id="avisoPrecio"></span>
+                    </div>
 
-                <div class="lista-vacia">
-                    Este paciente todavía no tiene servicios registrados.
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        Agregar a la cuenta
+                    </button>
                 </div>
+            </form>
+        </div>
+    </section>
 
-            {% endif %}
+    <section class="panel-cuenta">
+        <div class="panel-header">Movimientos de la cuenta</div>
 
-        </section>
+        {% if cargos %}
+            <div class="table-responsive">
+                <table class="table table-dark table-hover cuenta-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Concepto</th>
+                            <th>Cantidad</th>
+                            <th>Precio</th>
+                            <th>Subtotal</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
 
-
-        <section class="panel-servicios">
-
-            <div class="panel-header">
-                Detalle de servicios
-            </div>
-
-            {% if estudios %}
-
-                <div class="table-responsive">
-
-                    <table class="table table-dark table-hover servicios-table">
-
-                        <thead>
+                    <tbody>
+                        {% for cargo in cargos %}
                             <tr>
-                                <th>Fecha</th>
-                                <th>Servicio</th>
-                                <th>Modalidad</th>
-                                <th>Estado</th>
+                                <td>{{ cargo.creado_el|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <div class="servicio-nombre">{{ cargo.descripcion }}</div>
+                                    <div class="servicio-detalle">
+                                        {{ cargo.get_origen_display }}
+                                        {% if cargo.notas %} · {{ cargo.notas }}{% endif %}
+                                    </div>
+                                </td>
+                                <td>{{ cargo.cantidad|floatformat:2 }}</td>
+                                <td>${{ cargo.precio_unitario|floatformat:2 }}</td>
+                                <td><strong>${{ cargo.subtotal|floatformat:2 }}</strong></td>
+                                <td>
+                                    {% if cargo.estado == 'PENDIENTE' %}
+                                        <span class="estado estado-pendiente">Pendiente</span>
+                                    {% elif cargo.estado == 'PAGADO' %}
+                                        <span class="estado estado-pagado">Pagado</span>
+                                    {% else %}
+                                        <span class="estado estado-cancelado">Cancelado</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if cargo.estado == 'PENDIENTE' %}
+                                        <div class="acciones-cargo">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="accion" value="PAGAR">
+                                                <input type="hidden" name="cargo_id" value="{{ cargo.id }}">
+                                                <button type="submit" class="btn btn-success btn-sm">
+                                                    Marcar pagado
+                                                </button>
+                                            </form>
+
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="accion" value="CANCELAR">
+                                                <input type="hidden" name="cargo_id" value="{{ cargo.id }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    Cancelar
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-secondary">Sin acciones</span>
+                                    {% endif %}
+                                </td>
                             </tr>
-                        </thead>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="lista-vacia">
+                La cuenta de este paciente todavía no tiene cargos.
+            </div>
+        {% endif %}
+    </section>
 
-                        <tbody>
+    <section class="panel-cuenta">
+        <div class="panel-header">
+            <h2 class="historial-title">Historial de estudios registrados</h2>
+        </div>
 
-                            {% for estudio in estudios %}
-
-                                <tr>
-
-                                    <td>
-                                        {{ estudio.fecha_creacion|date:"d/m/Y H:i" }}
-                                    </td>
-
-                                    <td class="servicio-nombre">
-                                        {{ estudio.tipo_estudio.nombre }}
-                                    </td>
-
-                                    <td>
-                                        {{ estudio.tipo_estudio.get_modalidad_display }}
-                                    </td>
-
-                                    <td>
-
-                                        {% if estudio.estado == 'PENDIENTE' %}
-
-                                            <span class="estado estado-pendiente">
-                                                Pendiente
-                                            </span>
-
-                                        {% elif estudio.estado == 'EN_PROCESO' %}
-
-                                            <span class="estado estado-proceso">
-                                                En proceso
-                                            </span>
-
-                                        {% else %}
-
-                                            <span class="estado estado-completado">
-                                                Completado
-                                            </span>
-
-                                        {% endif %}
-
-                                    </td>
-
-                                </tr>
-
-                            {% endfor %}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            {% else %}
-
-                <div class="lista-vacia">
-                    No existen servicios registrados para este paciente.
-                </div>
-
-            {% endif %}
-
-        </section>
-
-    </div>
-
+        {% if estudios %}
+            <div class="table-responsive">
+                <table class="table table-dark table-hover cuenta-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Estudio</th>
+                            <th>Modalidad</th>
+                            <th>Estado clínico</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for estudio in estudios %}
+                            <tr>
+                                <td>{{ estudio.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                <td class="servicio-nombre">{{ estudio.tipo_estudio.nombre }}</td>
+                                <td>{{ estudio.tipo_estudio.get_modalidad_display }}</td>
+                                <td>{{ estudio.get_estado_display }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="lista-vacia">
+                Este paciente no tiene estudios clínicos registrados.
+            </div>
+        {% endif %}
+    </section>
 
     <div class="privacidad">
         Esta pantalla es exclusivamente administrativa. No muestra diagnósticos,
         recetas, notas médicas, reportes radiológicos ni imágenes del paciente.
     </div>
-
 </div>
+
+<script>
+    (function () {
+        const servicio = document.getElementById('servicioSeleccionado');
+        const cantidad = document.getElementById('cantidadCargo');
+        const precio = document.getElementById('precioCargo');
+        const total = document.getElementById('totalCargo');
+        const aviso = document.getElementById('avisoPrecio');
+
+        function actualizarTotal() {
+            const cantidadNumero = parseFloat(cantidad.value || '0');
+            const precioNumero = parseFloat(precio.value || '0');
+            const resultado = cantidadNumero * precioNumero;
+            total.textContent = '$' + resultado.toFixed(2);
+        }
+
+        function actualizarServicio() {
+            const opcion = servicio.options[servicio.selectedIndex];
+            const precioBase = opcion ? opcion.dataset.precio : '0.00';
+            precio.value = precioBase || '0.00';
+            precio.readOnly = false;
+            aviso.textContent = ' · Precio ajustable por Recepción';
+            actualizarTotal();
+        }
+
+        servicio.addEventListener('change', actualizarServicio);
+        cantidad.addEventListener('input', actualizarTotal);
+        precio.addEventListener('input', actualizarTotal);
+        actualizarServicio();
+    })();
+</script>
 
 {% endblock %}

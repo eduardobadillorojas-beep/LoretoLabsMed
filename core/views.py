@@ -42,6 +42,7 @@ from .forms import (
 from .models import (
     ArchivoEstudio,
     BitacoraRadiologica,
+    CargoPaciente,
     Cita,
     Consulta,
     Estudio,
@@ -1968,6 +1969,197 @@ def servicios_paciente_recepcion(
         institucion=membresia.institucion,
     )
 
+    if request.method == 'POST':
+        accion = request.POST.get(
+            'accion',
+            ''
+        ).strip()
+
+        if accion == 'AGREGAR':
+            servicio = get_object_or_404(
+                Servicio,
+                pk=request.POST.get('servicio_id'),
+                institucion=membresia.institucion,
+                activo=True,
+            )
+
+            try:
+                cantidad = Decimal(
+                    request.POST.get(
+                        'cantidad',
+                        '1'
+                    )
+                )
+
+                if cantidad <= 0:
+                    raise InvalidOperation
+
+                if cantidad > Decimal('99999999.99'):
+                    raise InvalidOperation
+
+                cantidad = cantidad.quantize(
+                    Decimal('0.01')
+                )
+            except (InvalidOperation, ValueError):
+                messages.error(
+                    request,
+                    'Escribe una cantidad válida mayor que cero.'
+                )
+                return redirect(
+                    'servicios_paciente_recepcion',
+                    paciente_id=paciente.id,
+                )
+
+            try:
+                precio_unitario = Decimal(
+                    request.POST.get(
+                        'precio_unitario',
+                        str(servicio.precio_base)
+                    )
+                )
+
+                if precio_unitario < 0:
+                    raise InvalidOperation
+
+                if precio_unitario > Decimal(
+                    '9999999999.99'
+                ):
+                    raise InvalidOperation
+
+                precio_unitario = precio_unitario.quantize(
+                    Decimal('0.01')
+                )
+            except (InvalidOperation, ValueError):
+                messages.error(
+                    request,
+                    'Escribe un precio válido mayor o igual a cero.'
+                )
+                return redirect(
+                    'servicios_paciente_recepcion',
+                    paciente_id=paciente.id,
+                )
+
+            CargoPaciente.objects.create(
+                institucion=membresia.institucion,
+                paciente=paciente,
+                servicio=servicio,
+                descripcion=servicio.nombre,
+                cantidad=cantidad,
+                precio_unitario=precio_unitario,
+                estado='PENDIENTE',
+                origen='RECEPCION',
+                agregado_por=request.user,
+                notas=(
+                    request.POST.get(
+                        'notas',
+                        ''
+                    ).strip()
+                    or None
+                ),
+            )
+
+            messages.success(
+                request,
+                'Servicio agregado a la cuenta del paciente.'
+            )
+
+        elif accion in [
+            'PAGAR',
+            'CANCELAR',
+        ]:
+            cargo = get_object_or_404(
+                CargoPaciente,
+                pk=request.POST.get('cargo_id'),
+                institucion=membresia.institucion,
+                paciente=paciente,
+            )
+
+            if cargo.estado != 'PENDIENTE':
+                messages.warning(
+                    request,
+                    'Ese cargo ya no está pendiente.'
+                )
+            else:
+                cargo.estado = (
+                    'PAGADO'
+                    if accion == 'PAGAR'
+                    else 'CANCELADO'
+                )
+                cargo.save(
+                    update_fields=[
+                        'estado',
+                        'actualizado_el',
+                    ]
+                )
+
+                messages.success(
+                    request,
+                    (
+                        'Cargo marcado como pagado.'
+                        if accion == 'PAGAR'
+                        else 'Cargo cancelado correctamente.'
+                    )
+                )
+
+        return redirect(
+            'servicios_paciente_recepcion',
+            paciente_id=paciente.id,
+        )
+
+    cargos = list(
+        CargoPaciente.objects
+        .filter(
+            institucion=membresia.institucion,
+            paciente=paciente,
+        )
+        .select_related(
+            'servicio',
+            'agregado_por',
+        )
+        .order_by('-creado_el')
+    )
+
+    cargos_pendientes = [
+        cargo
+        for cargo in cargos
+        if cargo.estado == 'PENDIENTE'
+    ]
+
+    cargos_pagados = [
+        cargo
+        for cargo in cargos
+        if cargo.estado == 'PAGADO'
+    ]
+
+    total_pendiente = sum(
+        (
+            cargo.subtotal
+            for cargo in cargos_pendientes
+        ),
+        Decimal('0.00')
+    )
+
+    total_pagado = sum(
+        (
+            cargo.subtotal
+            for cargo in cargos_pagados
+        ),
+        Decimal('0.00')
+    )
+
+    servicios_catalogo = (
+        Servicio.objects
+        .filter(
+            institucion=membresia.institucion,
+            activo=True,
+        )
+        .select_related('tipo_estudio')
+        .order_by(
+            'tipo',
+            'nombre',
+        )
+    )
+
     estudios = list(
         Estudio.objects
         .select_related(
@@ -2034,6 +2226,12 @@ def servicios_paciente_recepcion(
 
     context = {
         'paciente': paciente,
+        'cargos': cargos,
+        'cargos_pendientes': cargos_pendientes,
+        'cargos_pagados': cargos_pagados,
+        'total_pendiente': total_pendiente,
+        'total_pagado': total_pagado,
+        'servicios_catalogo': servicios_catalogo,
         'estudios': estudios,
         'total_servicios': total_servicios,
         'total_realizados': total_realizados,
