@@ -2177,30 +2177,14 @@ def servicios_paciente_recepcion(
             )
 
         elif accion == 'COBRAR':
+            modo_cobro = request.POST.get(
+                'modo_cobro',
+                'TOTAL'
+            ).strip()
+
             cargos_ids = request.POST.getlist(
                 'cargos_ids'
             )
-
-            cargos_seleccionados = list(
-                CargoPaciente.objects
-                .filter(
-                    pk__in=cargos_ids,
-                    institucion=membresia.institucion,
-                    paciente=paciente,
-                    estado='PENDIENTE',
-                    cobro__isnull=True,
-                )
-            )
-
-            if not cargos_seleccionados:
-                messages.error(
-                    request,
-                    'Selecciona al menos un cargo pendiente.'
-                )
-                return redirect(
-                    'servicios_paciente_recepcion',
-                    paciente_id=paciente.id,
-                )
 
             forma_pago = request.POST.get(
                 'forma_pago',
@@ -2216,50 +2200,6 @@ def servicios_paciente_recepcion(
             if forma_pago not in formas_validas:
                 forma_pago = 'OTRO'
 
-            total_cobro = sum(
-                (
-                    cargo.subtotal
-                    for cargo in cargos_seleccionados
-                ),
-                Decimal('0.00')
-            )
-
-            monto_recibido = None
-            cambio = Decimal('0.00')
-
-            if forma_pago == 'EFECTIVO':
-                try:
-                    monto_recibido = Decimal(
-                        request.POST.get(
-                            'monto_recibido',
-                            str(total_cobro)
-                        )
-                    ).quantize(
-                        Decimal('0.01')
-                    )
-
-                    if monto_recibido < total_cobro:
-                        raise InvalidOperation
-
-                    if monto_recibido > Decimal('9999999999.99'):
-                        raise InvalidOperation
-
-                    cambio = (
-                        monto_recibido
-                        - total_cobro
-                    ).quantize(
-                        Decimal('0.01')
-                    )
-                except (InvalidOperation, ValueError):
-                    messages.error(
-                        request,
-                        'El efectivo recibido debe cubrir el total.'
-                    )
-                    return redirect(
-                        'servicios_paciente_recepcion',
-                        paciente_id=paciente.id,
-                    )
-
             telefono_envio = (
                 request.POST.get(
                     'telefono_envio',
@@ -2270,6 +2210,85 @@ def servicios_paciente_recepcion(
             )
 
             with transaction.atomic():
+                cargos_queryset = (
+                    CargoPaciente.objects
+                    .select_for_update()
+                    .filter(
+                        institucion=membresia.institucion,
+                        paciente=paciente,
+                        estado='PENDIENTE',
+                        cobro__isnull=True,
+                    )
+                    .order_by('creado_el', 'pk')
+                )
+
+                if modo_cobro != 'TOTAL':
+                    cargos_queryset = cargos_queryset.filter(
+                        pk__in=cargos_ids
+                    )
+
+                cargos_seleccionados = list(
+                    cargos_queryset
+                )
+
+                if not cargos_seleccionados:
+                    messages.error(
+                        request,
+                        (
+                            'La cuenta no tiene cargos pendientes.'
+                            if modo_cobro == 'TOTAL'
+                            else 'Selecciona al menos un cargo pendiente.'
+                        )
+                    )
+                    return redirect(
+                        'servicios_paciente_recepcion',
+                        paciente_id=paciente.id,
+                    )
+
+                total_cobro = sum(
+                    (
+                        cargo.subtotal
+                        for cargo in cargos_seleccionados
+                    ),
+                    Decimal('0.00')
+                ).quantize(Decimal('0.01'))
+
+                monto_recibido = None
+                cambio = Decimal('0.00')
+
+                if forma_pago == 'EFECTIVO':
+                    try:
+                        monto_recibido = Decimal(
+                            request.POST.get(
+                                'monto_recibido',
+                                str(total_cobro)
+                            )
+                        ).quantize(
+                            Decimal('0.01')
+                        )
+
+                        if monto_recibido < total_cobro:
+                            raise InvalidOperation
+
+                        if monto_recibido > Decimal('9999999999.99'):
+                            raise InvalidOperation
+
+                        cambio = (
+                            monto_recibido
+                            - total_cobro
+                        ).quantize(
+                            Decimal('0.01')
+                        )
+                    except (InvalidOperation, ValueError):
+                        messages.error(
+                            request,
+                            'El efectivo recibido debe cubrir el total de la cuenta.'
+                        )
+                        return redirect(
+                            'servicios_paciente_recepcion',
+                            paciente_id=paciente.id,
+                        )
+
                 cobro = Cobro.objects.create(
                     institucion=membresia.institucion,
                     paciente=paciente,
@@ -2291,6 +2310,14 @@ def servicios_paciente_recepcion(
                     cobro=cobro,
                     actualizado_el=timezone.now(),
                 )
+
+            messages.success(
+                request,
+                (
+                    f'Cuenta cobrada en un solo comprobante con '
+                    f'{len(cargos_seleccionados)} concepto(s).'
+                )
+            )
 
             salida = request.POST.get(
                 'salida',
@@ -2609,7 +2636,7 @@ def construir_pdf_cobro(cobro):
     historia.append(Spacer(1, 10))
     historia.append(
         Paragraph(
-            'COMPROBANTE DE PAGO',
+            'COMPROBANTE DE CUENTA',
             titulo
         )
     )
@@ -2627,6 +2654,7 @@ def construir_pdf_cobro(cobro):
             f'{paciente.nombre} {paciente.apellido}'
         ],
         ['Registro', paciente.identificacion],
+        ['Conceptos incluidos', str(cobro.cargos.count())],
         ['Forma de pago', cobro.get_forma_pago_display()],
     ]
 

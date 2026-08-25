@@ -26,8 +26,10 @@
     <section class="resultado-card">
         <div class="resultado-head">
             <div class="resultado-icono">✓</div>
-            <h1 class="resultado-titulo">Cobro completado</h1>
-            <div class="resultado-sub">El comprobante quedó guardado y puede reimprimirse.</div>
+            <h1 class="resultado-titulo">Cuenta cobrada correctamente</h1>
+            <div class="resultado-sub">
+                Los {{ cobro.cargos.count }} conceptos quedaron agrupados en un solo comprobante.
+            </div>
         </div>
 
         <div class="resultado-body">
@@ -36,12 +38,13 @@
                 <div class="dato"><div class="dato-label">Fecha</div><div class="dato-value">{{ cobro.creado_el|date:"d/m/Y H:i" }}</div></div>
                 <div class="dato"><div class="dato-label">Paciente</div><div class="dato-value">{{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}</div></div>
                 <div class="dato"><div class="dato-label">Forma de pago</div><div class="dato-value">{{ cobro.get_forma_pago_display }}</div></div>
+                <div class="dato"><div class="dato-label">Conceptos incluidos</div><div class="dato-value">{{ cobro.cargos.count }}</div></div>
                 <div class="dato"><div class="dato-label">Total pagado</div><div class="dato-value total">${{ cobro.total|floatformat:2 }}</div></div>
                 <div class="dato"><div class="dato-label">Cambio</div><div class="dato-value">${{ cobro.cambio|floatformat:2 }}</div></div>
             </div>
 
             <div class="acciones">
-                <a href="{% url 'ticket_cobro' cobro.id %}" target="_blank" class="btn btn-primary">Imprimir ticket de 80 mm</a>
+                <a href="{% url 'ticket_cobro' cobro.id %}" target="_blank" class="btn btn-primary">Imprimir ticket de 58 mm</a>
                 <a href="{{ enlace_pdf }}" target="_blank" class="btn btn-outline-light">Abrir o descargar PDF</a>
                 {% if enlace_whatsapp %}
                     <a href="{{ enlace_whatsapp }}" target="_blank" class="btn btn-success">Enviar por WhatsApp</a>

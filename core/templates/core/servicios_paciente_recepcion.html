@@ -241,6 +241,41 @@ Cuenta del paciente | Loreto One
         margin-bottom: 10px;
     }
 
+    .modo-cobro {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .modo-opcion {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        background: #0f172a;
+        cursor: pointer;
+    }
+
+    .modo-opcion:has(input:checked) {
+        border-color: #22c55e;
+        background: rgba(34, 197, 94, .09);
+    }
+
+    .modo-titulo {
+        color: #f8fafc;
+        font-size: .72rem;
+        font-weight: 800;
+    }
+
+    .modo-detalle {
+        color: #94a3b8;
+        font-size: .62rem;
+        margin-top: 2px;
+    }
+
     .salida-opciones {
         display: flex;
         align-items: center;
@@ -301,7 +336,8 @@ Cuenta del paciente | Loreto One
     @media (max-width: 800px) {
         .stats-cuenta,
         .cargo-grid,
-        .cobro-grid {
+        .cobro-grid,
+        .modo-cobro {
             grid-template-columns: 1fr;
         }
 
@@ -474,6 +510,40 @@ Cuenta del paciente | Loreto One
                 <input type="hidden" name="accion" value="COBRAR">
 
                 <div class="panel-body">
+                    <label class="campo-label">¿Qué se cobrará?</label>
+                    <div class="modo-cobro">
+                        <label class="modo-opcion">
+                            <input
+                                type="radio"
+                                name="modo_cobro"
+                                value="TOTAL"
+                                class="modo-cobro-radio"
+                                checked
+                            >
+                            <span>
+                                <span class="modo-titulo">Cuenta completa</span>
+                                <span class="modo-detalle">
+                                    Incluye automáticamente todos los cargos pendientes en un solo ticket.
+                                </span>
+                            </span>
+                        </label>
+
+                        <label class="modo-opcion">
+                            <input
+                                type="radio"
+                                name="modo_cobro"
+                                value="PARCIAL"
+                                class="modo-cobro-radio"
+                            >
+                            <span>
+                                <span class="modo-titulo">Cobro parcial</span>
+                                <span class="modo-detalle">
+                                    Permite elegir únicamente algunos servicios de la cuenta.
+                                </span>
+                            </span>
+                        </label>
+                    </div>
+
                     <div class="cobro-grid">
                         <div>
                             <label class="campo-label">Forma de pago</label>
@@ -535,7 +605,7 @@ Cuenta del paciente | Loreto One
                         </div>
 
                         <button type="submit" class="btn btn-success btn-sm">
-                            Cobrar seleccionados
+                            <span id="textoBotonCobrar">Cobrar cuenta completa</span>
                         </button>
                     </div>
                 </div>
@@ -545,7 +615,7 @@ Cuenta del paciente | Loreto One
                         <thead>
                             <tr>
                                 <th>
-                                    <input type="checkbox" id="seleccionarTodos">
+                                    <input type="checkbox" id="seleccionarTodos" checked disabled>
                                 </th>
                                 <th>Fecha</th>
                                 <th>Concepto</th>
@@ -568,6 +638,8 @@ Cuenta del paciente | Loreto One
                                                 value="{{ cargo.id }}"
                                                 class="cargo-check"
                                                 data-subtotal="{{ cargo.subtotal }}"
+                                                checked
+                                                disabled
                                             >
                                         {% endif %}
                                     </td>
@@ -712,6 +784,41 @@ Cuenta del paciente | Loreto One
         const cambioCobro = document.getElementById('cambioCobro');
         const formaPago = document.getElementById('formaPago');
         const montoRecibido = document.getElementById('montoRecibido');
+        const modosCobro = Array.from(
+            document.querySelectorAll('.modo-cobro-radio')
+        );
+        const textoBotonCobrar = document.getElementById('textoBotonCobrar');
+
+        function esCuentaCompleta() {
+            const seleccionado = modosCobro.find((radio) => radio.checked);
+            return !seleccionado || seleccionado.value === 'TOTAL';
+        }
+
+        function actualizarModoCobro() {
+            const cuentaCompleta = esCuentaCompleta();
+
+            checks.forEach((check) => {
+                check.disabled = cuentaCompleta;
+
+                if (cuentaCompleta) {
+                    check.checked = true;
+                }
+            });
+
+            if (seleccionarTodos) {
+                seleccionarTodos.disabled = cuentaCompleta;
+                seleccionarTodos.checked = cuentaCompleta
+                    || checks.every((check) => check.checked);
+            }
+
+            if (textoBotonCobrar) {
+                textoBotonCobrar.textContent = cuentaCompleta
+                    ? 'Cobrar cuenta completa'
+                    : 'Cobrar servicios seleccionados';
+            }
+
+            calcularCobro();
+        }
 
         function calcularCobro() {
             if (!formaPago || !montoRecibido || !totalSeleccionado || !cambioCobro) {
@@ -748,14 +855,25 @@ Cuenta del paciente | Loreto One
         }
 
         checks.forEach((check) => {
-            check.addEventListener('change', calcularCobro);
+            check.addEventListener('change', function () {
+                if (seleccionarTodos && !esCuentaCompleta()) {
+                    seleccionarTodos.checked = checks.every(
+                        (elemento) => elemento.checked
+                    );
+                }
+                calcularCobro();
+            });
+        });
+
+        modosCobro.forEach((radio) => {
+            radio.addEventListener('change', actualizarModoCobro);
         });
 
         if (formaPago && montoRecibido) {
             formaPago.addEventListener('change', calcularCobro);
             montoRecibido.addEventListener('input', calcularCobro);
         }
-        calcularCobro();
+        actualizarModoCobro();
     })();
 </script>
 
