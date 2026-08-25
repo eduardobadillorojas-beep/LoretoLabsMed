@@ -1485,6 +1485,11 @@ class Cobro(models.Model):
         ('CANCELADO', 'Cancelado'),
     ]
 
+    DESTINO_CARGOS_CHOICES = [
+        ('CANCELAR', 'Cancelar también los servicios'),
+        ('REABRIR', 'Dejar los servicios pendientes para volver a cobrar'),
+    ]
+
     folio = models.CharField(
         max_length=30,
         unique=True,
@@ -1557,6 +1562,45 @@ class Cobro(models.Model):
 
     creado_el = models.DateTimeField(
         auto_now_add=True
+    )
+
+    cancelado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='cobros_cancelados',
+        blank=True,
+        null=True
+    )
+
+    cancelado_el = models.DateTimeField(
+        blank=True,
+        null=True
+    )
+
+    motivo_cancelacion = models.CharField(
+        max_length=300,
+        blank=True,
+        null=True
+    )
+
+    forma_reembolso = models.CharField(
+        max_length=20,
+        choices=FORMA_PAGO_CHOICES,
+        blank=True,
+        null=True
+    )
+
+    monto_reembolsado = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    destino_cargos_cancelacion = models.CharField(
+        max_length=20,
+        choices=DESTINO_CARGOS_CHOICES,
+        blank=True,
+        null=True
     )
 
     class Meta:

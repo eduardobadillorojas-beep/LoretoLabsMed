@@ -19,16 +19,38 @@
     .acciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
     .acciones .btn { padding: 10px; }
     .volver { margin-top: 12px; text-align: center; }
-    @media (max-width: 620px) { .datos-grid, .acciones { grid-template-columns: 1fr; } }
+    .cancelacion { margin-top: 16px; padding: 14px; border: 1px solid rgba(239,68,68,.4); border-radius: 9px; background: rgba(127,29,29,.12); }
+    .cancelacion h2 { margin: 0 0 8px; font-size: .9rem; color: #fca5a5; }
+    .cancelacion-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .cancelacion-full { grid-column: 1 / -1; }
+    .cancelacion label { display: block; color: #cbd5e1; font-size: .66rem; font-weight: 700; margin-bottom: 4px; }
+    .cancelacion input[type="text"], .cancelacion select { width: 100%; border: 1px solid #475569; border-radius: 7px; background: #0f172a; color: #e2e8f0; padding: 8px; font-size: .73rem; }
+    .cancelacion-confirmar { display: flex; gap: 7px; align-items: flex-start; color: #fca5a5; font-size: .68rem; margin: 10px 0; }
+    .cancelado-info { margin-top: 14px; padding: 12px; border: 1px solid rgba(239,68,68,.4); border-radius: 9px; background: rgba(127,29,29,.12); color: #fecaca; font-size: .72rem; }
+    @media (max-width: 620px) { .datos-grid, .acciones, .cancelacion-grid { grid-template-columns: 1fr; } .cancelacion-full { grid-column: auto; } }
 </style>
 
 <div class="resultado-wrap">
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} py-2">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
     <section class="resultado-card">
         <div class="resultado-head">
-            <div class="resultado-icono">✓</div>
-            <h1 class="resultado-titulo">Cuenta cobrada correctamente</h1>
+            <div class="resultado-icono">{% if cobro.estado == 'CANCELADO' %}×{% else %}✓{% endif %}</div>
+            <h1 class="resultado-titulo">
+                {% if cobro.estado == 'CANCELADO' %}Pago cancelado{% else %}Cuenta cobrada correctamente{% endif %}
+            </h1>
             <div class="resultado-sub">
-                Los {{ cobro.cargos.count }} conceptos quedaron agrupados en un solo comprobante.
+                {% if cobro.estado == 'CANCELADO' %}
+                    La devolución quedó registrada y el cobro permanece en el historial.
+                {% else %}
+                    Los {{ cobro.cargos.count }} conceptos quedaron agrupados en un solo comprobante.
+                {% endif %}
             </div>
         </div>
 
@@ -56,14 +78,60 @@
 
             <div class="acciones">
                 <a href="{% url 'ticket_cobro' cobro.id %}" target="_blank" class="btn btn-primary">Imprimir ticket de 58 mm</a>
-                <a href="{{ enlace_pdf }}" target="_blank" class="btn btn-outline-light">Abrir o descargar PDF</a>
-                {% if enlace_whatsapp %}
-                    <a href="{{ enlace_whatsapp }}" target="_blank" class="btn btn-success">Enviar por WhatsApp</a>
+                {% if cobro.estado == 'PAGADO' %}
+                    <a href="{{ enlace_pdf }}" target="_blank" class="btn btn-outline-light">Abrir o descargar PDF</a>
+                    {% if enlace_whatsapp %}
+                        <a href="{{ enlace_whatsapp }}" target="_blank" class="btn btn-success">Enviar por WhatsApp</a>
+                    {% else %}
+                        <button class="btn btn-secondary" disabled>Paciente sin teléfono</button>
+                    {% endif %}
+                    <button type="button" class="btn btn-outline-info" id="copiarEnlace">Copiar enlace digital</button>
                 {% else %}
-                    <button class="btn btn-secondary" disabled>Paciente sin teléfono</button>
+                    <button class="btn btn-secondary" disabled>PDF desactivado por cancelación</button>
                 {% endif %}
-                <button type="button" class="btn btn-outline-info" id="copiarEnlace">Copiar enlace digital</button>
             </div>
+
+            {% if cobro.estado == 'CANCELADO' %}
+                <div class="cancelado-info">
+                    <strong>Reembolso:</strong> ${{ cobro.monto_reembolsado|floatformat:2 }} mediante {{ cobro.get_forma_reembolso_display }}.<br>
+                    <strong>Motivo:</strong> {{ cobro.motivo_cancelacion }}<br>
+                    <strong>Canceló:</strong> {{ cobro.cancelado_por.get_full_name|default:cobro.cancelado_por.username }} · {{ cobro.cancelado_el|date:"d/m/Y H:i" }}<br>
+                    <strong>Servicios:</strong> {{ cobro.get_destino_cargos_cancelacion_display }}.
+                </div>
+            {% else %}
+                <form method="post" action="{% url 'cancelar_cobro_recepcion' cobro.id %}" class="cancelacion" onsubmit="return confirm('¿Confirmas que el dinero ya fue devuelto y deseas cancelar definitivamente este pago?');">
+                    {% csrf_token %}
+                    <h2>Cancelar y devolver pago</h2>
+                    <div class="cancelacion-grid">
+                        <div class="cancelacion-full">
+                            <label>Motivo obligatorio</label>
+                            <input type="text" name="motivo_cancelacion" maxlength="300" minlength="5" placeholder="Ej. Atención sin costo para colaborador; se devolvió el importe" required>
+                        </div>
+                        <div>
+                            <label>¿Qué pasará con los servicios?</label>
+                            <select name="destino_cargos" required>
+                                <option value="CANCELAR">Cancelar también los servicios / cortesía</option>
+                                <option value="REABRIR">Dejarlos pendientes para volver a cobrar</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Forma en que se devolvió</label>
+                            <select name="forma_reembolso" required>
+                                <option value="EFECTIVO">Efectivo</option>
+                                <option value="TARJETA">Tarjeta</option>
+                                <option value="TRANSFERENCIA">Transferencia</option>
+                                <option value="MIXTO">Mixto</option>
+                                <option value="OTRO">Otro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label class="cancelacion-confirmar">
+                        <input type="checkbox" name="confirmar_cancelacion" value="SI" required>
+                        Confirmo que se devolvieron ${{ cobro.total|floatformat:2 }} al paciente y comprendo que la cancelación quedará registrada con mi usuario.
+                    </label>
+                    <button type="submit" class="btn btn-danger btn-sm">Cancelar pago y registrar devolución</button>
+                </form>
+            {% endif %}
 
             <div class="volver">
                 <a href="{% url 'servicios_paciente_recepcion' cobro.paciente.id %}" class="btn btn-link">Volver a la cuenta del paciente</a>
@@ -73,10 +141,14 @@
 </div>
 
 <script>
-    document.getElementById('copiarEnlace').addEventListener('click', async function () {
-        await navigator.clipboard.writeText('{{ enlace_pdf|escapejs }}');
-        this.textContent = 'Enlace copiado';
-    });
+    const copiarEnlace = document.getElementById('copiarEnlace');
+
+    if (copiarEnlace) {
+        copiarEnlace.addEventListener('click', async function () {
+            await navigator.clipboard.writeText('{{ enlace_pdf|escapejs }}');
+            this.textContent = 'Enlace copiado';
+        });
+    }
 
     {% if salida == 'IMPRESO' or salida == 'AMBOS' %}
         window.open('{% url "ticket_cobro" cobro.id %}', '_blank');

@@ -1924,16 +1924,21 @@ def caja_recepcion(request):
         Cobro.objects
         .filter(
             institucion=membresia.institucion,
-            creado_el__date=fecha_consulta,
+        )
+        .filter(
+            Q(creado_el__date=fecha_consulta)
+            | Q(cancelado_el__date=fecha_consulta)
         )
         .select_related(
             'paciente',
             'creado_por',
+            'cancelado_por',
         )
         .prefetch_related(
             'cargos',
             'pagos',
         )
+        .distinct()
         .order_by('-creado_el')
     )
 
@@ -1946,16 +1951,36 @@ def caja_recepcion(request):
         )
 
     cobros = list(cobros_queryset)
-    cobros_pagados = [
+    cobros_creados_dia = [
         cobro
         for cobro in cobros
-        if cobro.estado == 'PAGADO'
+        if timezone.localtime(cobro.creado_el).date() == fecha_consulta
     ]
 
-    total_general = sum(
-        (cobro.total for cobro in cobros_pagados),
+    total_bruto = sum(
+        (cobro.total for cobro in cobros_creados_dia),
         Decimal('0.00')
     )
+
+    cobros_cancelados_dia = [
+        cobro
+        for cobro in cobros
+        if (
+            cobro.estado == 'CANCELADO'
+            and cobro.cancelado_el
+            and timezone.localtime(cobro.cancelado_el).date() == fecha_consulta
+        )
+    ]
+
+    total_reembolsado = sum(
+        (
+            cobro.monto_reembolsado
+            for cobro in cobros_cancelados_dia
+        ),
+        Decimal('0.00')
+    )
+
+    total_general = total_bruto - total_reembolsado
 
     totales_forma = {
         'EFECTIVO': Decimal('0.00'),
@@ -1968,7 +1993,7 @@ def caja_recepcion(request):
         pagos_cobro = list(cobro.pagos.all())
         cobro.pagos_mostrables = pagos_cobro
 
-        if cobro.estado != 'PAGADO':
+        if cobro not in cobros_creados_dia:
             continue
 
         if pagos_cobro:
@@ -1985,11 +2010,14 @@ def caja_recepcion(request):
         'busqueda': busqueda,
         'cobros': cobros,
         'total_general': total_general,
+        'total_bruto': total_bruto,
+        'total_reembolsado': total_reembolsado,
         'total_efectivo': totales_forma['EFECTIVO'],
         'total_tarjeta': totales_forma['TARJETA'],
         'total_transferencia': totales_forma['TRANSFERENCIA'],
         'total_otro': totales_forma['OTRO'],
-        'numero_cobros': len(cobros_pagados),
+        'numero_cobros': len(cobros_creados_dia),
+        'numero_reembolsos': len(cobros_cancelados_dia),
     }
 
     return render(
@@ -2947,6 +2975,7 @@ def cobro_exitoso(
             'institucion',
             'paciente',
             'creado_por',
+            'cancelado_por',
         ).prefetch_related(
             'cargos',
             'pagos',
@@ -3002,6 +3031,181 @@ def cobro_exitoso(
 
 
 @login_required
+def cancelar_cobro_recepcion(
+    request,
+    cobro_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None or membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        return redirect('inicio')
+
+    if request.method != 'POST':
+        return redirect(
+            'cobro_exitoso',
+            cobro_id=cobro_id,
+        )
+
+    motivo = request.POST.get(
+        'motivo_cancelacion',
+        ''
+    ).strip()
+
+    destino_cargos = request.POST.get(
+        'destino_cargos',
+        'CANCELAR'
+    ).strip()
+
+    forma_reembolso = request.POST.get(
+        'forma_reembolso',
+        'EFECTIVO'
+    ).strip()
+
+    confirmacion = request.POST.get(
+        'confirmar_cancelacion',
+        ''
+    ).strip()
+
+    destinos_validos = {
+        valor
+        for valor, etiqueta
+        in Cobro.DESTINO_CARGOS_CHOICES
+    }
+
+    formas_validas = {
+        valor
+        for valor, etiqueta
+        in Cobro.FORMA_PAGO_CHOICES
+    }
+
+    if len(motivo) < 5:
+        messages.error(
+            request,
+            'Escribe un motivo de cancelación de al menos cinco caracteres.'
+        )
+        return redirect(
+            'cobro_exitoso',
+            cobro_id=cobro_id,
+        )
+
+    if destino_cargos not in destinos_validos:
+        destino_cargos = 'CANCELAR'
+
+    if forma_reembolso not in formas_validas:
+        forma_reembolso = 'OTRO'
+
+    if confirmacion != 'SI':
+        messages.error(
+            request,
+            'Debes confirmar que el dinero fue devuelto al paciente.'
+        )
+        return redirect(
+            'cobro_exitoso',
+            cobro_id=cobro_id,
+        )
+
+    with transaction.atomic():
+        cobro = get_object_or_404(
+            Cobro.objects.select_for_update(),
+            pk=cobro_id,
+            institucion=membresia.institucion,
+        )
+
+        if cobro.estado != 'PAGADO':
+            messages.warning(
+                request,
+                'Este pago ya estaba cancelado.'
+            )
+            return redirect(
+                'cobro_exitoso',
+                cobro_id=cobro.id,
+            )
+
+        cargos_originales = list(
+            CargoPaciente.objects
+            .select_for_update()
+            .filter(cobro=cobro)
+            .order_by('creado_el', 'pk')
+        )
+
+        if destino_cargos == 'REABRIR':
+            cargos_reabiertos = []
+
+            for cargo in cargos_originales:
+                nota_reapertura = (
+                    f'Reabierto por cancelación del cobro {cobro.folio}.'
+                )
+
+                if cargo.notas:
+                    nota_reapertura = (
+                        f'{cargo.notas}\n{nota_reapertura}'
+                    )
+
+                cargos_reabiertos.append(
+                    CargoPaciente(
+                        institucion=cargo.institucion,
+                        paciente=cargo.paciente,
+                        servicio=cargo.servicio,
+                        consulta=cargo.consulta,
+                        estudio=cargo.estudio,
+                        descripcion=cargo.descripcion,
+                        cantidad=cargo.cantidad,
+                        precio_unitario=cargo.precio_unitario,
+                        estado='PENDIENTE',
+                        origen='RECEPCION',
+                        agregado_por=request.user,
+                        notas=nota_reapertura,
+                    )
+                )
+
+            CargoPaciente.objects.bulk_create(
+                cargos_reabiertos
+            )
+
+        CargoPaciente.objects.filter(
+            pk__in=[cargo.pk for cargo in cargos_originales]
+        ).update(
+            estado='CANCELADO',
+            actualizado_el=timezone.now(),
+        )
+
+        cobro.estado = 'CANCELADO'
+        cobro.cancelado_por = request.user
+        cobro.cancelado_el = timezone.now()
+        cobro.motivo_cancelacion = motivo[:300]
+        cobro.forma_reembolso = forma_reembolso
+        cobro.monto_reembolsado = cobro.total
+        cobro.destino_cargos_cancelacion = destino_cargos
+        cobro.save(
+            update_fields=[
+                'estado',
+                'cancelado_por',
+                'cancelado_el',
+                'motivo_cancelacion',
+                'forma_reembolso',
+                'monto_reembolsado',
+                'destino_cargos_cancelacion',
+            ]
+        )
+
+    messages.success(
+        request,
+        (
+            f'Pago {cobro.folio} cancelado. '
+            f'Reembolso registrado por ${cobro.total:.2f}.'
+        )
+    )
+
+    return redirect(
+        'cobro_exitoso',
+        cobro_id=cobro.id,
+    )
+
+
+@login_required
 def ticket_cobro(
     request,
     cobro_id
@@ -3019,6 +3223,7 @@ def ticket_cobro(
             'institucion',
             'paciente',
             'creado_por',
+            'cancelado_por',
         ).prefetch_related(
             'cargos',
             'pagos',

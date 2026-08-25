@@ -10,7 +10,7 @@
     .caja-sub { color: #94a3b8; font-size: .72rem; margin-top: 3px; }
     .filtros { display: grid; grid-template-columns: .8fr 2fr auto; gap: 9px; padding: 12px; margin-bottom: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 9px; }
     .campo { width: 100%; border: 1px solid #475569; border-radius: 7px; background: #0f172a; color: #e2e8f0; padding: 8px 9px; font-size: .75rem; }
-    .resumen { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+    .resumen { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
     .resumen-card { background: #1e293b; border: 1px solid #334155; border-radius: 9px; padding: 11px; }
     .resumen-label { color: #94a3b8; font-size: .6rem; text-transform: uppercase; }
     .resumen-value { margin-top: 3px; font-size: 1.15rem; font-weight: 800; }
@@ -45,11 +45,12 @@
     </form>
 
     <div class="resumen">
-        <div class="resumen-card"><div class="resumen-label">Total cobrado</div><div class="resumen-value principal">${{ total_general|floatformat:2 }}</div><div class="secundario">{{ numero_cobros }} cobro{{ numero_cobros|pluralize }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Neto de caja</div><div class="resumen-value principal">${{ total_general|floatformat:2 }}</div><div class="secundario">Bruto: ${{ total_bruto|floatformat:2 }} · {{ numero_cobros }} cobro{{ numero_cobros|pluralize }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Efectivo</div><div class="resumen-value">${{ total_efectivo|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Tarjeta</div><div class="resumen-value">${{ total_tarjeta|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Transferencia</div><div class="resumen-value">${{ total_transferencia|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Otros</div><div class="resumen-value">${{ total_otro|floatformat:2 }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Reembolsos</div><div class="resumen-value" style="color:#fca5a5;">-${{ total_reembolsado|floatformat:2 }}</div><div class="secundario">{{ numero_reembolsos }} reembolso{{ numero_reembolsos|pluralize }}</div></div>
     </div>
 
     <section class="panel">
@@ -75,7 +76,16 @@
                                 </td>
                                 <td>{{ cobro.creado_por.get_full_name|default:cobro.creado_por.username }}</td>
                                 <td><strong>${{ cobro.total|floatformat:2 }}</strong></td>
-                                <td>{% if cobro.estado == 'PAGADO' %}<span class="estado pagado">Pagado</span>{% else %}<span class="estado cancelado">Cancelado</span>{% endif %}</td>
+                                <td>
+                                    {% if cobro.estado == 'PAGADO' %}
+                                        <span class="estado pagado">Pagado</span>
+                                    {% else %}
+                                        <span class="estado cancelado">Cancelado</span>
+                                        <div class="secundario">Devuelto: ${{ cobro.monto_reembolsado|floatformat:2 }}</div>
+                                        <div class="secundario">{{ cobro.motivo_cancelacion }}</div>
+                                        <div class="secundario">{{ cobro.cancelado_por.get_full_name|default:cobro.cancelado_por.username }} · {{ cobro.cancelado_el|date:"d/m/Y H:i" }}</div>
+                                    {% endif %}
+                                </td>
                                 <td><a href="{% url 'cobro_exitoso' cobro.id %}" class="btn btn-outline-info btn-sm">Abrir</a></td>
                             </tr>
                         {% endfor %}

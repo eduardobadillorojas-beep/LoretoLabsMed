@@ -201,6 +201,12 @@ urlpatterns = [
     ),
 
     path(
+        'recepcion/cobro/<int:cobro_id>/cancelar/',
+        views.cancelar_cobro_recepcion,
+        name='cancelar_cobro_recepcion'
+    ),
+
+    path(
         'recepcion/cobro/<int:cobro_id>/ticket/',
         views.ticket_cobro,
         name='ticket_cobro'

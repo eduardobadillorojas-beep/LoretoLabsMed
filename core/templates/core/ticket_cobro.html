@@ -46,7 +46,9 @@
     </header>
 
     <div class="separador"></div>
-    <div class="centrado"><strong>COMPROBANTE DE CUENTA</strong></div>
+    <div class="centrado">
+        <strong>{% if cobro.estado == 'CANCELADO' %}COMPROBANTE CANCELADO{% else %}COMPROBANTE DE CUENTA{% endif %}</strong>
+    </div>
     <div class="fila folio"><span>Folio:</span><strong>{{ cobro.folio }}</strong></div>
     <div class="fila"><span>Fecha:</span><span>{{ cobro.creado_el|date:"d/m/Y H:i" }}</span></div>
     <div>Paciente: {{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}</div>
@@ -85,6 +87,14 @@
     </div>
 
     <footer class="pie">
+        {% if cobro.estado == 'CANCELADO' %}
+            <div class="separador"></div>
+            <div><strong>PAGO CANCELADO Y DEVUELTO</strong></div>
+            <div>Reembolso: ${{ cobro.monto_reembolsado|floatformat:2 }}</div>
+            <div>Medio: {{ cobro.get_forma_reembolso_display }}</div>
+            <div>Motivo: {{ cobro.motivo_cancelacion }}</div>
+            <div>Fecha: {{ cobro.cancelado_el|date:"d/m/Y H:i" }}</div>
+        {% endif %}
         {% if cobro.institucion.pie_documentos %}<div>{{ cobro.institucion.pie_documentos }}</div>{% endif %}
         <div>Gracias por su preferencia.</div>
         <div>Comprobante interno. No sustituye un CFDI.</div>

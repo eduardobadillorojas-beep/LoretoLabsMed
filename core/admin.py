@@ -53,9 +53,18 @@ class CobroAdmin(admin.ModelAdmin):
         'total',
         'monto_recibido',
         'cambio',
+        'cancelado_por',
+        'cancelado_el',
+        'motivo_cancelacion',
+        'forma_reembolso',
+        'monto_reembolsado',
+        'destino_cargos_cancelacion',
         'creado_el',
     )
     inlines = (PagoCobroInline,)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Institucion)
