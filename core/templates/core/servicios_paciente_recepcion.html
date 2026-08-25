@@ -691,18 +691,21 @@ Cuenta del paciente | Loreto One
                         </button>
                     </div>
 
-                    <div class="agrupado-acciones">
-                        <div>
-                            <strong>Otorgar crédito</strong>
-                            <div class="agrupado-ayuda">Los conceptos seleccionados quedarán con saldo pendiente y podrán pagarse por abonos.</div>
+                    <details class="agrupado-acciones">
+                        <summary style="cursor:pointer; font-weight:700; color:#fbbf24;">
+                            Opciones de crédito
+                            <span class="agrupado-ayuda" style="display:inline; margin-left:8px;">Abrir solamente cuando el paciente pagará por cuotas.</span>
+                        </summary>
+                        <div style="margin-top:12px;">
+                            <div class="agrupado-ayuda" style="margin-bottom:10px;">Los conceptos seleccionados quedarán con saldo pendiente y podrán pagarse mediante uno o varios abonos.</div>
+                            <div class="agrupado-botones">
+                                <div><label class="campo-label">Número de cuotas</label><input type="number" name="numero_cuotas" min="1" max="120" value="1" class="campo-input" style="max-width:130px"></div>
+                                <div><label class="campo-label">Fecha límite</label><input type="date" name="fecha_vencimiento" min="{{ hoy|date:'Y-m-d' }}" class="campo-input"></div>
+                                <div><label class="campo-label">Motivo o autorización</label><input type="text" name="notas_credito" class="campo-input" placeholder="Ej. Autorizado por administración" style="min-width:230px"></div>
+                                <div style="align-self:end;"><button type="submit" name="accion" value="CREAR_CREDITO" class="btn btn-warning btn-sm">Crear crédito</button></div>
+                            </div>
                         </div>
-                        <div class="agrupado-botones">
-                            <input type="number" name="numero_cuotas" min="1" max="120" value="1" class="campo-input" title="Número de cuotas" style="max-width:110px">
-                            <input type="date" name="fecha_vencimiento" min="{{ hoy|date:'Y-m-d' }}" class="campo-input" title="Fecha límite">
-                            <input type="text" name="notas_credito" class="campo-input" placeholder="Motivo o autorización" style="min-width:190px">
-                            <button type="submit" name="accion" value="CREAR_CREDITO" class="btn btn-warning btn-sm">Crear crédito</button>
-                        </div>
-                    </div>
+                    </details>
 
                     {% if cargos_pagados_con_cobro %}
                         <div class="agrupado-acciones">
@@ -849,8 +852,8 @@ Cuenta del paciente | Loreto One
     </section>
 
     {% if creditos %}
-    <section class="panel-cuenta">
-        <div class="panel-header"><h2 class="historial-title">Créditos y abonos</h2></div>
+    <details class="panel-cuenta">
+        <summary class="panel-header" style="cursor:pointer;"><span class="historial-title">Créditos y abonos ({{ creditos|length }})</span><span style="float:right;">Abrir historial</span></summary>
         {% for credito in creditos %}
         <div class="panel-body" style="border-bottom:1px solid #334155">
             <div class="seleccion-total">
@@ -874,7 +877,7 @@ Cuenta del paciente | Loreto One
             {% endif %}
         </div>
         {% endfor %}
-    </section>
+    </details>
     {% endif %}
 
     <section class="panel-cuenta">
