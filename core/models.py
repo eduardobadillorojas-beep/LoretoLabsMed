@@ -1,5 +1,13 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+import uuid
+
+
+def generar_folio_cobro():
+    fecha = timezone.now().strftime('%Y%m%d')
+    aleatorio = uuid.uuid4().hex[:8].upper()
+    return f'CB-{fecha}-{aleatorio}'
 
 
 class Institucion(models.Model):
@@ -13,6 +21,13 @@ class Institucion(models.Model):
         blank=True,
         null=True,
         verbose_name='Nombre comercial'
+    )
+
+    rfc = models.CharField(
+        max_length=13,
+        blank=True,
+        null=True,
+        verbose_name='RFC'
     )
 
     telefono = models.CharField(
@@ -1456,6 +1471,108 @@ class Servicio(models.Model):
         return f'{self.nombre} - {self.institucion.nombre}'
 
 
+class Cobro(models.Model):
+    FORMA_PAGO_CHOICES = [
+        ('EFECTIVO', 'Efectivo'),
+        ('TARJETA', 'Tarjeta'),
+        ('TRANSFERENCIA', 'Transferencia'),
+        ('OTRO', 'Otro'),
+    ]
+
+    ESTADO_CHOICES = [
+        ('PAGADO', 'Pagado'),
+        ('CANCELADO', 'Cancelado'),
+    ]
+
+    folio = models.CharField(
+        max_length=30,
+        unique=True,
+        default=generar_folio_cobro,
+        editable=False
+    )
+
+    token_publico = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False
+    )
+
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='cobros'
+    )
+
+    paciente = models.ForeignKey(
+        Paciente,
+        on_delete=models.PROTECT,
+        related_name='cobros'
+    )
+
+    forma_pago = models.CharField(
+        max_length=20,
+        choices=FORMA_PAGO_CHOICES,
+        default='EFECTIVO'
+    )
+
+    total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    monto_recibido = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        blank=True,
+        null=True
+    )
+
+    cambio = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    telefono_envio = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='PAGADO'
+    )
+
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='cobros_registrados',
+        blank=True,
+        null=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = ['-creado_el']
+        indexes = [
+            models.Index(
+                fields=['institucion', 'paciente', 'creado_el']
+            ),
+            models.Index(
+                fields=['folio']
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.folio} - ${self.total:.2f}'
+
+
 class CargoPaciente(models.Model):
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente'),
@@ -1506,6 +1623,14 @@ class CargoPaciente(models.Model):
 
     estudio = models.ForeignKey(
         Estudio,
+        on_delete=models.SET_NULL,
+        related_name='cargos',
+        blank=True,
+        null=True
+    )
+
+    cobro = models.ForeignKey(
+        Cobro,
         on_delete=models.SET_NULL,
         related_name='cargos',
         blank=True,

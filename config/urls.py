@@ -188,6 +188,24 @@ urlpatterns = [
         name='servicios_paciente_recepcion'
     ),
 
+    path(
+        'recepcion/cobro/<int:cobro_id>/completado/',
+        views.cobro_exitoso,
+        name='cobro_exitoso'
+    ),
+
+    path(
+        'recepcion/cobro/<int:cobro_id>/ticket/',
+        views.ticket_cobro,
+        name='ticket_cobro'
+    ),
+
+    path(
+        'comprobante/<uuid:token>/pdf/',
+        views.comprobante_cobro_pdf,
+        name='comprobante_cobro_pdf'
+    ),
+
     # =========================
     # EXPEDIENTE DEL PACIENTE
     # =========================

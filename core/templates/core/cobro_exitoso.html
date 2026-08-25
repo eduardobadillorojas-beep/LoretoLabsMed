@@ -1,0 +1,71 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Cobro completado | Loreto One{% endblock %}
+
+{% block content %}
+<style>
+    .resultado-wrap { max-width: 820px; margin: 0 auto; padding: 28px 18px 45px; }
+    .resultado-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    .resultado-head { padding: 22px; text-align: center; border-bottom: 1px solid #334155; }
+    .resultado-icono { width: 54px; height: 54px; border-radius: 50%; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; background: rgba(34,197,94,.18); color: #86efac; font-size: 1.7rem; }
+    .resultado-titulo { margin: 0; font-size: 1.4rem; font-weight: 800; }
+    .resultado-sub { color: #94a3b8; font-size: .74rem; margin-top: 4px; }
+    .resultado-body { padding: 18px; }
+    .datos-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+    .dato { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 10px; }
+    .dato-label { color: #94a3b8; font-size: .62rem; text-transform: uppercase; }
+    .dato-value { margin-top: 3px; font-size: .9rem; font-weight: 700; }
+    .total { color: #86efac; font-size: 1.25rem; }
+    .acciones { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+    .acciones .btn { padding: 10px; }
+    .volver { margin-top: 12px; text-align: center; }
+    @media (max-width: 620px) { .datos-grid, .acciones { grid-template-columns: 1fr; } }
+</style>
+
+<div class="resultado-wrap">
+    <section class="resultado-card">
+        <div class="resultado-head">
+            <div class="resultado-icono">✓</div>
+            <h1 class="resultado-titulo">Cobro completado</h1>
+            <div class="resultado-sub">El comprobante quedó guardado y puede reimprimirse.</div>
+        </div>
+
+        <div class="resultado-body">
+            <div class="datos-grid">
+                <div class="dato"><div class="dato-label">Folio</div><div class="dato-value">{{ cobro.folio }}</div></div>
+                <div class="dato"><div class="dato-label">Fecha</div><div class="dato-value">{{ cobro.creado_el|date:"d/m/Y H:i" }}</div></div>
+                <div class="dato"><div class="dato-label">Paciente</div><div class="dato-value">{{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}</div></div>
+                <div class="dato"><div class="dato-label">Forma de pago</div><div class="dato-value">{{ cobro.get_forma_pago_display }}</div></div>
+                <div class="dato"><div class="dato-label">Total pagado</div><div class="dato-value total">${{ cobro.total|floatformat:2 }}</div></div>
+                <div class="dato"><div class="dato-label">Cambio</div><div class="dato-value">${{ cobro.cambio|floatformat:2 }}</div></div>
+            </div>
+
+            <div class="acciones">
+                <a href="{% url 'ticket_cobro' cobro.id %}" target="_blank" class="btn btn-primary">Imprimir ticket de 80 mm</a>
+                <a href="{{ enlace_pdf }}" target="_blank" class="btn btn-outline-light">Abrir o descargar PDF</a>
+                {% if enlace_whatsapp %}
+                    <a href="{{ enlace_whatsapp }}" target="_blank" class="btn btn-success">Enviar por WhatsApp</a>
+                {% else %}
+                    <button class="btn btn-secondary" disabled>Paciente sin teléfono</button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-info" id="copiarEnlace">Copiar enlace digital</button>
+            </div>
+
+            <div class="volver">
+                <a href="{% url 'servicios_paciente_recepcion' cobro.paciente.id %}" class="btn btn-link">Volver a la cuenta del paciente</a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    document.getElementById('copiarEnlace').addEventListener('click', async function () {
+        await navigator.clipboard.writeText('{{ enlace_pdf|escapejs }}');
+        this.textContent = 'Enlace copiado';
+    });
+
+    {% if salida == 'IMPRESO' or salida == 'AMBOS' %}
+        window.open('{% url "ticket_cobro" cobro.id %}', '_blank');
+    {% endif %}
+</script>
+{% endblock %}

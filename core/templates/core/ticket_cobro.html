@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket {{ cobro.folio }}</title>
+    <style>
+        @page { size: 80mm auto; margin: 3mm; }
+        * { box-sizing: border-box; }
+        body { width: 74mm; margin: 0 auto; color: #000; background: #fff; font-family: Arial, sans-serif; font-size: 10px; line-height: 1.3; }
+        .centrado { text-align: center; }
+        .logo { display: block; max-width: 28mm; max-height: 18mm; object-fit: contain; margin: 0 auto 2mm; }
+        .nombre { font-size: 14px; font-weight: 800; }
+        .separador { border-top: 1px dashed #000; margin: 3mm 0; }
+        .fila { display: flex; justify-content: space-between; gap: 3mm; }
+        .concepto { margin-bottom: 2mm; }
+        .concepto-nombre { font-weight: 700; }
+        .concepto-datos { display: flex; justify-content: space-between; gap: 2mm; }
+        .totales { font-size: 11px; }
+        .total { font-size: 14px; font-weight: 800; }
+        .pie { margin-top: 4mm; font-size: 9px; text-align: center; }
+        .no-imprimir { text-align: center; margin: 12px 0; }
+        @media print { .no-imprimir { display: none; } body { width: 74mm; } }
+    </style>
+</head>
+<body>
+    <div class="no-imprimir">
+        <button type="button" onclick="window.print()">Imprimir ticket</button>
+    </div>
+
+    <header class="centrado">
+        {% if cobro.institucion.logo %}
+            <img src="{{ cobro.institucion.logo.url }}" alt="Logo" class="logo">
+        {% endif %}
+        <div class="nombre">{{ cobro.institucion.nombre_comercial|default:cobro.institucion.nombre }}</div>
+        {% if cobro.institucion.rfc %}<div>RFC: {{ cobro.institucion.rfc }}</div>{% endif %}
+        {% if cobro.institucion.direccion %}<div>{{ cobro.institucion.direccion }}</div>{% endif %}
+        {% if cobro.institucion.telefono %}<div>Tel. {{ cobro.institucion.telefono }}</div>{% endif %}
+    </header>
+
+    <div class="separador"></div>
+    <div class="centrado"><strong>COMPROBANTE DE PAGO</strong></div>
+    <div class="fila"><span>Folio:</span><strong>{{ cobro.folio }}</strong></div>
+    <div class="fila"><span>Fecha:</span><span>{{ cobro.creado_el|date:"d/m/Y H:i" }}</span></div>
+    <div>Paciente: {{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}</div>
+    <div>Registro: {{ cobro.paciente.identificacion }}</div>
+    <div>Atendió: {{ cobro.creado_por.get_full_name|default:cobro.creado_por.username }}</div>
+
+    <div class="separador"></div>
+    {% for cargo in cobro.cargos.all %}
+        <div class="concepto">
+            <div class="concepto-nombre">{{ cargo.descripcion }}</div>
+            <div class="concepto-datos">
+                <span>{{ cargo.cantidad|floatformat:2 }} × ${{ cargo.precio_unitario|floatformat:2 }}</span>
+                <strong>${{ cargo.subtotal|floatformat:2 }}</strong>
+            </div>
+        </div>
+    {% endfor %}
+
+    <div class="separador"></div>
+    <div class="totales">
+        <div class="fila total"><span>TOTAL</span><span>${{ cobro.total|floatformat:2 }}</span></div>
+        <div class="fila"><span>Forma de pago</span><span>{{ cobro.get_forma_pago_display }}</span></div>
+        {% if cobro.forma_pago == 'EFECTIVO' %}
+            <div class="fila"><span>Recibido</span><span>${{ cobro.monto_recibido|floatformat:2 }}</span></div>
+            <div class="fila"><span>Cambio</span><span>${{ cobro.cambio|floatformat:2 }}</span></div>
+        {% endif %}
+    </div>
+
+    <footer class="pie">
+        {% if cobro.institucion.pie_documentos %}<div>{{ cobro.institucion.pie_documentos }}</div>{% endif %}
+        <div>Gracias por su preferencia.</div>
+        <div>Comprobante interno. No sustituye un CFDI.</div>
+    </footer>
+
+    <script>window.addEventListener('load', function () { window.print(); });</script>
+</body>
+</html>

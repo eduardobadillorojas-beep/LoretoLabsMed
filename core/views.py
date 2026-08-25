@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 import logging
+from urllib.parse import quote
 from xml.sax.saxutils import escape
 
 from django.contrib import messages
@@ -13,6 +14,7 @@ from django.db.models import Prefetch, Q
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from reportlab.lib import colors
@@ -44,6 +46,7 @@ from .models import (
     BitacoraRadiologica,
     CargoPaciente,
     Cita,
+    Cobro,
     Consulta,
     Estudio,
     EstudioSolicitado,
@@ -2063,6 +2066,138 @@ def servicios_paciente_recepcion(
                 'Servicio agregado a la cuenta del paciente.'
             )
 
+        elif accion == 'COBRAR':
+            cargos_ids = request.POST.getlist(
+                'cargos_ids'
+            )
+
+            cargos_seleccionados = list(
+                CargoPaciente.objects
+                .filter(
+                    pk__in=cargos_ids,
+                    institucion=membresia.institucion,
+                    paciente=paciente,
+                    estado='PENDIENTE',
+                    cobro__isnull=True,
+                )
+            )
+
+            if not cargos_seleccionados:
+                messages.error(
+                    request,
+                    'Selecciona al menos un cargo pendiente.'
+                )
+                return redirect(
+                    'servicios_paciente_recepcion',
+                    paciente_id=paciente.id,
+                )
+
+            forma_pago = request.POST.get(
+                'forma_pago',
+                'EFECTIVO'
+            ).strip()
+
+            formas_validas = {
+                valor
+                for valor, etiqueta
+                in Cobro.FORMA_PAGO_CHOICES
+            }
+
+            if forma_pago not in formas_validas:
+                forma_pago = 'OTRO'
+
+            total_cobro = sum(
+                (
+                    cargo.subtotal
+                    for cargo in cargos_seleccionados
+                ),
+                Decimal('0.00')
+            )
+
+            monto_recibido = None
+            cambio = Decimal('0.00')
+
+            if forma_pago == 'EFECTIVO':
+                try:
+                    monto_recibido = Decimal(
+                        request.POST.get(
+                            'monto_recibido',
+                            str(total_cobro)
+                        )
+                    ).quantize(
+                        Decimal('0.01')
+                    )
+
+                    if monto_recibido < total_cobro:
+                        raise InvalidOperation
+
+                    if monto_recibido > Decimal('9999999999.99'):
+                        raise InvalidOperation
+
+                    cambio = (
+                        monto_recibido
+                        - total_cobro
+                    ).quantize(
+                        Decimal('0.01')
+                    )
+                except (InvalidOperation, ValueError):
+                    messages.error(
+                        request,
+                        'El efectivo recibido debe cubrir el total.'
+                    )
+                    return redirect(
+                        'servicios_paciente_recepcion',
+                        paciente_id=paciente.id,
+                    )
+
+            telefono_envio = (
+                request.POST.get(
+                    'telefono_envio',
+                    ''
+                ).strip()
+                or paciente.telefono
+                or None
+            )
+
+            with transaction.atomic():
+                cobro = Cobro.objects.create(
+                    institucion=membresia.institucion,
+                    paciente=paciente,
+                    forma_pago=forma_pago,
+                    total=total_cobro,
+                    monto_recibido=monto_recibido,
+                    cambio=cambio,
+                    telefono_envio=telefono_envio,
+                    creado_por=request.user,
+                )
+
+                CargoPaciente.objects.filter(
+                    pk__in=[
+                        cargo.pk
+                        for cargo in cargos_seleccionados
+                    ]
+                ).update(
+                    estado='PAGADO',
+                    cobro=cobro,
+                    actualizado_el=timezone.now(),
+                )
+
+            salida = request.POST.get(
+                'salida',
+                'DIGITAL'
+            ).strip()
+
+            destino = reverse(
+                'cobro_exitoso',
+                kwargs={
+                    'cobro_id': cobro.id,
+                }
+            )
+
+            return redirect(
+                f'{destino}?salida={salida}'
+            )
+
         elif accion in [
             'PAGAR',
             'CANCELAR',
@@ -2115,6 +2250,7 @@ def servicios_paciente_recepcion(
         .select_related(
             'servicio',
             'agregado_por',
+            'cobro',
         )
         .order_by('-creado_el')
     )
@@ -2246,6 +2382,384 @@ def servicios_paciente_recepcion(
         'core/servicios_paciente_recepcion.html',
         context
     )
+
+
+def construir_pdf_cobro(cobro):
+    buffer = BytesIO()
+
+    documento = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.4 * cm,
+        bottomMargin=1.4 * cm,
+        title=f'Comprobante {cobro.folio}',
+    )
+
+    estilos = getSampleStyleSheet()
+
+    titulo = ParagraphStyle(
+        'TituloCobro',
+        parent=estilos['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=18,
+        textColor=colors.HexColor('#17365d'),
+    )
+
+    normal = ParagraphStyle(
+        'NormalCobro',
+        parent=estilos['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+    )
+
+    pequeno = ParagraphStyle(
+        'PequenoCobro',
+        parent=normal,
+        fontSize=7,
+        leading=8.5,
+        textColor=colors.HexColor('#475569'),
+    )
+
+    institucion = cobro.institucion
+    paciente = cobro.paciente
+    historia = []
+
+    logo = None
+
+    if institucion.logo:
+        try:
+            institucion.logo.open('rb')
+            datos_logo = institucion.logo.read()
+            institucion.logo.close()
+
+            if datos_logo:
+                logo = Image(
+                    BytesIO(datos_logo),
+                    width=2.2 * cm,
+                    height=1.5 * cm,
+                    kind='proportional',
+                )
+        except Exception:
+            logo = None
+
+    nombre_institucion = (
+        institucion.nombre_comercial
+        or institucion.nombre
+    )
+
+    datos_institucion = [
+        Paragraph(
+            escape(nombre_institucion),
+            titulo
+        )
+    ]
+
+    if institucion.rfc:
+        datos_institucion.append(
+            Paragraph(
+                f'RFC: {escape(institucion.rfc)}',
+                pequeno
+            )
+        )
+
+    if institucion.direccion:
+        datos_institucion.append(
+            Paragraph(
+                escape(institucion.direccion),
+                pequeno
+            )
+        )
+
+    if institucion.telefono:
+        datos_institucion.append(
+            Paragraph(
+                f'Tel. {escape(institucion.telefono)}',
+                pequeno
+            )
+        )
+
+    encabezado = Table(
+        [[logo or '', datos_institucion]],
+        colWidths=[2.6 * cm, 15.4 * cm],
+    )
+
+    encabezado.setStyle(
+        TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LINEBELOW', (0, 0), (-1, -1), 1, colors.HexColor('#17365d')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ])
+    )
+
+    historia.append(encabezado)
+    historia.append(Spacer(1, 10))
+    historia.append(
+        Paragraph(
+            'COMPROBANTE DE PAGO',
+            titulo
+        )
+    )
+    historia.append(Spacer(1, 6))
+
+    fecha_local = timezone.localtime(
+        cobro.creado_el
+    )
+
+    datos_cobro = [
+        ['Folio', cobro.folio],
+        ['Fecha', fecha_local.strftime('%d/%m/%Y %H:%M')],
+        [
+            'Paciente',
+            f'{paciente.nombre} {paciente.apellido}'
+        ],
+        ['Registro', paciente.identificacion],
+        ['Forma de pago', cobro.get_forma_pago_display()],
+    ]
+
+    tabla_datos = Table(
+        datos_cobro,
+        colWidths=[3.2 * cm, 14.8 * cm],
+    )
+
+    tabla_datos.setStyle(
+        TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ])
+    )
+
+    historia.append(tabla_datos)
+    historia.append(Spacer(1, 10))
+
+    filas = [[
+        'Concepto',
+        'Cantidad',
+        'Precio',
+        'Subtotal',
+    ]]
+
+    for cargo in cobro.cargos.all():
+        filas.append([
+            Paragraph(
+                escape(cargo.descripcion),
+                normal
+            ),
+            f'{cargo.cantidad:.2f}',
+            f'${cargo.precio_unitario:.2f}',
+            f'${cargo.subtotal:.2f}',
+        ])
+
+    tabla_cargos = Table(
+        filas,
+        colWidths=[10.2 * cm, 2.2 * cm, 2.8 * cm, 2.8 * cm],
+        repeatRows=1,
+    )
+
+    tabla_cargos.setStyle(
+        TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#17365d')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+            ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), .35, colors.HexColor('#cbd5e1')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ])
+    )
+
+    historia.append(tabla_cargos)
+    historia.append(Spacer(1, 10))
+
+    totales = [
+        ['TOTAL PAGADO', f'${cobro.total:.2f}'],
+    ]
+
+    if cobro.forma_pago == 'EFECTIVO':
+        totales.extend([
+            [
+                'EFECTIVO RECIBIDO',
+                f'${cobro.monto_recibido:.2f}'
+            ],
+            ['CAMBIO', f'${cobro.cambio:.2f}'],
+        ])
+
+    tabla_totales = Table(
+        totales,
+        colWidths=[14.5 * cm, 3.5 * cm],
+    )
+
+    tabla_totales.setStyle(
+        TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#17365d')),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ])
+    )
+
+    historia.append(tabla_totales)
+    historia.append(Spacer(1, 18))
+    historia.append(
+        Paragraph(
+            'Este documento es un comprobante interno de pago y no sustituye un CFDI.',
+            pequeno
+        )
+    )
+
+    if institucion.pie_documentos:
+        historia.append(Spacer(1, 6))
+        historia.append(
+            Paragraph(
+                escape(institucion.pie_documentos),
+                pequeno
+            )
+        )
+
+    documento.build(historia)
+    contenido = buffer.getvalue()
+    buffer.close()
+    return contenido
+
+
+@login_required
+def cobro_exitoso(
+    request,
+    cobro_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None or membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        return redirect('inicio')
+
+    cobro = get_object_or_404(
+        Cobro.objects.select_related(
+            'institucion',
+            'paciente',
+            'creado_por',
+        ).prefetch_related('cargos'),
+        pk=cobro_id,
+        institucion=membresia.institucion,
+    )
+
+    enlace_pdf = request.build_absolute_uri(
+        reverse(
+            'comprobante_cobro_pdf',
+            kwargs={
+                'token': cobro.token_publico,
+            }
+        )
+    )
+
+    telefono = ''.join(
+        caracter
+        for caracter in (cobro.telefono_envio or '')
+        if caracter.isdigit()
+    )
+
+    if len(telefono) == 10:
+        telefono = f'52{telefono}'
+
+    mensaje = (
+        f'Hola. Compartimos su comprobante de pago '
+        f'{cobro.folio} de '
+        f'{cobro.institucion.nombre_comercial or cobro.institucion.nombre}: '
+        f'{enlace_pdf}'
+    )
+
+    enlace_whatsapp = ''
+
+    if telefono:
+        enlace_whatsapp = (
+            f'https://wa.me/{telefono}?text={quote(mensaje)}'
+        )
+
+    context = {
+        'cobro': cobro,
+        'enlace_pdf': enlace_pdf,
+        'enlace_whatsapp': enlace_whatsapp,
+        'salida': request.GET.get('salida', 'DIGITAL'),
+    }
+
+    return render(
+        request,
+        'core/cobro_exitoso.html',
+        context
+    )
+
+
+@login_required
+def ticket_cobro(
+    request,
+    cobro_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None or membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        return redirect('inicio')
+
+    cobro = get_object_or_404(
+        Cobro.objects.select_related(
+            'institucion',
+            'paciente',
+            'creado_por',
+        ).prefetch_related('cargos'),
+        pk=cobro_id,
+        institucion=membresia.institucion,
+    )
+
+    return render(
+        request,
+        'core/ticket_cobro.html',
+        {
+            'cobro': cobro,
+        }
+    )
+
+
+def comprobante_cobro_pdf(
+    request,
+    token
+):
+    cobro = get_object_or_404(
+        Cobro.objects.select_related(
+            'institucion',
+            'paciente',
+            'creado_por',
+        ).prefetch_related('cargos'),
+        token_publico=token,
+        estado='PAGADO',
+    )
+
+    contenido = construir_pdf_cobro(cobro)
+
+    response = HttpResponse(
+        contenido,
+        content_type='application/pdf'
+    )
+
+    response['Content-Disposition'] = (
+        f'inline; filename="comprobante-{cobro.folio}.pdf"'
+    )
+
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Cache-Control'] = 'private, no-store'
+    return response
 
 
 @login_required
@@ -4188,6 +4702,16 @@ def panel_config(request):
                 ''
             )
             .strip()
+            or None
+        )
+
+        institucion.rfc = (
+            request.POST.get(
+                'rfc',
+                ''
+            )
+            .strip()
+            .upper()
             or None
         )
 

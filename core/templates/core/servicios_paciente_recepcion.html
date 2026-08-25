@@ -234,6 +234,47 @@ Cuenta del paciente | Loreto One
         margin: 0;
     }
 
+    .cobro-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1.2fr;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .salida-opciones {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        min-height: 34px;
+    }
+
+    .salida-opcion {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: #cbd5e1;
+        font-size: .68rem;
+    }
+
+    .cobro-acciones {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .seleccion-total {
+        color: #94a3b8;
+        font-size: .7rem;
+    }
+
+    .seleccion-total strong {
+        color: #fde68a;
+        font-size: 1rem;
+    }
+
     .lista-vacia {
         padding: 24px 14px;
         text-align: center;
@@ -259,7 +300,8 @@ Cuenta del paciente | Loreto One
 
     @media (max-width: 800px) {
         .stats-cuenta,
-        .cargo-grid {
+        .cargo-grid,
+        .cobro-grid {
             grid-template-columns: 1fr;
         }
 
@@ -427,73 +469,164 @@ Cuenta del paciente | Loreto One
         <div class="panel-header">Movimientos de la cuenta</div>
 
         {% if cargos %}
-            <div class="table-responsive">
-                <table class="table table-dark table-hover cuenta-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Concepto</th>
-                            <th>Cantidad</th>
-                            <th>Precio</th>
-                            <th>Subtotal</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
+            <form method="post" id="formCobro">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="COBRAR">
 
-                    <tbody>
-                        {% for cargo in cargos %}
+                <div class="panel-body">
+                    <div class="cobro-grid">
+                        <div>
+                            <label class="campo-label">Forma de pago</label>
+                            <select name="forma_pago" id="formaPago" class="campo-select">
+                                <option value="EFECTIVO">Efectivo</option>
+                                <option value="TARJETA">Tarjeta</option>
+                                <option value="TRANSFERENCIA">Transferencia</option>
+                                <option value="OTRO">Otro</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="campo-label">Efectivo recibido</label>
+                            <input
+                                type="number"
+                                name="monto_recibido"
+                                id="montoRecibido"
+                                class="campo-input"
+                                min="0"
+                                step="0.01"
+                                value="0.00"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="campo-label">Teléfono para envío</label>
+                            <input
+                                type="text"
+                                name="telefono_envio"
+                                class="campo-input"
+                                value="{{ paciente.telefono|default_if_none:'' }}"
+                                placeholder="10 dígitos"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="campo-label">Entrega del comprobante</label>
+                            <div class="salida-opciones">
+                                <label class="salida-opcion">
+                                    <input type="radio" name="salida" value="IMPRESO">
+                                    Impreso
+                                </label>
+                                <label class="salida-opcion">
+                                    <input type="radio" name="salida" value="DIGITAL" checked>
+                                    Digital
+                                </label>
+                                <label class="salida-opcion">
+                                    <input type="radio" name="salida" value="AMBOS">
+                                    Ambos
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cobro-acciones">
+                        <div class="seleccion-total">
+                            Total seleccionado: <strong id="totalSeleccionado">$0.00</strong>
+                            · Cambio: <strong id="cambioCobro">$0.00</strong>
+                        </div>
+
+                        <button type="submit" class="btn btn-success btn-sm">
+                            Cobrar seleccionados
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover cuenta-table">
+                        <thead>
                             <tr>
-                                <td>{{ cargo.creado_el|date:"d/m/Y H:i" }}</td>
-                                <td>
-                                    <div class="servicio-nombre">{{ cargo.descripcion }}</div>
-                                    <div class="servicio-detalle">
-                                        {{ cargo.get_origen_display }}
-                                        {% if cargo.notas %} · {{ cargo.notas }}{% endif %}
-                                    </div>
-                                </td>
-                                <td>{{ cargo.cantidad|floatformat:2 }}</td>
-                                <td>${{ cargo.precio_unitario|floatformat:2 }}</td>
-                                <td><strong>${{ cargo.subtotal|floatformat:2 }}</strong></td>
-                                <td>
-                                    {% if cargo.estado == 'PENDIENTE' %}
-                                        <span class="estado estado-pendiente">Pendiente</span>
-                                    {% elif cargo.estado == 'PAGADO' %}
-                                        <span class="estado estado-pagado">Pagado</span>
-                                    {% else %}
-                                        <span class="estado estado-cancelado">Cancelado</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if cargo.estado == 'PENDIENTE' %}
-                                        <div class="acciones-cargo">
-                                            <form method="post">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="accion" value="PAGAR">
-                                                <input type="hidden" name="cargo_id" value="{{ cargo.id }}">
-                                                <button type="submit" class="btn btn-success btn-sm">
-                                                    Marcar pagado
-                                                </button>
-                                            </form>
-
-                                            <form method="post">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="accion" value="CANCELAR">
-                                                <input type="hidden" name="cargo_id" value="{{ cargo.id }}">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm">
-                                                    Cancelar
-                                                </button>
-                                            </form>
-                                        </div>
-                                    {% else %}
-                                        <span class="text-secondary">Sin acciones</span>
-                                    {% endif %}
-                                </td>
+                                <th>
+                                    <input type="checkbox" id="seleccionarTodos">
+                                </th>
+                                <th>Fecha</th>
+                                <th>Concepto</th>
+                                <th>Cantidad</th>
+                                <th>Precio</th>
+                                <th>Subtotal</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
                             </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+
+                        <tbody>
+                            {% for cargo in cargos %}
+                                <tr>
+                                    <td>
+                                        {% if cargo.estado == 'PENDIENTE' and not cargo.cobro_id %}
+                                            <input
+                                                type="checkbox"
+                                                name="cargos_ids"
+                                                value="{{ cargo.id }}"
+                                                class="cargo-check"
+                                                data-subtotal="{{ cargo.subtotal }}"
+                                            >
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ cargo.creado_el|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        <div class="servicio-nombre">{{ cargo.descripcion }}</div>
+                                        <div class="servicio-detalle">
+                                            {{ cargo.get_origen_display }}
+                                            {% if cargo.notas %} · {{ cargo.notas }}{% endif %}
+                                        </div>
+                                    </td>
+                                    <td>{{ cargo.cantidad|floatformat:2 }}</td>
+                                    <td>${{ cargo.precio_unitario|floatformat:2 }}</td>
+                                    <td><strong>${{ cargo.subtotal|floatformat:2 }}</strong></td>
+                                    <td>
+                                        {% if cargo.estado == 'PENDIENTE' %}
+                                            <span class="estado estado-pendiente">Pendiente</span>
+                                        {% elif cargo.estado == 'PAGADO' %}
+                                            <span class="estado estado-pagado">Pagado</span>
+                                        {% else %}
+                                            <span class="estado estado-cancelado">Cancelado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if cargo.estado == 'PENDIENTE' %}
+                                            <button
+                                                type="submit"
+                                                class="btn btn-outline-danger btn-sm"
+                                                form="cancelarCargo{{ cargo.id }}"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        {% elif cargo.cobro_id %}
+                                            <a
+                                                href="{% url 'cobro_exitoso' cargo.cobro_id %}"
+                                                class="btn btn-outline-light btn-sm"
+                                            >
+                                                Comprobante
+                                            </a>
+                                        {% else %}
+                                            <span class="text-secondary">Sin comprobante</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </form>
+
+            {% for cargo in cargos %}
+                {% if cargo.estado == 'PENDIENTE' %}
+                    <form method="post" id="cancelarCargo{{ cargo.id }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="CANCELAR">
+                        <input type="hidden" name="cargo_id" value="{{ cargo.id }}">
+                    </form>
+                {% endif %}
+            {% endfor %}
         {% else %}
             <div class="lista-vacia">
                 La cuenta de este paciente todavía no tiene cargos.
@@ -570,6 +703,59 @@ Cuenta del paciente | Loreto One
         cantidad.addEventListener('input', actualizarTotal);
         precio.addEventListener('input', actualizarTotal);
         actualizarServicio();
+
+        const checks = Array.from(
+            document.querySelectorAll('.cargo-check')
+        );
+        const seleccionarTodos = document.getElementById('seleccionarTodos');
+        const totalSeleccionado = document.getElementById('totalSeleccionado');
+        const cambioCobro = document.getElementById('cambioCobro');
+        const formaPago = document.getElementById('formaPago');
+        const montoRecibido = document.getElementById('montoRecibido');
+
+        function calcularCobro() {
+            if (!formaPago || !montoRecibido || !totalSeleccionado || !cambioCobro) {
+                return;
+            }
+
+            const totalCobro = checks
+                .filter((check) => check.checked)
+                .reduce(
+                    (suma, check) => suma + parseFloat(check.dataset.subtotal || '0'),
+                    0
+                );
+
+            totalSeleccionado.textContent = '$' + totalCobro.toFixed(2);
+
+            if (formaPago.value === 'EFECTIVO') {
+                montoRecibido.disabled = false;
+                const recibido = parseFloat(montoRecibido.value || '0');
+                const cambio = Math.max(recibido - totalCobro, 0);
+                cambioCobro.textContent = '$' + cambio.toFixed(2);
+            } else {
+                montoRecibido.disabled = true;
+                cambioCobro.textContent = '$0.00';
+            }
+        }
+
+        if (seleccionarTodos) {
+            seleccionarTodos.addEventListener('change', function () {
+                checks.forEach((check) => {
+                    check.checked = seleccionarTodos.checked;
+                });
+                calcularCobro();
+            });
+        }
+
+        checks.forEach((check) => {
+            check.addEventListener('change', calcularCobro);
+        });
+
+        if (formaPago && montoRecibido) {
+            formaPago.addEventListener('change', calcularCobro);
+            montoRecibido.addEventListener('input', calcularCobro);
+        }
+        calcularCobro();
     })();
 </script>
 

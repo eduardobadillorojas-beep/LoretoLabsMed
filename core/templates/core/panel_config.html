@@ -305,6 +305,21 @@ Configuración | Loreto One
 
                         <div>
                             <label class="config-label">
+                                RFC
+                            </label>
+
+                            <input
+                                type="text"
+                                name="rfc"
+                                class="config-input"
+                                maxlength="13"
+                                value="{{ institucion.rfc|default_if_none:'' }}"
+                                placeholder="RFC de la institución"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="config-label">
                                 Teléfono principal
                             </label>
 
