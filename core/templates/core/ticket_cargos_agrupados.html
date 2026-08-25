@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticket agrupado {{ paciente.identificacion }}</title>
+    <style>
+        @page { size: 58mm auto; margin: 2mm; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body {
+            width: 54mm;
+            max-width: 54mm;
+            margin: 0 auto;
+            color: #000;
+            background: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 9px;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+        .centrado { text-align: center; }
+        .logo {
+            display: block;
+            max-width: 24mm;
+            max-height: 14mm;
+            object-fit: contain;
+            margin: 0 auto 1.5mm;
+        }
+        .nombre { font-size: 12px; font-weight: 800; }
+        .titulo { font-size: 10px; font-weight: 800; }
+        .separador { border-top: 1px dashed #000; margin: 2mm 0; }
+        .fila {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 2mm;
+            align-items: start;
+        }
+        .fila span:last-child { text-align: right; }
+        .concepto { margin-bottom: 2mm; }
+        .concepto-nombre { font-weight: 700; }
+        .concepto-folio { font-size: 7.5px; }
+        .concepto-datos {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            column-gap: 2mm;
+        }
+        .concepto-datos strong { text-align: right; white-space: nowrap; }
+        .total { font-size: 12px; font-weight: 800; }
+        .nota { margin-top: 3mm; font-size: 8px; text-align: center; }
+        .no-imprimir { text-align: center; margin: 12px 0; }
+        @media print {
+            .no-imprimir { display: none; }
+            html, body { width: 54mm; max-width: 54mm; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-imprimir">
+        <button type="button" onclick="window.print()">Imprimir ticket agrupado</button>
+    </div>
+
+    <header class="centrado">
+        {% if institucion.logo %}
+            <img src="{{ institucion.logo.url }}" alt="Logo" class="logo">
+        {% endif %}
+        <div class="nombre">{{ institucion.nombre_comercial|default:institucion.nombre }}</div>
+        {% if institucion.rfc %}<div>RFC: {{ institucion.rfc }}</div>{% endif %}
+        {% if institucion.direccion %}<div>{{ institucion.direccion }}</div>{% endif %}
+        {% if institucion.telefono %}<div>Tel. {{ institucion.telefono }}</div>{% endif %}
+    </header>
+
+    <div class="separador"></div>
+    <div class="centrado titulo">COMPROBANTE AGRUPADO</div>
+    <div class="centrado">Servicios previamente pagados</div>
+    <div class="fila"><span>Emisión:</span><span>{{ fecha_emision|date:"d/m/Y H:i" }}</span></div>
+    <div>Paciente: {{ paciente.nombre }} {{ paciente.apellido }}</div>
+    <div>Registro: {{ paciente.identificacion }}</div>
+    <div>Conceptos incluidos: {{ cargos|length }}</div>
+    <div>Emitió: {{ emitido_por.get_full_name|default:emitido_por.username }}</div>
+
+    <div class="separador"></div>
+    {% for cargo in cargos %}
+        <div class="concepto">
+            <div class="concepto-nombre">{{ cargo.descripcion }}</div>
+            <div class="concepto-folio">Folio original: {{ cargo.cobro.folio }}</div>
+            <div class="concepto-datos">
+                <span>{{ cargo.cantidad|floatformat:2 }} x ${{ cargo.precio_unitario|floatformat:2 }}</span>
+                <strong>${{ cargo.subtotal|floatformat:2 }}</strong>
+            </div>
+        </div>
+    {% endfor %}
+
+    <div class="separador"></div>
+    <div class="fila total">
+        <span>TOTAL AGRUPADO</span>
+        <span>${{ total|floatformat:2 }}</span>
+    </div>
+
+    <div class="separador"></div>
+    <div>Folios originales:</div>
+    {% for folio in folios %}
+        <div>{{ folio }}</div>
+    {% endfor %}
+
+    <footer class="nota">
+        <div>Copia agrupada de servicios pagados.</div>
+        <div>No genera un cobro nuevo ni sustituye los folios originales.</div>
+        {% if institucion.pie_documentos %}<div>{{ institucion.pie_documentos }}</div>{% endif %}
+        <div>Gracias por su preferencia.</div>
+    </footer>
+
+    <script>
+        window.addEventListener('load', function () {
+            window.print();
+        });
+    </script>
+</body>
+</html>

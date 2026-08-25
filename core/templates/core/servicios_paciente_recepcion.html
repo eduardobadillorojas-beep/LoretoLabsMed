@@ -325,6 +325,28 @@ Cuenta del paciente | Loreto One
         margin-bottom: 10px;
     }
 
+    .agrupado-acciones {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #334155;
+        flex-wrap: wrap;
+    }
+
+    .agrupado-ayuda {
+        color: #94a3b8;
+        font-size: .65rem;
+    }
+
+    .agrupado-botones {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex-wrap: wrap;
+    }
+
     .seleccion-total {
         color: #94a3b8;
         font-size: .7rem;
@@ -669,6 +691,44 @@ Cuenta del paciente | Loreto One
                             <span id="textoBotonCobrar">Cobrar cuenta completa</span>
                         </button>
                     </div>
+
+                    {% if cargos_pagados_con_cobro %}
+                        <div class="agrupado-acciones">
+                            <div>
+                                <label class="salida-opcion">
+                                    <input type="checkbox" id="seleccionarPagados">
+                                    Seleccionar todos los servicios pagados
+                                </label>
+                                <div class="agrupado-ayuda">
+                                    Genera una sola copia impresa sin modificar los cobros originales de Caja.
+                                </div>
+                            </div>
+
+                            <div class="agrupado-botones">
+                                <button
+                                    type="submit"
+                                    name="accion_agrupado"
+                                    value="SELECCIONADOS"
+                                    formaction="{% url 'ticket_cargos_agrupados' paciente.id %}"
+                                    formtarget="_blank"
+                                    class="btn btn-outline-info btn-sm"
+                                >
+                                    Imprimir pagados seleccionados
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    name="accion_agrupado"
+                                    value="TODOS"
+                                    formaction="{% url 'ticket_cargos_agrupados' paciente.id %}"
+                                    formtarget="_blank"
+                                    class="btn btn-outline-light btn-sm"
+                                >
+                                    Imprimir todos los pagados
+                                </button>
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
 
                 <div class="table-responsive">
@@ -701,6 +761,13 @@ Cuenta del paciente | Loreto One
                                                 data-subtotal="{{ cargo.subtotal }}"
                                                 checked
                                                 disabled
+                                            >
+                                        {% elif cargo.estado == 'PAGADO' and cargo.cobro_id %}
+                                            <input
+                                                type="checkbox"
+                                                name="cargos_pagados_ids"
+                                                value="{{ cargo.id }}"
+                                                class="cargo-pagado-check"
                                             >
                                         {% endif %}
                                     </td>
@@ -859,6 +926,10 @@ Cuenta del paciente | Loreto One
         );
         const montoEfectivo = document.getElementById('montoEfectivo');
         const estadoDistribucion = document.getElementById('estadoDistribucion');
+        const seleccionarPagados = document.getElementById('seleccionarPagados');
+        const checksPagados = Array.from(
+            document.querySelectorAll('.cargo-pagado-check')
+        );
 
         function esCuentaCompleta() {
             const seleccionado = modosCobro.find((radio) => radio.checked);
@@ -1000,6 +1071,23 @@ Cuenta del paciente | Loreto One
 
         montosMixtos.forEach((campo) => {
             campo.addEventListener('input', calcularCobro);
+        });
+
+        if (seleccionarPagados) {
+            seleccionarPagados.addEventListener('change', function () {
+                checksPagados.forEach((check) => {
+                    check.checked = seleccionarPagados.checked;
+                });
+            });
+        }
+
+        checksPagados.forEach((check) => {
+            check.addEventListener('change', function () {
+                if (seleccionarPagados) {
+                    seleccionarPagados.checked = checksPagados.length > 0
+                        && checksPagados.every((elemento) => elemento.checked);
+                }
+            });
         });
 
         if (formaPago && montoRecibido) {

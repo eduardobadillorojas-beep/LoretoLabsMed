@@ -2549,6 +2549,12 @@ def servicios_paciente_recepcion(
         if cargo.estado == 'PAGADO'
     ]
 
+    cargos_pagados_con_cobro = [
+        cargo
+        for cargo in cargos_pagados
+        if cargo.cobro_id
+    ]
+
     total_pendiente = sum(
         (
             cargo.subtotal
@@ -2647,6 +2653,7 @@ def servicios_paciente_recepcion(
         'cargos': cargos,
         'cargos_pendientes': cargos_pendientes,
         'cargos_pagados': cargos_pagados,
+        'cargos_pagados_con_cobro': cargos_pagados_con_cobro,
         'total_pendiente': total_pendiente,
         'total_pagado': total_pagado,
         'servicios_catalogo': servicios_catalogo,
@@ -3025,6 +3032,102 @@ def ticket_cobro(
         'core/ticket_cobro.html',
         {
             'cobro': cobro,
+        }
+    )
+
+
+@login_required
+def ticket_cargos_agrupados(
+    request,
+    paciente_id
+):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None or membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        return redirect('inicio')
+
+    paciente = get_object_or_404(
+        Paciente,
+        pk=paciente_id,
+        institucion=membresia.institucion,
+    )
+
+    if request.method != 'POST':
+        return redirect(
+            'servicios_paciente_recepcion',
+            paciente_id=paciente.id,
+        )
+
+    accion_agrupado = request.POST.get(
+        'accion_agrupado',
+        'SELECCIONADOS'
+    ).strip()
+
+    cargos_queryset = (
+        CargoPaciente.objects
+        .filter(
+            institucion=membresia.institucion,
+            paciente=paciente,
+            estado='PAGADO',
+            cobro__isnull=False,
+            cobro__estado='PAGADO',
+        )
+        .select_related(
+            'cobro',
+            'cobro__creado_por',
+        )
+        .order_by(
+            'cobro__creado_el',
+            'creado_el',
+            'pk',
+        )
+    )
+
+    if accion_agrupado != 'TODOS':
+        cargos_ids = request.POST.getlist(
+            'cargos_pagados_ids'
+        )
+        cargos_queryset = cargos_queryset.filter(
+            pk__in=cargos_ids
+        )
+
+    cargos = list(cargos_queryset)
+
+    if not cargos:
+        messages.error(
+            request,
+            'Selecciona al menos un servicio pagado para imprimirlo.'
+        )
+        return redirect(
+            'servicios_paciente_recepcion',
+            paciente_id=paciente.id,
+        )
+
+    total = sum(
+        (cargo.subtotal for cargo in cargos),
+        Decimal('0.00')
+    ).quantize(Decimal('0.01'))
+
+    folios = []
+
+    for cargo in cargos:
+        if cargo.cobro.folio not in folios:
+            folios.append(cargo.cobro.folio)
+
+    return render(
+        request,
+        'core/ticket_cargos_agrupados.html',
+        {
+            'institucion': membresia.institucion,
+            'paciente': paciente,
+            'cargos': cargos,
+            'folios': folios,
+            'total': total,
+            'fecha_emision': timezone.now(),
+            'emitido_por': request.user,
         }
     )
 

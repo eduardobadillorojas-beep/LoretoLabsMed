@@ -207,6 +207,12 @@ urlpatterns = [
     ),
 
     path(
+        'recepcion/paciente/<int:paciente_id>/ticket-agrupado/',
+        views.ticket_cargos_agrupados,
+        name='ticket_cargos_agrupados'
+    ),
+
+    path(
         'comprobante/<uuid:token>/pdf/',
         views.comprobante_cobro_pdf,
         name='comprobante_cobro_pdf'
