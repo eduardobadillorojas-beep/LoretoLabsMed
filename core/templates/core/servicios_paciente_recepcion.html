@@ -555,7 +555,6 @@ Cuenta del paciente | Loreto One
         {% if cargos %}
             <form method="post" id="formCobro">
                 {% csrf_token %}
-                <input type="hidden" name="accion" value="COBRAR">
 
                 <div class="panel-body">
                     <label class="campo-label">¿Qué se cobrará?</label>
@@ -687,9 +686,22 @@ Cuenta del paciente | Loreto One
                             · <span id="estadoDistribucion"></span>
                         </div>
 
-                        <button type="submit" class="btn btn-success btn-sm">
+                        <button type="submit" name="accion" value="COBRAR" class="btn btn-success btn-sm">
                             <span id="textoBotonCobrar">Cobrar cuenta completa</span>
                         </button>
+                    </div>
+
+                    <div class="agrupado-acciones">
+                        <div>
+                            <strong>Otorgar crédito</strong>
+                            <div class="agrupado-ayuda">Los conceptos seleccionados quedarán con saldo pendiente y podrán pagarse por abonos.</div>
+                        </div>
+                        <div class="agrupado-botones">
+                            <input type="number" name="numero_cuotas" min="1" max="120" value="1" class="campo-input" title="Número de cuotas" style="max-width:110px">
+                            <input type="date" name="fecha_vencimiento" min="{{ hoy|date:'Y-m-d' }}" class="campo-input" title="Fecha límite">
+                            <input type="text" name="notas_credito" class="campo-input" placeholder="Motivo o autorización" style="min-width:190px">
+                            <button type="submit" name="accion" value="CREAR_CREDITO" class="btn btn-warning btn-sm">Crear crédito</button>
+                        </div>
                     </div>
 
                     {% if cargos_pagados_con_cobro %}
@@ -787,6 +799,8 @@ Cuenta del paciente | Loreto One
                                             <span class="estado estado-pendiente">Pendiente</span>
                                         {% elif cargo.estado == 'PAGADO' %}
                                             <span class="estado estado-pagado">Pagado</span>
+                                        {% elif cargo.estado == 'CREDITO' %}
+                                            <span class="estado estado-pendiente">A crédito</span>
                                         {% else %}
                                             <span class="estado estado-cancelado">Cancelado</span>
                                         {% endif %}
@@ -833,6 +847,35 @@ Cuenta del paciente | Loreto One
             </div>
         {% endif %}
     </section>
+
+    {% if creditos %}
+    <section class="panel-cuenta">
+        <div class="panel-header"><h2 class="historial-title">Créditos y abonos</h2></div>
+        {% for credito in creditos %}
+        <div class="panel-body" style="border-bottom:1px solid #334155">
+            <div class="seleccion-total">
+                <strong>{{ credito.folio }}</strong> · Total ${{ credito.total|floatformat:2 }} · Abonado ${{ credito.total_abonado|floatformat:2 }} · <strong>Saldo ${{ credito.saldo|floatformat:2 }}</strong> · {{ credito.get_estado_display }} · Vence {{ credito.fecha_vencimiento|date:"d/m/Y" }} · {{ credito.numero_cuotas }} cuota(s)
+            </div>
+            {% if credito.estado == 'VIGENTE' or credito.estado == 'VENCIDO' %}
+            <form method="post" action="{% url 'registrar_abono_credito' credito.id %}" class="pago-mixto-grid visible" style="margin-top:12px">
+                {% csrf_token %}
+                <div><label class="campo-label">Efectivo</label><input type="number" name="abono_efectivo" min="0" step="0.01" value="0.00" class="campo-input"><input type="number" name="abono_recibido" min="0" step="0.01" value="0.00" class="campo-input mt-1" placeholder="Recibido"></div>
+                <div><label class="campo-label">Tarjeta</label><input type="number" name="abono_tarjeta" min="0" step="0.01" value="0.00" class="campo-input"><input type="text" name="abono_referencia_tarjeta" class="campo-input mt-1" placeholder="Referencia"></div>
+                <div><label class="campo-label">Transferencia</label><input type="number" name="abono_transferencia" min="0" step="0.01" value="0.00" class="campo-input"><input type="text" name="abono_referencia_transferencia" class="campo-input mt-1" placeholder="Referencia"></div>
+                <div><label class="campo-label">Otro</label><input type="number" name="abono_otro" min="0" step="0.01" value="0.00" class="campo-input"><button type="submit" class="btn btn-success btn-sm mt-1">Registrar abono</button></div>
+            </form>
+            {% endif %}
+            {% if credito.abonos.all %}
+            <div style="margin-top:10px">
+                {% for abono in credito.abonos.all %}
+                    <a class="btn btn-outline-light btn-sm" target="_blank" href="{% url 'ticket_abono_credito' abono.id %}">{{ abono.folio }} · ${{ abono.monto|floatformat:2 }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
 
     <section class="panel-cuenta">
         <div class="panel-header">

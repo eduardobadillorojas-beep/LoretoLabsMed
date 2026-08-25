@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal
 import uuid
 
 
@@ -8,6 +9,18 @@ def generar_folio_cobro():
     fecha = timezone.now().strftime('%Y%m%d')
     aleatorio = uuid.uuid4().hex[:8].upper()
     return f'CB-{fecha}-{aleatorio}'
+
+
+def generar_folio_credito():
+    fecha = timezone.now().strftime('%Y%m%d')
+    aleatorio = uuid.uuid4().hex[:8].upper()
+    return f'CR-{fecha}-{aleatorio}'
+
+
+def generar_folio_abono():
+    fecha = timezone.now().strftime('%Y%m%d')
+    aleatorio = uuid.uuid4().hex[:8].upper()
+    return f'AB-{fecha}-{aleatorio}'
 
 
 class Institucion(models.Model):
@@ -1675,9 +1688,78 @@ class PagoCobro(models.Model):
         )
 
 
+class CreditoPaciente(models.Model):
+    ESTADO_CHOICES = [
+        ('VIGENTE', 'Vigente'),
+        ('LIQUIDADO', 'Liquidado'),
+        ('VENCIDO', 'Vencido'),
+        ('CANCELADO', 'Cancelado'),
+    ]
+
+    folio = models.CharField(max_length=30, unique=True, default=generar_folio_credito, editable=False)
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='creditos')
+    paciente = models.ForeignKey(Paciente, on_delete=models.PROTECT, related_name='creditos')
+    total = models.DecimalField(max_digits=12, decimal_places=2)
+    saldo = models.DecimalField(max_digits=12, decimal_places=2)
+    numero_cuotas = models.PositiveIntegerField(default=1)
+    fecha_vencimiento = models.DateField()
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='VIGENTE')
+    notas = models.CharField(max_length=300, blank=True, null=True)
+    autorizado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='creditos_autorizados', blank=True, null=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='creditos_registrados', blank=True, null=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-creado_el']
+        indexes = [models.Index(fields=['institucion', 'paciente', 'estado'], name='credito_inst_pac_estado_idx')]
+
+    @property
+    def total_abonado(self):
+        return (self.total - self.saldo).quantize(Decimal('0.01'))
+
+    def __str__(self):
+        return f'{self.folio} - {self.paciente} - ${self.saldo:.2f}'
+
+
+class AbonoCredito(models.Model):
+    FORMA_PAGO_CHOICES = PagoCobro.FORMA_PAGO_CHOICES
+    folio = models.CharField(max_length=30, unique=True, default=generar_folio_abono, editable=False)
+    token_publico = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    credito = models.ForeignKey(CreditoPaciente, on_delete=models.PROTECT, related_name='abonos')
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    forma_pago = models.CharField(max_length=20, choices=FORMA_PAGO_CHOICES, default='EFECTIVO')
+    referencia = models.CharField(max_length=100, blank=True, null=True)
+    monto_recibido = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    cambio = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='abonos_credito_registrados', blank=True, null=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['creado_el', 'pk']
+
+    def __str__(self):
+        return f'{self.folio} - ${self.monto:.2f}'
+
+
+class PagoAbonoCredito(models.Model):
+    FORMA_PAGO_CHOICES = PagoCobro.FORMA_PAGO_CHOICES
+    abono = models.ForeignKey(AbonoCredito, on_delete=models.CASCADE, related_name='pagos')
+    forma_pago = models.CharField(max_length=20, choices=FORMA_PAGO_CHOICES)
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    referencia = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        ordering = ['pk']
+
+    def __str__(self):
+        return f'{self.abono.folio} - {self.get_forma_pago_display()} ${self.monto:.2f}'
+
+
 class CargoPaciente(models.Model):
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente'),
+        ('CREDITO', 'A crédito'),
         ('PAGADO', 'Pagado'),
         ('CANCELADO', 'Cancelado'),
     ]
@@ -1733,6 +1815,14 @@ class CargoPaciente(models.Model):
 
     cobro = models.ForeignKey(
         Cobro,
+        on_delete=models.SET_NULL,
+        related_name='cargos',
+        blank=True,
+        null=True
+    )
+
+    credito = models.ForeignKey(
+        CreditoPaciente,
         on_delete=models.SET_NULL,
         related_name='cargos',
         blank=True,

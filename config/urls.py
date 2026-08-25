@@ -213,6 +213,18 @@ urlpatterns = [
     ),
 
     path(
+        'recepcion/credito/<int:credito_id>/abonar/',
+        views.registrar_abono_credito,
+        name='registrar_abono_credito'
+    ),
+
+    path(
+        'recepcion/credito/abono/<int:abono_id>/ticket/',
+        views.ticket_abono_credito,
+        name='ticket_abono_credito'
+    ),
+
+    path(
         'recepcion/paciente/<int:paciente_id>/ticket-agrupado/',
         views.ticket_cargos_agrupados,
         name='ticket_cargos_agrupados'

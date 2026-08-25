@@ -45,6 +45,9 @@ from .models import (
     ArchivoEstudio,
     BitacoraRadiologica,
     CargoPaciente,
+    CreditoPaciente,
+    AbonoCredito,
+    PagoAbonoCredito,
     Cita,
     Cobro,
     Consulta,
@@ -1951,16 +1954,26 @@ def caja_recepcion(request):
         )
 
     cobros = list(cobros_queryset)
+    abonos_credito = list(
+        AbonoCredito.objects.filter(
+            credito__institucion=membresia.institucion,
+            creado_el__date=fecha_consulta,
+        ).select_related('credito__paciente', 'registrado_por').prefetch_related('pagos').order_by('-creado_el')
+    )
+    if busqueda:
+        texto = busqueda.lower()
+        abonos_credito = [a for a in abonos_credito if texto in a.folio.lower() or texto in a.credito.folio.lower() or texto in a.credito.paciente.identificacion.lower() or texto in f'{a.credito.paciente.nombre} {a.credito.paciente.apellido}'.lower()]
     cobros_creados_dia = [
         cobro
         for cobro in cobros
         if timezone.localtime(cobro.creado_el).date() == fecha_consulta
     ]
 
+    total_abonos = sum((abono.monto for abono in abonos_credito), Decimal('0.00'))
     total_bruto = sum(
         (cobro.total for cobro in cobros_creados_dia),
         Decimal('0.00')
-    )
+    ) + total_abonos
 
     cobros_cancelados_dia = [
         cobro
@@ -2003,12 +2016,20 @@ def caja_recepcion(request):
         elif cobro.forma_pago in totales_forma:
             totales_forma[cobro.forma_pago] += cobro.total
 
+    for abono in abonos_credito:
+        abono.pagos_mostrables = list(abono.pagos.all())
+        for pago in abono.pagos_mostrables:
+            if pago.forma_pago in totales_forma:
+                totales_forma[pago.forma_pago] += pago.monto
+
     context = {
         'membresia': membresia,
         'fecha_consulta': fecha_consulta,
         'fecha_texto': fecha_consulta.isoformat(),
         'busqueda': busqueda,
         'cobros': cobros,
+        'abonos_credito': abonos_credito,
+        'total_abonos': total_abonos,
         'total_general': total_general,
         'total_bruto': total_bruto,
         'total_reembolsado': total_reembolsado,
@@ -2016,7 +2037,7 @@ def caja_recepcion(request):
         'total_tarjeta': totales_forma['TARJETA'],
         'total_transferencia': totales_forma['TRANSFERENCIA'],
         'total_otro': totales_forma['OTRO'],
-        'numero_cobros': len(cobros_creados_dia),
+        'numero_cobros': len(cobros_creados_dia) + len(abonos_credito),
         'numero_reembolsos': len(cobros_cancelados_dia),
     }
 
@@ -2211,6 +2232,43 @@ def servicios_paciente_recepcion(
                 request,
                 'Servicio agregado a la cuenta del paciente.'
             )
+
+        elif accion == 'CREAR_CREDITO':
+            cargos_ids = request.POST.getlist('cargos_ids')
+            modo_cobro = request.POST.get('modo_cobro', 'TOTAL').strip()
+
+            try:
+                numero_cuotas = int(request.POST.get('numero_cuotas', '1'))
+                fecha_vencimiento = date.fromisoformat(request.POST.get('fecha_vencimiento', ''))
+                if numero_cuotas < 1 or numero_cuotas > 120 or fecha_vencimiento < timezone.localdate():
+                    raise ValueError
+            except (TypeError, ValueError):
+                messages.error(request, 'Indica cuotas y una fecha de vencimiento válidas.')
+                return redirect('servicios_paciente_recepcion', paciente_id=paciente.id)
+
+            with transaction.atomic():
+                seleccion = CargoPaciente.objects.select_for_update().filter(
+                    institucion=membresia.institucion, paciente=paciente,
+                    estado='PENDIENTE', cobro__isnull=True, credito__isnull=True,
+                ).order_by('creado_el', 'pk')
+                if modo_cobro != 'TOTAL':
+                    seleccion = seleccion.filter(pk__in=cargos_ids)
+                cargos_credito = list(seleccion)
+                if not cargos_credito:
+                    messages.error(request, 'Selecciona al menos un cargo pendiente para el crédito.')
+                    return redirect('servicios_paciente_recepcion', paciente_id=paciente.id)
+                total_credito = sum((c.subtotal for c in cargos_credito), Decimal('0.00')).quantize(Decimal('0.01'))
+                credito = CreditoPaciente.objects.create(
+                    institucion=membresia.institucion, paciente=paciente,
+                    total=total_credito, saldo=total_credito,
+                    numero_cuotas=numero_cuotas, fecha_vencimiento=fecha_vencimiento,
+                    notas=request.POST.get('notas_credito', '').strip() or None,
+                    autorizado_por=request.user, creado_por=request.user,
+                )
+                CargoPaciente.objects.filter(pk__in=[c.pk for c in cargos_credito]).update(
+                    estado='CREDITO', credito=credito, actualizado_el=timezone.now()
+                )
+            messages.success(request, f'Crédito {credito.folio} creado por ${credito.total:.2f}.')
 
         elif accion == 'COBRAR':
             modo_cobro = request.POST.get(
@@ -2583,6 +2641,17 @@ def servicios_paciente_recepcion(
         if cargo.cobro_id
     ]
 
+    creditos = list(
+        CreditoPaciente.objects.filter(
+            institucion=membresia.institucion,
+            paciente=paciente,
+        ).prefetch_related('abonos', 'cargos').order_by('-creado_el')
+    )
+    for credito in creditos:
+        if credito.estado == 'VIGENTE' and credito.saldo > 0 and credito.fecha_vencimiento < timezone.localdate():
+            credito.estado = 'VENCIDO'
+            credito.save(update_fields=['estado', 'actualizado_el'])
+
     total_pendiente = sum(
         (
             cargo.subtotal
@@ -2692,6 +2761,8 @@ def servicios_paciente_recepcion(
         'total_pendientes': total_pendientes,
         'resumen_servicios': resumen_servicios,
         'membresia': membresia,
+        'creditos': creditos,
+        'hoy': timezone.localdate(),
     }
 
     return render(
@@ -2699,6 +2770,79 @@ def servicios_paciente_recepcion(
         'core/servicios_paciente_recepcion.html',
         context
     )
+
+
+@login_required
+def registrar_abono_credito(request, credito_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    credito = get_object_or_404(
+        CreditoPaciente.objects.select_related('paciente', 'institucion'),
+        pk=credito_id, institucion=membresia.institucion,
+    )
+    if request.method != 'POST' or credito.estado not in ['VIGENTE', 'VENCIDO']:
+        messages.error(request, 'El crédito no admite abonos.')
+        return redirect('servicios_paciente_recepcion', paciente_id=credito.paciente_id)
+
+    pagos = []
+    try:
+        for forma, campo in [('EFECTIVO', 'abono_efectivo'), ('TARJETA', 'abono_tarjeta'), ('TRANSFERENCIA', 'abono_transferencia'), ('OTRO', 'abono_otro')]:
+            monto = Decimal(request.POST.get(campo, '0').strip() or '0').quantize(Decimal('0.01'))
+            if monto < 0:
+                raise InvalidOperation
+            if monto > 0:
+                pagos.append((forma, monto, request.POST.get(f'abono_referencia_{forma.lower()}', '').strip() or None))
+        total_abono = sum((p[1] for p in pagos), Decimal('0.00')).quantize(Decimal('0.01'))
+        if total_abono <= 0 or total_abono > credito.saldo:
+            raise InvalidOperation
+        efectivo = next((p[1] for p in pagos if p[0] == 'EFECTIVO'), Decimal('0.00'))
+        recibido = None
+        cambio = Decimal('0.00')
+        if efectivo:
+            recibido = Decimal(request.POST.get('abono_recibido', str(efectivo))).quantize(Decimal('0.01'))
+            if recibido < efectivo:
+                raise InvalidOperation
+            cambio = recibido - efectivo
+    except (InvalidOperation, ValueError):
+        messages.error(request, 'Revisa los importes: el abono debe ser mayor a cero, no superar el saldo y el efectivo recibido debe cubrir el efectivo aplicado.')
+        return redirect('servicios_paciente_recepcion', paciente_id=credito.paciente_id)
+
+    with transaction.atomic():
+        credito = CreditoPaciente.objects.select_for_update().get(pk=credito.pk)
+        if total_abono > credito.saldo:
+            messages.error(request, 'El saldo cambió; vuelve a intentar.')
+            return redirect('servicios_paciente_recepcion', paciente_id=credito.paciente_id)
+        forma_resumen = pagos[0][0] if len(pagos) == 1 else 'OTRO'
+        abono = AbonoCredito.objects.create(
+            credito=credito, monto=total_abono, forma_pago=forma_resumen,
+            referencia=pagos[0][2] if len(pagos) == 1 else 'Pago mixto',
+            monto_recibido=recibido, cambio=cambio, registrado_por=request.user,
+        )
+        PagoAbonoCredito.objects.bulk_create([
+            PagoAbonoCredito(abono=abono, forma_pago=f, monto=m, referencia=r)
+            for f, m, r in pagos
+        ])
+        credito.saldo = (credito.saldo - total_abono).quantize(Decimal('0.01'))
+        credito.estado = 'LIQUIDADO' if credito.saldo == 0 else ('VENCIDO' if credito.fecha_vencimiento < timezone.localdate() else 'VIGENTE')
+        credito.save(update_fields=['saldo', 'estado', 'actualizado_el'])
+        if credito.estado == 'LIQUIDADO':
+            credito.cargos.update(estado='PAGADO', actualizado_el=timezone.now())
+
+    messages.success(request, f'Abono {abono.folio} registrado por ${abono.monto:.2f}.')
+    return redirect('ticket_abono_credito', abono_id=abono.id)
+
+
+@login_required
+def ticket_abono_credito(request, abono_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    abono = get_object_or_404(
+        AbonoCredito.objects.select_related('credito__paciente', 'credito__institucion', 'registrado_por').prefetch_related('pagos'),
+        pk=abono_id, credito__institucion=membresia.institucion,
+    )
+    return render(request, 'core/ticket_abono_credito.html', {'abono': abono})
 
 
 def construir_pdf_cobro(cobro):

@@ -2,6 +2,9 @@ from django.contrib import admin
 
 from .models import (
     CargoPaciente,
+    CreditoPaciente,
+    AbonoCredito,
+    PagoAbonoCredito,
     Cobro,
     Estudio,
     Institucion,
@@ -22,6 +25,41 @@ class PagoCobroInline(admin.TabularInline):
         'creado_el',
     )
     can_delete = False
+
+
+class PagoAbonoCreditoInline(admin.TabularInline):
+    model = PagoAbonoCredito
+    extra = 0
+    readonly_fields = ('forma_pago', 'monto', 'referencia')
+    can_delete = False
+
+
+class AbonoCreditoInline(admin.TabularInline):
+    model = AbonoCredito
+    extra = 0
+    readonly_fields = ('folio', 'monto', 'forma_pago', 'registrado_por', 'creado_el')
+    can_delete = False
+
+
+@admin.register(CreditoPaciente)
+class CreditoPacienteAdmin(admin.ModelAdmin):
+    list_display = ('folio', 'paciente', 'total', 'saldo', 'estado', 'fecha_vencimiento', 'institucion')
+    list_filter = ('institucion', 'estado', 'fecha_vencimiento')
+    search_fields = ('folio', 'paciente__identificacion', 'paciente__nombre', 'paciente__apellido')
+    readonly_fields = ('folio', 'total', 'saldo', 'autorizado_por', 'creado_por', 'creado_el', 'actualizado_el')
+    inlines = (AbonoCreditoInline,)
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AbonoCredito)
+class AbonoCreditoAdmin(admin.ModelAdmin):
+    list_display = ('folio', 'credito', 'monto', 'forma_pago', 'registrado_por', 'creado_el')
+    search_fields = ('folio', 'credito__folio', 'credito__paciente__identificacion')
+    readonly_fields = ('folio', 'token_publico', 'credito', 'monto', 'forma_pago', 'referencia', 'monto_recibido', 'cambio', 'registrado_por', 'creado_el')
+    inlines = (PagoAbonoCreditoInline,)
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Cobro)

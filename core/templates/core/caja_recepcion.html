@@ -51,6 +51,7 @@
         <div class="resumen-card"><div class="resumen-label">Transferencia</div><div class="resumen-value">${{ total_transferencia|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Otros</div><div class="resumen-value">${{ total_otro|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Reembolsos</div><div class="resumen-value" style="color:#fca5a5;">-${{ total_reembolsado|floatformat:2 }}</div><div class="secundario">{{ numero_reembolsos }} reembolso{{ numero_reembolsos|pluralize }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Abonos a créditos</div><div class="resumen-value">${{ total_abonos|floatformat:2 }}</div><div class="secundario">Incluidos en el neto</div></div>
     </div>
 
     <section class="panel">
@@ -96,5 +97,19 @@
             <div class="vacio">No se encontraron cobros para esta fecha.</div>
         {% endif %}
     </section>
+    {% if abonos_credito %}
+    <section class="panel">
+        <div class="panel-head">Abonos a créditos</div>
+        <div class="table-responsive"><table class="table table-dark table-hover tabla">
+            <thead><tr><th>Hora</th><th>Folio</th><th>Crédito</th><th>Paciente</th><th>Forma</th><th>Recepcionista</th><th>Abono</th><th>Comprobante</th></tr></thead>
+            <tbody>{% for abono in abonos_credito %}<tr>
+                <td>{{ abono.creado_el|date:"H:i" }}</td><td class="folio">{{ abono.folio }}</td><td>{{ abono.credito.folio }}<div class="secundario">Saldo: ${{ abono.credito.saldo|floatformat:2 }}</div></td>
+                <td>{{ abono.credito.paciente.nombre }} {{ abono.credito.paciente.apellido }}<div class="secundario">{{ abono.credito.paciente.identificacion }}</div></td>
+                <td>{% for pago in abono.pagos_mostrables %}<div>{{ pago.get_forma_pago_display }}: ${{ pago.monto|floatformat:2 }}</div>{% endfor %}</td>
+                <td>{{ abono.registrado_por.get_full_name|default:abono.registrado_por.username }}</td><td><strong>${{ abono.monto|floatformat:2 }}</strong></td><td><a target="_blank" href="{% url 'ticket_abono_credito' abono.id %}" class="btn btn-outline-info btn-sm">Abrir</a></td>
+            </tr>{% endfor %}</tbody>
+        </table></div>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}
