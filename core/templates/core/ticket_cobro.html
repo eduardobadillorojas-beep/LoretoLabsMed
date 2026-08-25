@@ -68,8 +68,17 @@
     <div class="separador"></div>
     <div class="totales">
         <div class="fila total"><span>TOTAL</span><span>${{ cobro.total|floatformat:2 }}</span></div>
-        <div class="fila"><span>Forma de pago</span><span>{{ cobro.get_forma_pago_display }}</span></div>
-        {% if cobro.forma_pago == 'EFECTIVO' %}
+        {% if cobro.pagos.all %}
+            {% for pago in cobro.pagos.all %}
+                <div class="fila">
+                    <span>{{ pago.get_forma_pago_display }}</span>
+                    <span>${{ pago.monto|floatformat:2 }}</span>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="fila"><span>Forma de pago</span><span>{{ cobro.get_forma_pago_display }}</span></div>
+        {% endif %}
+        {% if cobro.monto_recibido != None %}
             <div class="fila"><span>Recibido</span><span>${{ cobro.monto_recibido|floatformat:2 }}</span></div>
             <div class="fila"><span>Cambio</span><span>${{ cobro.cambio|floatformat:2 }}</span></div>
         {% endif %}

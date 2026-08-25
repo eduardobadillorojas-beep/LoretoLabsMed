@@ -37,7 +37,18 @@
                 <div class="dato"><div class="dato-label">Folio</div><div class="dato-value">{{ cobro.folio }}</div></div>
                 <div class="dato"><div class="dato-label">Fecha</div><div class="dato-value">{{ cobro.creado_el|date:"d/m/Y H:i" }}</div></div>
                 <div class="dato"><div class="dato-label">Paciente</div><div class="dato-value">{{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}</div></div>
-                <div class="dato"><div class="dato-label">Forma de pago</div><div class="dato-value">{{ cobro.get_forma_pago_display }}</div></div>
+                <div class="dato">
+                    <div class="dato-label">Forma de pago</div>
+                    <div class="dato-value">
+                        {% if cobro.pagos.all %}
+                            {% for pago in cobro.pagos.all %}
+                                <div>{{ pago.get_forma_pago_display }}: ${{ pago.monto|floatformat:2 }}</div>
+                            {% endfor %}
+                        {% else %}
+                            {{ cobro.get_forma_pago_display }}
+                        {% endif %}
+                    </div>
+                </div>
                 <div class="dato"><div class="dato-label">Conceptos incluidos</div><div class="dato-value">{{ cobro.cargos.count }}</div></div>
                 <div class="dato"><div class="dato-label">Total pagado</div><div class="dato-value total">${{ cobro.total|floatformat:2 }}</div></div>
                 <div class="dato"><div class="dato-label">Cambio</div><div class="dato-value">${{ cobro.cambio|floatformat:2 }}</div></div>

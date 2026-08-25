@@ -284,6 +284,31 @@ Cuenta del paciente | Loreto One
         min-height: 34px;
     }
 
+    .pago-tipo-opciones {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    .pago-mixto-grid {
+        display: none;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+        border: 1px solid #475569;
+        border-radius: 8px;
+        background: #0f172a;
+    }
+
+    .pago-mixto-grid.visible {
+        display: grid;
+    }
+
+    .distribucion-ok { color: #86efac; }
+    .distribucion-pendiente { color: #fca5a5; }
+
     .salida-opcion {
         display: flex;
         align-items: center;
@@ -337,7 +362,8 @@ Cuenta del paciente | Loreto One
         .stats-cuenta,
         .cargo-grid,
         .cobro-grid,
-        .modo-cobro {
+        .modo-cobro,
+        .pago-mixto-grid {
             grid-template-columns: 1fr;
         }
 
@@ -544,8 +570,20 @@ Cuenta del paciente | Loreto One
                         </label>
                     </div>
 
+                    <label class="campo-label">Modalidad de pago</label>
+                    <div class="pago-tipo-opciones">
+                        <label class="salida-opcion">
+                            <input type="radio" name="tipo_pago" value="UNICO" class="tipo-pago-radio" checked>
+                            Una sola forma de pago
+                        </label>
+                        <label class="salida-opcion">
+                            <input type="radio" name="tipo_pago" value="MIXTO" class="tipo-pago-radio">
+                            Pago mixto
+                        </label>
+                    </div>
+
                     <div class="cobro-grid">
-                        <div>
+                        <div id="formaPagoUnico">
                             <label class="campo-label">Forma de pago</label>
                             <select name="forma_pago" id="formaPago" class="campo-select">
                                 <option value="EFECTIVO">Efectivo</option>
@@ -598,10 +636,33 @@ Cuenta del paciente | Loreto One
                         </div>
                     </div>
 
+                    <div class="pago-mixto-grid" id="camposPagoMixto">
+                        <div>
+                            <label class="campo-label">Efectivo</label>
+                            <input type="number" name="monto_efectivo" id="montoEfectivo" class="campo-input monto-mixto" min="0" step="0.01" value="0.00">
+                        </div>
+                        <div>
+                            <label class="campo-label">Tarjeta</label>
+                            <input type="number" name="monto_tarjeta" id="montoTarjeta" class="campo-input monto-mixto" min="0" step="0.01" value="0.00">
+                            <input type="text" name="referencia_tarjeta" class="campo-input mt-1" placeholder="Referencia opcional">
+                        </div>
+                        <div>
+                            <label class="campo-label">Transferencia</label>
+                            <input type="number" name="monto_transferencia" id="montoTransferencia" class="campo-input monto-mixto" min="0" step="0.01" value="0.00">
+                            <input type="text" name="referencia_transferencia" class="campo-input mt-1" placeholder="Referencia opcional">
+                        </div>
+                        <div>
+                            <label class="campo-label">Otro</label>
+                            <input type="number" name="monto_otro" id="montoOtro" class="campo-input monto-mixto" min="0" step="0.01" value="0.00">
+                            <input type="text" name="referencia_otro" class="campo-input mt-1" placeholder="Referencia opcional">
+                        </div>
+                    </div>
+
                     <div class="cobro-acciones">
                         <div class="seleccion-total">
                             Total seleccionado: <strong id="totalSeleccionado">$0.00</strong>
                             · Cambio: <strong id="cambioCobro">$0.00</strong>
+                            · <span id="estadoDistribucion"></span>
                         </div>
 
                         <button type="submit" class="btn btn-success btn-sm">
@@ -788,6 +849,16 @@ Cuenta del paciente | Loreto One
             document.querySelectorAll('.modo-cobro-radio')
         );
         const textoBotonCobrar = document.getElementById('textoBotonCobrar');
+        const tiposPago = Array.from(
+            document.querySelectorAll('.tipo-pago-radio')
+        );
+        const formaPagoUnico = document.getElementById('formaPagoUnico');
+        const camposPagoMixto = document.getElementById('camposPagoMixto');
+        const montosMixtos = Array.from(
+            document.querySelectorAll('.monto-mixto')
+        );
+        const montoEfectivo = document.getElementById('montoEfectivo');
+        const estadoDistribucion = document.getElementById('estadoDistribucion');
 
         function esCuentaCompleta() {
             const seleccionado = modosCobro.find((radio) => radio.checked);
@@ -820,6 +891,25 @@ Cuenta del paciente | Loreto One
             calcularCobro();
         }
 
+        function esPagoMixto() {
+            const seleccionado = tiposPago.find((radio) => radio.checked);
+            return seleccionado && seleccionado.value === 'MIXTO';
+        }
+
+        function actualizarTipoPago() {
+            const mixto = esPagoMixto();
+
+            if (formaPagoUnico) {
+                formaPagoUnico.style.display = mixto ? 'none' : 'block';
+            }
+
+            if (camposPagoMixto) {
+                camposPagoMixto.classList.toggle('visible', mixto);
+            }
+
+            calcularCobro();
+        }
+
         function calcularCobro() {
             if (!formaPago || !montoRecibido || !totalSeleccionado || !cambioCobro) {
                 return;
@@ -834,14 +924,49 @@ Cuenta del paciente | Loreto One
 
             totalSeleccionado.textContent = '$' + totalCobro.toFixed(2);
 
-            if (formaPago.value === 'EFECTIVO') {
-                montoRecibido.disabled = false;
-                const recibido = parseFloat(montoRecibido.value || '0');
-                const cambio = Math.max(recibido - totalCobro, 0);
-                cambioCobro.textContent = '$' + cambio.toFixed(2);
+            if (esPagoMixto()) {
+                const totalDistribuido = montosMixtos.reduce(
+                    (suma, campo) => suma + parseFloat(campo.value || '0'),
+                    0
+                );
+                const diferencia = totalCobro - totalDistribuido;
+                const efectivo = parseFloat(montoEfectivo.value || '0');
+
+                montoRecibido.disabled = efectivo <= 0;
+
+                if (efectivo > 0) {
+                    const recibido = parseFloat(montoRecibido.value || '0');
+                    cambioCobro.textContent = '$' + Math.max(
+                        recibido - efectivo,
+                        0
+                    ).toFixed(2);
+                } else {
+                    cambioCobro.textContent = '$0.00';
+                }
+
+                if (Math.abs(diferencia) < 0.005) {
+                    estadoDistribucion.textContent = 'Pago distribuido correctamente';
+                    estadoDistribucion.className = 'distribucion-ok';
+                } else if (diferencia > 0) {
+                    estadoDistribucion.textContent = 'Falta distribuir $' + diferencia.toFixed(2);
+                    estadoDistribucion.className = 'distribucion-pendiente';
+                } else {
+                    estadoDistribucion.textContent = 'Excede por $' + Math.abs(diferencia).toFixed(2);
+                    estadoDistribucion.className = 'distribucion-pendiente';
+                }
             } else {
-                montoRecibido.disabled = true;
-                cambioCobro.textContent = '$0.00';
+                estadoDistribucion.textContent = '';
+                estadoDistribucion.className = '';
+
+                if (formaPago.value === 'EFECTIVO') {
+                    montoRecibido.disabled = false;
+                    const recibido = parseFloat(montoRecibido.value || '0');
+                    const cambio = Math.max(recibido - totalCobro, 0);
+                    cambioCobro.textContent = '$' + cambio.toFixed(2);
+                } else {
+                    montoRecibido.disabled = true;
+                    cambioCobro.textContent = '$0.00';
+                }
             }
         }
 
@@ -869,10 +994,19 @@ Cuenta del paciente | Loreto One
             radio.addEventListener('change', actualizarModoCobro);
         });
 
+        tiposPago.forEach((radio) => {
+            radio.addEventListener('change', actualizarTipoPago);
+        });
+
+        montosMixtos.forEach((campo) => {
+            campo.addEventListener('input', calcularCobro);
+        });
+
         if (formaPago && montoRecibido) {
             formaPago.addEventListener('change', calcularCobro);
             montoRecibido.addEventListener('input', calcularCobro);
         }
+        actualizarTipoPago();
         actualizarModoCobro();
     })();
 </script>

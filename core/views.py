@@ -54,6 +54,7 @@ from .models import (
     MedicamentoReceta,
     MembresiaInstitucion,
     Paciente,
+    PagoCobro,
     PerfilMedico,
     RecetaMedica,
     SesionTrabajo,
@@ -1929,7 +1930,10 @@ def caja_recepcion(request):
             'paciente',
             'creado_por',
         )
-        .prefetch_related('cargos')
+        .prefetch_related(
+            'cargos',
+            'pagos',
+        )
         .order_by('-creado_el')
     )
 
@@ -1954,21 +1958,25 @@ def caja_recepcion(request):
     )
 
     totales_forma = {
-        forma: sum(
-            (
-                cobro.total
-                for cobro in cobros_pagados
-                if cobro.forma_pago == forma
-            ),
-            Decimal('0.00')
-        )
-        for forma in [
-            'EFECTIVO',
-            'TARJETA',
-            'TRANSFERENCIA',
-            'OTRO',
-        ]
+        'EFECTIVO': Decimal('0.00'),
+        'TARJETA': Decimal('0.00'),
+        'TRANSFERENCIA': Decimal('0.00'),
+        'OTRO': Decimal('0.00'),
     }
+
+    for cobro in cobros:
+        pagos_cobro = list(cobro.pagos.all())
+        cobro.pagos_mostrables = pagos_cobro
+
+        if cobro.estado != 'PAGADO':
+            continue
+
+        if pagos_cobro:
+            for pago in pagos_cobro:
+                if pago.forma_pago in totales_forma:
+                    totales_forma[pago.forma_pago] += pago.monto
+        elif cobro.forma_pago in totales_forma:
+            totales_forma[cobro.forma_pago] += cobro.total
 
     context = {
         'membresia': membresia,
@@ -2186,7 +2194,12 @@ def servicios_paciente_recepcion(
                 'cargos_ids'
             )
 
-            forma_pago = request.POST.get(
+            tipo_pago = request.POST.get(
+                'tipo_pago',
+                'UNICO'
+            ).strip()
+
+            forma_pago_solicitada = request.POST.get(
                 'forma_pago',
                 'EFECTIVO'
             ).strip()
@@ -2194,11 +2207,17 @@ def servicios_paciente_recepcion(
             formas_validas = {
                 valor
                 for valor, etiqueta
-                in Cobro.FORMA_PAGO_CHOICES
+                in PagoCobro.FORMA_PAGO_CHOICES
             }
 
-            if forma_pago not in formas_validas:
-                forma_pago = 'OTRO'
+            if forma_pago_solicitada not in formas_validas:
+                forma_pago_solicitada = 'OTRO'
+
+            forma_pago = (
+                'MIXTO'
+                if tipo_pago == 'MIXTO'
+                else forma_pago_solicitada
+            )
 
             telefono_envio = (
                 request.POST.get(
@@ -2255,8 +2274,106 @@ def servicios_paciente_recepcion(
 
                 monto_recibido = None
                 cambio = Decimal('0.00')
+                pagos_a_registrar = []
 
-                if forma_pago == 'EFECTIVO':
+                if forma_pago == 'MIXTO':
+                    nombres_formas = {
+                        'EFECTIVO': 'monto_efectivo',
+                        'TARJETA': 'monto_tarjeta',
+                        'TRANSFERENCIA': 'monto_transferencia',
+                        'OTRO': 'monto_otro',
+                    }
+
+                    try:
+                        for forma, campo in nombres_formas.items():
+                            texto_monto = request.POST.get(
+                                campo,
+                                '0'
+                            ).strip() or '0'
+
+                            monto = Decimal(texto_monto).quantize(
+                                Decimal('0.01')
+                            )
+
+                            if monto < 0 or monto > Decimal('9999999999.99'):
+                                raise InvalidOperation
+
+                            if monto > 0:
+                                pagos_a_registrar.append({
+                                    'forma_pago': forma,
+                                    'monto': monto,
+                                    'referencia': (
+                                        request.POST.get(
+                                            f'referencia_{forma.lower()}',
+                                            ''
+                                        ).strip()
+                                        or None
+                                    ),
+                                })
+
+                        total_distribuido = sum(
+                            (
+                                pago['monto']
+                                for pago in pagos_a_registrar
+                            ),
+                            Decimal('0.00')
+                        ).quantize(Decimal('0.01'))
+
+                        if (
+                            len(pagos_a_registrar) < 2
+                            or total_distribuido != total_cobro
+                        ):
+                            raise InvalidOperation
+                    except (InvalidOperation, ValueError):
+                        messages.error(
+                            request,
+                            (
+                                'En un pago mixto utiliza al menos dos formas '
+                                'y asegúrate de que los importes sumen exactamente '
+                                f'${total_cobro:.2f}.'
+                            )
+                        )
+                        return redirect(
+                            'servicios_paciente_recepcion',
+                            paciente_id=paciente.id,
+                        )
+
+                    efectivo_aplicado = next(
+                        (
+                            pago['monto']
+                            for pago in pagos_a_registrar
+                            if pago['forma_pago'] == 'EFECTIVO'
+                        ),
+                        Decimal('0.00')
+                    )
+
+                    if efectivo_aplicado > 0:
+                        try:
+                            monto_recibido = Decimal(
+                                request.POST.get(
+                                    'monto_recibido',
+                                    str(efectivo_aplicado)
+                                )
+                            ).quantize(Decimal('0.01'))
+
+                            if monto_recibido < efectivo_aplicado:
+                                raise InvalidOperation
+
+                            cambio = (
+                                monto_recibido
+                                - efectivo_aplicado
+                            ).quantize(Decimal('0.01'))
+                        except (InvalidOperation, ValueError):
+                            messages.error(
+                                request,
+                                'El efectivo recibido debe cubrir la parte pagada en efectivo.'
+                            )
+                            return redirect(
+                                'servicios_paciente_recepcion',
+                                paciente_id=paciente.id,
+                            )
+
+                elif forma_pago == 'EFECTIVO':
                     try:
                         monto_recibido = Decimal(
                             request.POST.get(
@@ -2289,6 +2406,24 @@ def servicios_paciente_recepcion(
                             paciente_id=paciente.id,
                         )
 
+                    pagos_a_registrar.append({
+                        'forma_pago': forma_pago,
+                        'monto': total_cobro,
+                        'referencia': None,
+                    })
+                else:
+                    pagos_a_registrar.append({
+                        'forma_pago': forma_pago,
+                        'monto': total_cobro,
+                        'referencia': (
+                            request.POST.get(
+                                f'referencia_{forma_pago.lower()}',
+                                ''
+                            ).strip()
+                            or None
+                        ),
+                    })
+
                 cobro = Cobro.objects.create(
                     institucion=membresia.institucion,
                     paciente=paciente,
@@ -2299,6 +2434,16 @@ def servicios_paciente_recepcion(
                     telefono_envio=telefono_envio,
                     creado_por=request.user,
                 )
+
+                PagoCobro.objects.bulk_create([
+                    PagoCobro(
+                        cobro=cobro,
+                        forma_pago=pago['forma_pago'],
+                        monto=pago['monto'],
+                        referencia=pago['referencia'],
+                    )
+                    for pago in pagos_a_registrar
+                ])
 
                 CargoPaciente.objects.filter(
                     pk__in=[
@@ -2721,7 +2866,15 @@ def construir_pdf_cobro(cobro):
         ['TOTAL PAGADO', f'${cobro.total:.2f}'],
     ]
 
-    if cobro.forma_pago == 'EFECTIVO':
+    pagos_cobro = list(cobro.pagos.all())
+
+    for pago in pagos_cobro:
+        totales.append([
+            pago.get_forma_pago_display().upper(),
+            f'${pago.monto:.2f}',
+        ])
+
+    if cobro.monto_recibido is not None:
         totales.extend([
             [
                 'EFECTIVO RECIBIDO',
@@ -2787,7 +2940,10 @@ def cobro_exitoso(
             'institucion',
             'paciente',
             'creado_por',
-        ).prefetch_related('cargos'),
+        ).prefetch_related(
+            'cargos',
+            'pagos',
+        ),
         pk=cobro_id,
         institucion=membresia.institucion,
     )
@@ -2856,7 +3012,10 @@ def ticket_cobro(
             'institucion',
             'paciente',
             'creado_por',
-        ).prefetch_related('cargos'),
+        ).prefetch_related(
+            'cargos',
+            'pagos',
+        ),
         pk=cobro_id,
         institucion=membresia.institucion,
     )
@@ -2879,7 +3038,10 @@ def comprobante_cobro_pdf(
             'institucion',
             'paciente',
             'creado_por',
-        ).prefetch_related('cargos'),
+        ).prefetch_related(
+            'cargos',
+            'pagos',
+        ),
         token_publico=token,
         estado='PAGADO',
     )

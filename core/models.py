@@ -1477,6 +1477,7 @@ class Cobro(models.Model):
         ('TARJETA', 'Tarjeta'),
         ('TRANSFERENCIA', 'Transferencia'),
         ('OTRO', 'Otro'),
+        ('MIXTO', 'Pago mixto'),
     ]
 
     ESTADO_CHOICES = [
@@ -1571,6 +1572,63 @@ class Cobro(models.Model):
 
     def __str__(self):
         return f'{self.folio} - ${self.total:.2f}'
+
+
+class PagoCobro(models.Model):
+    FORMA_PAGO_CHOICES = [
+        ('EFECTIVO', 'Efectivo'),
+        ('TARJETA', 'Tarjeta'),
+        ('TRANSFERENCIA', 'Transferencia'),
+        ('OTRO', 'Otro'),
+    ]
+
+    cobro = models.ForeignKey(
+        Cobro,
+        on_delete=models.CASCADE,
+        related_name='pagos'
+    )
+
+    forma_pago = models.CharField(
+        max_length=20,
+        choices=FORMA_PAGO_CHOICES
+    )
+
+    monto = models.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
+
+    referencia = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True
+    )
+
+    creado_el = models.DateTimeField(
+        auto_now_add=True
+    )
+
+    class Meta:
+        ordering = ['pk']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(monto__gt=0),
+                name='pago_cobro_monto_positivo'
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['forma_pago', 'creado_el'],
+                name='pago_forma_fecha_idx'
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.cobro.folio} - '
+            f'{self.get_forma_pago_display()} '
+            f'${self.monto:.2f}'
+        )
 
 
 class CargoPaciente(models.Model):

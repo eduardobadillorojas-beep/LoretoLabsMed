@@ -64,7 +64,15 @@
                                 <td>{{ cobro.creado_el|date:"H:i" }}</td>
                                 <td><div class="folio">{{ cobro.folio }}</div><div class="secundario">{{ cobro.cargos.count }} concepto{{ cobro.cargos.count|pluralize }}</div></td>
                                 <td>{{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}<div class="secundario">{{ cobro.paciente.identificacion }}</div></td>
-                                <td>{{ cobro.get_forma_pago_display }}</td>
+                                <td>
+                                    {% if cobro.pagos_mostrables %}
+                                        {% for pago in cobro.pagos_mostrables %}
+                                            <div>{{ pago.get_forma_pago_display }}: ${{ pago.monto|floatformat:2 }}</div>
+                                        {% endfor %}
+                                    {% else %}
+                                        {{ cobro.get_forma_pago_display }}
+                                    {% endif %}
+                                </td>
                                 <td>{{ cobro.creado_por.get_full_name|default:cobro.creado_por.username }}</td>
                                 <td><strong>${{ cobro.total|floatformat:2 }}</strong></td>
                                 <td>{% if cobro.estado == 'PAGADO' %}<span class="estado pagado">Pagado</span>{% else %}<span class="estado cancelado">Cancelado</span>{% endif %}</td>

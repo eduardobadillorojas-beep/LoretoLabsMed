@@ -2,12 +2,60 @@ from django.contrib import admin
 
 from .models import (
     CargoPaciente,
+    Cobro,
     Estudio,
     Institucion,
     MembresiaInstitucion,
     Paciente,
+    PagoCobro,
     Servicio,
 )
+
+
+class PagoCobroInline(admin.TabularInline):
+    model = PagoCobro
+    extra = 0
+    readonly_fields = (
+        'forma_pago',
+        'monto',
+        'referencia',
+        'creado_el',
+    )
+    can_delete = False
+
+
+@admin.register(Cobro)
+class CobroAdmin(admin.ModelAdmin):
+    list_display = (
+        'folio',
+        'paciente',
+        'total',
+        'forma_pago',
+        'estado',
+        'institucion',
+        'creado_el',
+    )
+    list_filter = (
+        'institucion',
+        'forma_pago',
+        'estado',
+        'creado_el',
+    )
+    search_fields = (
+        'folio',
+        'paciente__identificacion',
+        'paciente__nombre',
+        'paciente__apellido',
+    )
+    readonly_fields = (
+        'folio',
+        'token_publico',
+        'total',
+        'monto_recibido',
+        'cambio',
+        'creado_el',
+    )
+    inlines = (PagoCobroInline,)
 
 
 @admin.register(Institucion)
