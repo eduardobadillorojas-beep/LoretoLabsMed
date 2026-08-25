@@ -163,6 +163,12 @@ urlpatterns = [
     ),
 
     path(
+        'recepcion/caja/',
+        views.caja_recepcion,
+        name='caja_recepcion'
+    ),
+
+    path(
         'recepcion/registrar/',
         views.registrar_estudio_recepcion,
         name='registrar_recepcion'

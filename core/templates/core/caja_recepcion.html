@@ -1,0 +1,82 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Caja | Loreto One{% endblock %}
+
+{% block content %}
+<style>
+    .caja-wrap { max-width: 1380px; margin: 0 auto; padding: 18px 20px 40px; }
+    .caja-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+    .caja-title { margin: 0; font-size: 1.55rem; font-weight: 800; }
+    .caja-sub { color: #94a3b8; font-size: .72rem; margin-top: 3px; }
+    .filtros { display: grid; grid-template-columns: .8fr 2fr auto; gap: 9px; padding: 12px; margin-bottom: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 9px; }
+    .campo { width: 100%; border: 1px solid #475569; border-radius: 7px; background: #0f172a; color: #e2e8f0; padding: 8px 9px; font-size: .75rem; }
+    .resumen { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+    .resumen-card { background: #1e293b; border: 1px solid #334155; border-radius: 9px; padding: 11px; }
+    .resumen-label { color: #94a3b8; font-size: .6rem; text-transform: uppercase; }
+    .resumen-value { margin-top: 3px; font-size: 1.15rem; font-weight: 800; }
+    .principal { color: #86efac; }
+    .panel { background: #1e293b; border: 1px solid #334155; border-radius: 9px; overflow: hidden; }
+    .panel-head { padding: 10px 13px; border-bottom: 1px solid #334155; font-size: .8rem; font-weight: 800; }
+    .tabla { width: 100%; margin: 0; font-size: .72rem; }
+    .tabla th { color: #94a3b8; font-size: .59rem; text-transform: uppercase; padding: 8px; white-space: nowrap; }
+    .tabla td { padding: 8px; vertical-align: middle; }
+    .folio { font-weight: 800; }
+    .secundario { color: #94a3b8; font-size: .62rem; }
+    .estado { display: inline-block; border-radius: 999px; padding: 3px 7px; font-size: .59rem; font-weight: 700; }
+    .pagado { color: #bbf7d0; background: rgba(34,197,94,.16); }
+    .cancelado { color: #fca5a5; background: rgba(239,68,68,.15); }
+    .vacio { padding: 28px; text-align: center; color: #64748b; font-size: .74rem; }
+    @media (max-width: 950px) { .resumen { grid-template-columns: repeat(2, 1fr); } .filtros { grid-template-columns: 1fr; } .caja-top { flex-direction: column; } }
+</style>
+
+<div class="caja-wrap">
+    <div class="caja-top">
+        <div>
+            <h1 class="caja-title">Caja e historial de cobros</h1>
+            <div class="caja-sub">Resumen administrativo por fecha y forma de pago.</div>
+        </div>
+        <a href="{% url 'panel_recepcion' %}" class="btn btn-outline-light btn-sm">Volver a Recepción</a>
+    </div>
+
+    <form method="get" class="filtros">
+        <input type="date" name="fecha" value="{{ fecha_texto }}" class="campo">
+        <input type="search" name="buscar" value="{{ busqueda }}" class="campo" placeholder="Buscar folio, paciente o registro">
+        <button type="submit" class="btn btn-primary btn-sm">Consultar</button>
+    </form>
+
+    <div class="resumen">
+        <div class="resumen-card"><div class="resumen-label">Total cobrado</div><div class="resumen-value principal">${{ total_general|floatformat:2 }}</div><div class="secundario">{{ numero_cobros }} cobro{{ numero_cobros|pluralize }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Efectivo</div><div class="resumen-value">${{ total_efectivo|floatformat:2 }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Tarjeta</div><div class="resumen-value">${{ total_tarjeta|floatformat:2 }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Transferencia</div><div class="resumen-value">${{ total_transferencia|floatformat:2 }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Otros</div><div class="resumen-value">${{ total_otro|floatformat:2 }}</div></div>
+    </div>
+
+    <section class="panel">
+        <div class="panel-head">Cobros del {{ fecha_consulta|date:"d/m/Y" }}</div>
+        {% if cobros %}
+            <div class="table-responsive">
+                <table class="table table-dark table-hover tabla">
+                    <thead><tr><th>Hora</th><th>Folio</th><th>Paciente</th><th>Forma</th><th>Recepcionista</th><th>Total</th><th>Estado</th><th>Comprobante</th></tr></thead>
+                    <tbody>
+                        {% for cobro in cobros %}
+                            <tr>
+                                <td>{{ cobro.creado_el|date:"H:i" }}</td>
+                                <td><div class="folio">{{ cobro.folio }}</div><div class="secundario">{{ cobro.cargos.count }} concepto{{ cobro.cargos.count|pluralize }}</div></td>
+                                <td>{{ cobro.paciente.nombre }} {{ cobro.paciente.apellido }}<div class="secundario">{{ cobro.paciente.identificacion }}</div></td>
+                                <td>{{ cobro.get_forma_pago_display }}</td>
+                                <td>{{ cobro.creado_por.get_full_name|default:cobro.creado_por.username }}</td>
+                                <td><strong>${{ cobro.total|floatformat:2 }}</strong></td>
+                                <td>{% if cobro.estado == 'PAGADO' %}<span class="estado pagado">Pagado</span>{% else %}<span class="estado cancelado">Cancelado</span>{% endif %}</td>
+                                <td><a href="{% url 'cobro_exitoso' cobro.id %}" class="btn btn-outline-info btn-sm">Abrir</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="vacio">No se encontraron cobros para esta fecha.</div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

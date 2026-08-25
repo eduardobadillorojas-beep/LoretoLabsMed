@@ -1881,6 +1881,116 @@ def panel_recepcion(request):
 # =========================================================
 
 @login_required
+def caja_recepcion(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in [
+        'RECEPCION',
+        'ADMIN',
+    ]:
+        if membresia.rol == 'MEDICO':
+            return redirect('panel_medico')
+
+        if membresia.rol in [
+            'RADIOLOGIA',
+            'TECNICO',
+        ]:
+            return redirect('panel_radiologo')
+
+        return redirect('inicio')
+
+    fecha_texto = request.GET.get(
+        'fecha',
+        ''
+    ).strip()
+
+    try:
+        fecha_consulta = date.fromisoformat(
+            fecha_texto
+        )
+    except ValueError:
+        fecha_consulta = timezone.localdate()
+
+    busqueda = request.GET.get(
+        'buscar',
+        ''
+    ).strip()
+
+    cobros_queryset = (
+        Cobro.objects
+        .filter(
+            institucion=membresia.institucion,
+            creado_el__date=fecha_consulta,
+        )
+        .select_related(
+            'paciente',
+            'creado_por',
+        )
+        .prefetch_related('cargos')
+        .order_by('-creado_el')
+    )
+
+    if busqueda:
+        cobros_queryset = cobros_queryset.filter(
+            Q(folio__icontains=busqueda)
+            | Q(paciente__nombre__icontains=busqueda)
+            | Q(paciente__apellido__icontains=busqueda)
+            | Q(paciente__identificacion__icontains=busqueda)
+        )
+
+    cobros = list(cobros_queryset)
+    cobros_pagados = [
+        cobro
+        for cobro in cobros
+        if cobro.estado == 'PAGADO'
+    ]
+
+    total_general = sum(
+        (cobro.total for cobro in cobros_pagados),
+        Decimal('0.00')
+    )
+
+    totales_forma = {
+        forma: sum(
+            (
+                cobro.total
+                for cobro in cobros_pagados
+                if cobro.forma_pago == forma
+            ),
+            Decimal('0.00')
+        )
+        for forma in [
+            'EFECTIVO',
+            'TARJETA',
+            'TRANSFERENCIA',
+            'OTRO',
+        ]
+    }
+
+    context = {
+        'membresia': membresia,
+        'fecha_consulta': fecha_consulta,
+        'fecha_texto': fecha_consulta.isoformat(),
+        'busqueda': busqueda,
+        'cobros': cobros,
+        'total_general': total_general,
+        'total_efectivo': totales_forma['EFECTIVO'],
+        'total_tarjeta': totales_forma['TARJETA'],
+        'total_transferencia': totales_forma['TRANSFERENCIA'],
+        'total_otro': totales_forma['OTRO'],
+        'numero_cobros': len(cobros_pagados),
+    }
+
+    return render(
+        request,
+        'core/caja_recepcion.html',
+        context
+    )
+
+@login_required
 def nueva_cita(request):
     institucion = obtener_institucion_usuario(request)
 
