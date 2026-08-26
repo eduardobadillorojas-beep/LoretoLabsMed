@@ -23,6 +23,12 @@ def generar_folio_abono():
     return f'AB-{fecha}-{aleatorio}'
 
 
+def generar_folio_corte_caja():
+    fecha = timezone.now().strftime('%Y%m%d')
+    aleatorio = uuid.uuid4().hex[:8].upper()
+    return f'CC-{fecha}-{aleatorio}'
+
+
 class Institucion(models.Model):
     nombre = models.CharField(
         max_length=200,
@@ -1754,6 +1760,58 @@ class PagoAbonoCredito(models.Model):
 
     def __str__(self):
         return f'{self.abono.folio} - {self.get_forma_pago_display()} ${self.monto:.2f}'
+
+
+class CorteCaja(models.Model):
+    ESTADO_CHOICES = [
+        ('ABIERTA', 'Abierta'),
+        ('CERRADA', 'Cerrada'),
+    ]
+
+    folio = models.CharField(max_length=30, unique=True, default=generar_folio_corte_caja, editable=False)
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='cortes_caja')
+    responsable = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='cortes_caja')
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default='ABIERTA')
+    fondo_inicial = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    abierto_el = models.DateTimeField(auto_now_add=True)
+    cerrado_el = models.DateTimeField(blank=True, null=True)
+    total_cobros = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_abonos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_reembolsos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_neto = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_efectivo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_tarjeta = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_transferencia = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_otro = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    reembolso_efectivo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    efectivo_esperado = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    efectivo_contado = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    efectivo_entregado = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    efectivo_dejado = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    diferencia = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    numero_cobros = models.PositiveIntegerField(default=0)
+    numero_abonos = models.PositiveIntegerField(default=0)
+    numero_reembolsos = models.PositiveIntegerField(default=0)
+    observaciones_apertura = models.CharField(max_length=300, blank=True, null=True)
+    observaciones_cierre = models.CharField(max_length=500, blank=True, null=True)
+    confirmacion_primera = models.BooleanField(default=False)
+    confirmacion_segunda = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-abierto_el']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['institucion', 'responsable'],
+                condition=models.Q(estado='ABIERTA'),
+                name='una_caja_abierta_por_responsable'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['institucion', 'estado', 'abierto_el'], name='corte_inst_estado_fecha_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.folio} - {self.get_estado_display()}'
 
 
 class CargoPaciente(models.Model):

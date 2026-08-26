@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Count, Prefetch, Q
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -45,6 +45,7 @@ from .models import (
     ArchivoEstudio,
     BitacoraRadiologica,
     CargoPaciente,
+    CorteCaja,
     CreditoPaciente,
     AbonoCredito,
     PagoAbonoCredito,
@@ -161,6 +162,83 @@ def obtener_nombre_usuario(usuario):
         return nombre_completo
 
     return usuario.username
+
+
+def calcular_movimientos_corte(corte, hasta=None):
+    hasta = hasta or timezone.now()
+    desde = corte.abierto_el
+    cero = Decimal('0.00')
+    formas = {'EFECTIVO': cero, 'TARJETA': cero, 'TRANSFERENCIA': cero, 'OTRO': cero}
+
+    cobros = list(
+        Cobro.objects.filter(
+            institucion=corte.institucion,
+            creado_por=corte.responsable,
+            creado_el__gte=desde,
+            creado_el__lte=hasta,
+        ).prefetch_related('pagos')
+    )
+    abonos = list(
+        AbonoCredito.objects.filter(
+            credito__institucion=corte.institucion,
+            registrado_por=corte.responsable,
+            creado_el__gte=desde,
+            creado_el__lte=hasta,
+        ).prefetch_related('pagos')
+    )
+    reembolsos = list(
+        Cobro.objects.filter(
+            institucion=corte.institucion,
+            cancelado_por=corte.responsable,
+            cancelado_el__gte=desde,
+            cancelado_el__lte=hasta,
+            estado='CANCELADO',
+        ).prefetch_related('pagos')
+    )
+
+    for cobro in cobros:
+        pagos = list(cobro.pagos.all())
+        if pagos:
+            for pago in pagos:
+                if pago.forma_pago in formas:
+                    formas[pago.forma_pago] += pago.monto
+        elif cobro.forma_pago in formas:
+            formas[cobro.forma_pago] += cobro.total
+
+    for abono in abonos:
+        for pago in abono.pagos.all():
+            if pago.forma_pago in formas:
+                formas[pago.forma_pago] += pago.monto
+
+    total_cobros = sum((c.total for c in cobros), cero)
+    total_abonos = sum((a.monto for a in abonos), cero)
+    total_reembolsos = sum((c.monto_reembolsado for c in reembolsos), cero)
+    reembolso_efectivo = cero
+    for cobro in reembolsos:
+        if cobro.forma_reembolso == 'EFECTIVO':
+            reembolso_efectivo += cobro.monto_reembolsado
+        elif cobro.forma_reembolso == 'MIXTO':
+            reembolso_efectivo += sum(
+                (p.monto for p in cobro.pagos.all() if p.forma_pago == 'EFECTIVO'),
+                cero,
+            )
+    efectivo_esperado = corte.fondo_inicial + formas['EFECTIVO'] - reembolso_efectivo
+
+    return {
+        'total_cobros': total_cobros,
+        'total_abonos': total_abonos,
+        'total_reembolsos': total_reembolsos,
+        'total_neto': total_cobros + total_abonos - total_reembolsos,
+        'total_efectivo': formas['EFECTIVO'],
+        'total_tarjeta': formas['TARJETA'],
+        'total_transferencia': formas['TRANSFERENCIA'],
+        'total_otro': formas['OTRO'],
+        'reembolso_efectivo': reembolso_efectivo,
+        'efectivo_esperado': efectivo_esperado,
+        'numero_cobros': len(cobros),
+        'numero_abonos': len(abonos),
+        'numero_reembolsos': len(reembolsos),
+    }
 
 
 def detectar_tipo_archivo(nombre):
@@ -1885,6 +1963,141 @@ def panel_recepcion(request):
 # =========================================================
 
 @login_required
+def abrir_caja_recepcion(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    if request.method != 'POST':
+        return redirect('caja_recepcion')
+    if CorteCaja.objects.filter(institucion=membresia.institucion, responsable=request.user, estado='ABIERTA').exists():
+        messages.warning(request, 'Ya tienes una caja abierta.')
+        return redirect('caja_recepcion')
+    try:
+        fondo = Decimal(request.POST.get('fondo_inicial', '0')).quantize(Decimal('0.01'))
+        if fondo < 0 or fondo > Decimal('9999999999.99'):
+            raise InvalidOperation
+    except (InvalidOperation, ValueError):
+        messages.error(request, 'Escribe un fondo inicial válido.')
+        return redirect('caja_recepcion')
+    corte = CorteCaja.objects.create(
+        institucion=membresia.institucion,
+        responsable=request.user,
+        fondo_inicial=fondo,
+        observaciones_apertura=request.POST.get('observaciones_apertura', '').strip() or None,
+    )
+    messages.success(request, f'Caja {corte.folio} abierta con ${fondo:.2f}.')
+    return redirect('caja_recepcion')
+
+
+@login_required
+def cerrar_caja_recepcion(request, corte_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    if request.method != 'POST':
+        return redirect('caja_recepcion')
+    with transaction.atomic():
+        corte = get_object_or_404(
+            CorteCaja.objects.select_for_update(),
+            pk=corte_id,
+            institucion=membresia.institucion,
+            responsable=request.user,
+            estado='ABIERTA',
+        )
+        try:
+            contado = Decimal(request.POST.get('efectivo_contado', '')).quantize(Decimal('0.01'))
+            entregado = Decimal(request.POST.get('efectivo_entregado', '')).quantize(Decimal('0.01'))
+            dejado = Decimal(request.POST.get('efectivo_dejado', '')).quantize(Decimal('0.01'))
+            if min(contado, entregado, dejado) < 0 or entregado + dejado != contado:
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            messages.error(request, 'El efectivo contado debe ser igual al dinero entregado más el dinero dejado en caja.')
+            return redirect('caja_recepcion')
+        primera = request.POST.get('confirmacion_primera') == 'SI'
+        segunda = request.POST.get('confirmacion_segunda') == 'SI'
+        if not primera or not segunda:
+            messages.error(request, 'Debes realizar las dos confirmaciones antes de cerrar la caja.')
+            return redirect('caja_recepcion')
+        ahora = timezone.now()
+        resumen = calcular_movimientos_corte(corte, ahora)
+        diferencia = (contado - resumen['efectivo_esperado']).quantize(Decimal('0.01'))
+        observaciones = request.POST.get('observaciones_cierre', '').strip()
+        if diferencia != 0 and not observaciones:
+            messages.error(request, 'Explica el faltante o sobrante antes de cerrar la caja.')
+            return redirect('caja_recepcion')
+        for campo, valor in resumen.items():
+            setattr(corte, campo, valor)
+        corte.efectivo_contado = contado
+        corte.efectivo_entregado = entregado
+        corte.efectivo_dejado = dejado
+        corte.diferencia = diferencia
+        corte.observaciones_cierre = observaciones or None
+        corte.confirmacion_primera = primera
+        corte.confirmacion_segunda = segunda
+        corte.cerrado_el = ahora
+        corte.estado = 'CERRADA'
+        corte.save()
+    messages.success(request, f'Corte {corte.folio} cerrado. Diferencia: ${corte.diferencia:.2f}.')
+    return redirect('ticket_corte_caja', corte_id=corte.id)
+
+
+@login_required
+def ticket_corte_caja(request, corte_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    corte = get_object_or_404(CorteCaja.objects.select_related('institucion', 'responsable'), pk=corte_id, institucion=membresia.institucion, estado='CERRADA')
+    if membresia.rol != 'ADMIN' and corte.responsable_id != request.user.id:
+        return redirect('caja_recepcion')
+    return render(request, 'core/ticket_corte_caja.html', {'corte': corte})
+
+
+@login_required
+def auditoria_cajas(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol != 'ADMIN':
+        return redirect('inicio')
+    hoy = timezone.localdate()
+    try:
+        desde = date.fromisoformat(request.GET.get('desde', ''))
+    except ValueError:
+        desde = hoy.replace(day=1)
+    try:
+        hasta = date.fromisoformat(request.GET.get('hasta', ''))
+    except ValueError:
+        hasta = hoy
+    if desde > hasta:
+        desde, hasta = hasta, desde
+    cortes = list(
+        CorteCaja.objects.filter(
+            institucion=membresia.institucion,
+            estado='CERRADA',
+            cerrado_el__date__range=(desde, hasta),
+        ).select_related('responsable').order_by('-cerrado_el')
+    )
+    servicios_frecuentes = list(
+        CargoPaciente.objects.filter(
+            institucion=membresia.institucion,
+            estado='PAGADO',
+            cobro__estado='PAGADO',
+            cobro__creado_el__date__range=(desde, hasta),
+        ).values('descripcion').annotate(total=Count('id')).order_by('-total', 'descripcion')[:10]
+    )
+    cero = Decimal('0.00')
+    context = {
+        'membresia': membresia, 'cortes': cortes, 'desde': desde, 'hasta': hasta,
+        'total_neto': sum((c.total_neto for c in cortes), cero),
+        'total_efectivo': sum((c.total_efectivo for c in cortes), cero),
+        'total_tarjeta': sum((c.total_tarjeta for c in cortes), cero),
+        'total_transferencia': sum((c.total_transferencia for c in cortes), cero),
+        'total_reembolsos': sum((c.total_reembolsos for c in cortes), cero),
+        'total_diferencias': sum((c.diferencia for c in cortes), cero),
+        'servicios_frecuentes': servicios_frecuentes,
+    }
+    return render(request, 'core/auditoria_cajas.html', context)
+
+
+@login_required
 def caja_recepcion(request):
     membresia = obtener_membresia_usuario(request)
 
@@ -2022,6 +2235,20 @@ def caja_recepcion(request):
             if pago.forma_pago in totales_forma:
                 totales_forma[pago.forma_pago] += pago.monto
 
+    caja_abierta = (
+        CorteCaja.objects.filter(
+            institucion=membresia.institucion,
+            responsable=request.user,
+            estado='ABIERTA',
+        ).first()
+    )
+    resumen_turno = calcular_movimientos_corte(caja_abierta) if caja_abierta else None
+    cortes_propios = CorteCaja.objects.filter(
+        institucion=membresia.institucion,
+        responsable=request.user,
+        estado='CERRADA',
+    ).order_by('-cerrado_el')[:10]
+
     context = {
         'membresia': membresia,
         'fecha_consulta': fecha_consulta,
@@ -2039,6 +2266,9 @@ def caja_recepcion(request):
         'total_otro': totales_forma['OTRO'],
         'numero_cobros': len(cobros_creados_dia) + len(abonos_credito),
         'numero_reembolsos': len(cobros_cancelados_dia),
+        'caja_abierta': caja_abierta,
+        'resumen_turno': resumen_turno,
+        'cortes_propios': cortes_propios,
     }
 
     return render(
@@ -2271,6 +2501,14 @@ def servicios_paciente_recepcion(
             messages.success(request, f'Crédito {credito.folio} creado por ${credito.total:.2f}.')
 
         elif accion == 'COBRAR':
+            if not CorteCaja.objects.filter(
+                institucion=membresia.institucion,
+                responsable=request.user,
+                estado='ABIERTA',
+            ).exists():
+                messages.error(request, 'Debes abrir tu caja antes de registrar un cobro.')
+                return redirect('caja_recepcion')
+
             modo_cobro = request.POST.get(
                 'modo_cobro',
                 'TOTAL'
@@ -2784,6 +3022,9 @@ def registrar_abono_credito(request, credito_id):
     if request.method != 'POST' or credito.estado not in ['VIGENTE', 'VENCIDO']:
         messages.error(request, 'El crédito no admite abonos.')
         return redirect('servicios_paciente_recepcion', paciente_id=credito.paciente_id)
+    if not CorteCaja.objects.filter(institucion=membresia.institucion, responsable=request.user, estado='ABIERTA').exists():
+        messages.error(request, 'Debes abrir tu caja antes de registrar un abono.')
+        return redirect('caja_recepcion')
 
     pagos = []
     try:
@@ -3192,6 +3433,14 @@ def cancelar_cobro_recepcion(
             'cobro_exitoso',
             cobro_id=cobro_id,
         )
+
+    if not CorteCaja.objects.filter(
+        institucion=membresia.institucion,
+        responsable=request.user,
+        estado='ABIERTA',
+    ).exists():
+        messages.error(request, 'Debes abrir tu caja antes de registrar un reembolso.')
+        return redirect('caja_recepcion')
 
     motivo = request.POST.get(
         'motivo_cancelacion',

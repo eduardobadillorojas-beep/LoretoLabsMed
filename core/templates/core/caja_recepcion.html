@@ -26,7 +26,11 @@
     .pagado { color: #bbf7d0; background: rgba(34,197,94,.16); }
     .cancelado { color: #fca5a5; background: rgba(239,68,68,.15); }
     .vacio { padding: 28px; text-align: center; color: #64748b; font-size: .74rem; }
-    @media (max-width: 950px) { .resumen { grid-template-columns: repeat(2, 1fr); } .filtros { grid-template-columns: 1fr; } .caja-top { flex-direction: column; } }
+    .turno { background:#1e293b; border:1px solid #334155; border-radius:9px; padding:14px; margin-bottom:12px; }
+    .turno-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin:10px 0; }
+    .turno-form { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; align-items:end; }
+    .confirmaciones { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:15px; font-size:.72rem; }
+    @media (max-width: 950px) { .resumen,.turno-grid { grid-template-columns: repeat(2, 1fr); } .filtros,.turno-form { grid-template-columns: 1fr; } .caja-top { flex-direction: column; } }
 </style>
 
 <div class="caja-wrap">
@@ -37,6 +41,42 @@
         </div>
         <a href="{% url 'panel_recepcion' %}" class="btn btn-outline-light btn-sm">Volver a Recepción</a>
     </div>
+
+    {% if caja_abierta %}
+    <section class="turno">
+        <div class="caja-top"><div><strong>Caja abierta · {{ caja_abierta.folio }}</strong><div class="secundario">Abierta {{ caja_abierta.abierto_el|date:"d/m/Y H:i" }} · Fondo inicial ${{ caja_abierta.fondo_inicial|floatformat:2 }}</div></div><span class="estado pagado">Turno activo</span></div>
+        <div class="turno-grid">
+            <div class="resumen-card"><div class="resumen-label">Efectivo ingresado</div><div class="resumen-value">${{ resumen_turno.total_efectivo|floatformat:2 }}</div></div>
+            <div class="resumen-card"><div class="resumen-label">Reembolso efectivo</div><div class="resumen-value">-${{ resumen_turno.reembolso_efectivo|floatformat:2 }}</div></div>
+            <div class="resumen-card"><div class="resumen-label">Efectivo esperado</div><div class="resumen-value principal">${{ resumen_turno.efectivo_esperado|floatformat:2 }}</div></div>
+            <div class="resumen-card"><div class="resumen-label">Neto del turno</div><div class="resumen-value">${{ resumen_turno.total_neto|floatformat:2 }}</div></div>
+        </div>
+        <details><summary style="cursor:pointer;font-weight:800;color:#fbbf24;">Cerrar y hacer corte de caja</summary>
+            <form method="post" action="{% url 'cerrar_caja_recepcion' caja_abierta.id %}" class="turno-form" style="margin-top:12px;">
+                {% csrf_token %}
+                <div><label class="secundario">Efectivo contado</label><input class="campo" type="number" name="efectivo_contado" min="0" step="0.01" required></div>
+                <div><label class="secundario">Efectivo que se entrega</label><input class="campo" type="number" name="efectivo_entregado" min="0" step="0.01" required></div>
+                <div><label class="secundario">Efectivo que queda en caja</label><input class="campo" type="number" name="efectivo_dejado" min="0" step="0.01" required></div>
+                <div style="grid-column:1/-1"><label class="secundario">Observaciones o explicación de diferencia</label><input class="campo" type="text" name="observaciones_cierre" maxlength="500" placeholder="Obligatoria cuando exista faltante o sobrante"></div>
+                <div class="confirmaciones">
+                    <label><input type="checkbox" name="confirmacion_primera" value="SI" required> Confirmo que conté físicamente el efectivo.</label>
+                    <label><input type="checkbox" name="confirmacion_segunda" value="SI" required> Confirmo que revisé los importes y deseo cerrar definitivamente.</label>
+                </div>
+                <div style="grid-column:1/-1;text-align:right"><button class="btn btn-danger btn-sm" type="submit" onclick="return confirm('El corte quedará cerrado y no podrá editarse. ¿Continuar?')">Cerrar caja e imprimir corte</button></div>
+            </form>
+        </details>
+    </section>
+    {% else %}
+    <section class="turno">
+        <strong>Abrir caja para comenzar el turno</strong><div class="secundario">Los cobros, abonos y reembolsos requieren una caja abierta.</div>
+        <form method="post" action="{% url 'abrir_caja_recepcion' %}" class="turno-form" style="margin-top:12px;">
+            {% csrf_token %}
+            <div><label class="secundario">Fondo inicial</label><input class="campo" type="number" name="fondo_inicial" min="0" step="0.01" value="0.00" required></div>
+            <div><label class="secundario">Observaciones de apertura</label><input class="campo" type="text" name="observaciones_apertura" maxlength="300" placeholder="Opcional"></div>
+            <div><button class="btn btn-success btn-sm" type="submit">Abrir caja</button></div>
+        </form>
+    </section>
+    {% endif %}
 
     <form method="get" class="filtros">
         <input type="date" name="fecha" value="{{ fecha_texto }}" class="campo">
@@ -109,6 +149,14 @@
                 <td>{{ abono.registrado_por.get_full_name|default:abono.registrado_por.username }}</td><td><strong>${{ abono.monto|floatformat:2 }}</strong></td><td><a target="_blank" href="{% url 'ticket_abono_credito' abono.id %}" class="btn btn-outline-info btn-sm">Abrir</a></td>
             </tr>{% endfor %}</tbody>
         </table></div>
+    </section>
+    {% endif %}
+    {% if cortes_propios %}
+    <section class="panel" style="margin-top:12px">
+        <div class="panel-head">Mis últimos cortes</div>
+        <div class="table-responsive"><table class="table table-dark table-hover tabla"><thead><tr><th>Folio</th><th>Apertura</th><th>Cierre</th><th>Neto</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th>Ticket</th></tr></thead><tbody>
+        {% for corte in cortes_propios %}<tr><td class="folio">{{ corte.folio }}</td><td>{{ corte.abierto_el|date:"d/m/Y H:i" }}</td><td>{{ corte.cerrado_el|date:"d/m/Y H:i" }}</td><td>${{ corte.total_neto|floatformat:2 }}</td><td>${{ corte.efectivo_esperado|floatformat:2 }}</td><td>${{ corte.efectivo_contado|floatformat:2 }}</td><td>${{ corte.diferencia|floatformat:2 }}</td><td><a target="_blank" class="btn btn-outline-info btn-sm" href="{% url 'ticket_corte_caja' corte.id %}">Imprimir</a></td></tr>{% endfor %}
+        </tbody></table></div>
     </section>
     {% endif %}
 </div>

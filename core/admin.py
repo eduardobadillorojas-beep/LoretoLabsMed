@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     CargoPaciente,
+    CorteCaja,
     CreditoPaciente,
     AbonoCredito,
     PagoAbonoCredito,
@@ -39,6 +40,20 @@ class AbonoCreditoInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('folio', 'monto', 'forma_pago', 'registrado_por', 'creado_el')
     can_delete = False
+
+
+@admin.register(CorteCaja)
+class CorteCajaAdmin(admin.ModelAdmin):
+    list_display = ('folio', 'responsable', 'institucion', 'estado', 'fondo_inicial', 'efectivo_esperado', 'efectivo_contado', 'diferencia', 'abierto_el', 'cerrado_el')
+    list_filter = ('institucion', 'estado', 'abierto_el', 'cerrado_el')
+    search_fields = ('folio', 'responsable__username', 'responsable__first_name', 'responsable__last_name')
+    readonly_fields = tuple(field.name for field in CorteCaja._meta.fields)
+    def has_add_permission(self, request):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(CreditoPaciente)

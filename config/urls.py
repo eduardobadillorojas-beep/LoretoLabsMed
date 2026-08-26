@@ -168,6 +168,11 @@ urlpatterns = [
         name='caja_recepcion'
     ),
 
+    path('recepcion/caja/abrir/', views.abrir_caja_recepcion, name='abrir_caja_recepcion'),
+    path('recepcion/caja/<int:corte_id>/cerrar/', views.cerrar_caja_recepcion, name='cerrar_caja_recepcion'),
+    path('recepcion/caja/<int:corte_id>/ticket/', views.ticket_corte_caja, name='ticket_corte_caja'),
+    path('configuracion/auditoria-cajas/', views.auditoria_cajas, name='auditoria_cajas'),
+
     path(
         'recepcion/registrar/',
         views.registrar_estudio_recepcion,

@@ -77,7 +77,6 @@
     <div>Paciente: {{ paciente.nombre }} {{ paciente.apellido }}</div>
     <div>Registro: {{ paciente.identificacion }}</div>
     <div>Conceptos incluidos: {{ cargos|length }}</div>
-    <div>Emitió: {{ emitido_por.get_full_name|default:emitido_por.username }}</div>
 
     <div class="separador"></div>
     {% for cargo in cargos %}
