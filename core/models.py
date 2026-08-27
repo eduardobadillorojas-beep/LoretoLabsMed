@@ -961,6 +961,129 @@ class Estudio(models.Model):
         )
 
 
+class PlantillaReporteRadiologico(models.Model):
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.CASCADE,
+        related_name='plantillas_reportes_radiologicos',
+    )
+    creada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='plantillas_reportes_radiologicos',
+        blank=True,
+        null=True,
+    )
+    tipo_estudio = models.ForeignKey(
+        TipoEstudio,
+        on_delete=models.SET_NULL,
+        related_name='plantillas_reportes_radiologicos',
+        blank=True,
+        null=True,
+    )
+    nombre = models.CharField(max_length=150)
+    modalidad = models.CharField(max_length=20, blank=True)
+    hallazgos_html = models.TextField(blank=True)
+    impresion_html = models.TextField(blank=True)
+    activa = models.BooleanField(default=True)
+    creada_el = models.DateTimeField(auto_now_add=True)
+    actualizada_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['nombre']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['institucion', 'nombre'],
+                name='unique_plantilla_reporte_institucion',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.nombre} - {self.institucion.nombre}'
+
+
+class ReporteRadiologico(models.Model):
+    ESTADO_CHOICES = [
+        ('BORRADOR', 'Borrador'),
+        ('FINAL', 'Final'),
+    ]
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='reportes_radiologicos',
+    )
+    estudio = models.OneToOneField(
+        Estudio,
+        on_delete=models.PROTECT,
+        related_name='reporte_radiologico',
+    )
+    estado = models.CharField(
+        max_length=15,
+        choices=ESTADO_CHOICES,
+        default='BORRADOR',
+    )
+    hallazgos_html = models.TextField(blank=True)
+    impresion_html = models.TextField(blank=True)
+    elaborado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='reportes_radiologicos_elaborados',
+        blank=True,
+        null=True,
+    )
+    finalizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='reportes_radiologicos_finalizados',
+        blank=True,
+        null=True,
+    )
+    creado_el = models.DateTimeField(auto_now_add=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+    finalizado_el = models.DateTimeField(blank=True, null=True)
+    version = models.PositiveIntegerField(default=1)
+    datos_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-actualizado_el']
+
+    def __str__(self):
+        return f'Reporte {self.estudio_id} - {self.estado}'
+
+
+class RevisionReporteRadiologico(models.Model):
+    reporte = models.ForeignKey(
+        ReporteRadiologico,
+        on_delete=models.CASCADE,
+        related_name='revisiones',
+    )
+    version = models.PositiveIntegerField()
+    estado = models.CharField(max_length=15)
+    hallazgos_html = models.TextField(blank=True)
+    impresion_html = models.TextField(blank=True)
+    modificado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='revisiones_reportes_radiologicos',
+        blank=True,
+        null=True,
+    )
+    datos_snapshot = models.JSONField(default=dict, blank=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-version']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['reporte', 'version'],
+                name='unique_revision_reporte_version',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Reporte {self.reporte_id} v{self.version}'
+
+
 class ArchivoEstudio(models.Model):
     TIPO_ARCHIVO_CHOICES = [
         ('DICOM', 'DICOM'),

@@ -153,6 +153,24 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/reporte-radiologico/guardar/',
+        views.guardar_reporte_radiologico,
+        name='guardar_reporte_radiologico'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/reporte-radiologico/plantilla/',
+        views.guardar_plantilla_reporte_radiologico,
+        name='guardar_plantilla_reporte_radiologico'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/reporte-radiologico/pdf/',
+        views.reporte_radiologico_pdf,
+        name='reporte_radiologico_pdf'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/pre-reporte/',
         views.guardar_pre_reporte_estudio,
         name='guardar_pre_reporte_estudio'

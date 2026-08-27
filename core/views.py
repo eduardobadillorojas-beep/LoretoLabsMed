@@ -5,6 +5,7 @@ from pathlib import Path
 import hashlib
 import json
 import logging
+from html.parser import HTMLParser
 from urllib.parse import quote
 from xml.sax.saxutils import escape
 
@@ -18,6 +19,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import strip_tags
 from django.views.decorators.http import require_POST
 
 from reportlab.lib import colors
@@ -73,7 +75,10 @@ from .models import (
     Paciente,
     PagoCobro,
     PerfilMedico,
+    PlantillaReporteRadiologico,
     RecetaMedica,
+    ReporteRadiologico,
+    RevisionReporteRadiologico,
     SesionTrabajo,
     SolicitudEstudio,
     Servicio,
@@ -83,6 +88,44 @@ from .models import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class _LimpiadorReporteHTML(HTMLParser):
+    etiquetas_permitidas = {
+        'b', 'strong', 'i', 'em', 'u', 'br', 'p', 'ul', 'ol', 'li',
+    }
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.partes = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.etiquetas_permitidas:
+            self.partes.append(f'<{tag}>')
+
+    def handle_startendtag(self, tag, attrs):
+        if tag in self.etiquetas_permitidas:
+            self.partes.append(f'<{tag}/>')
+
+    def handle_endtag(self, tag):
+        if tag in self.etiquetas_permitidas and tag != 'br':
+            self.partes.append(f'</{tag}>')
+
+    def handle_data(self, data):
+        self.partes.append(escape(data))
+
+
+def limpiar_html_reporte(valor):
+    limpiador = _LimpiadorReporteHTML()
+    limpiador.feed(valor or '')
+    limpiador.close()
+    return ''.join(limpiador.partes).strip()
+
+
+def texto_plano_reporte(valor):
+    texto = (valor or '').replace('<br>', '\n').replace('<br/>', '\n')
+    texto = texto.replace('</p>', '\n').replace('</li>', '\n')
+    return strip_tags(texto).strip()
 
 
 # =========================================================
@@ -1774,7 +1817,7 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
     membresia = obtener_membresia_usuario(request)
     if membresia is None:
         return redirect('panel_config')
-    if membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+    if membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN']:
         return redirect('panel_config')
 
     instancia = get_object_or_404(
@@ -1870,13 +1913,48 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             }
         )
 
+    estudio = instancia.archivo_estudio.estudio
+    reporte, _ = ReporteRadiologico.objects.get_or_create(
+        institucion=membresia.institucion,
+        estudio=estudio,
+        defaults={'elaborado_por': request.user},
+    )
+    plantillas = (
+        PlantillaReporteRadiologico.objects
+        .filter(institucion=membresia.institucion, activa=True)
+        .filter(
+            Q(tipo_estudio=estudio.tipo_estudio)
+            | Q(tipo_estudio__isnull=True, modalidad=estudio.tipo_estudio.modalidad)
+            | Q(tipo_estudio__isnull=True, modalidad='')
+        )
+        .select_related('tipo_estudio')
+        .order_by('nombre')
+    )
+    plantillas_datos = [
+        {
+            'id': plantilla.id,
+            'nombre': plantilla.nombre,
+            'hallazgos_html': plantilla.hallazgos_html,
+            'impresion_html': plantilla.impresion_html,
+        }
+        for plantilla in plantillas
+    ]
+    perfil_reporte = None
+    usuario_reporte = reporte.finalizado_por or reporte.elaborado_por
+    if usuario_reporte:
+        perfil_reporte = PerfilMedico.objects.filter(
+            institucion=membresia.institucion,
+            usuario=usuario_reporte,
+            activo=True,
+        ).first()
+
     return render(
         request,
         'core/visor_instancia_dicom.html',
         {
             'instancia': instancia,
-            'estudio': instancia.archivo_estudio.estudio,
-            'paciente': instancia.archivo_estudio.estudio.paciente,
+            'estudio': estudio,
+            'paciente': estudio.paciente,
             'anterior': anterior,
             'siguiente': siguiente,
             'posicion': posicion_navegacion + 1,
@@ -1884,14 +1962,336 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             'frame_actual': frame_actual,
             'navegacion_instancias': navegacion_instancias,
             'series_navegacion': series_navegacion,
+            'reporte_radiologico': reporte,
+            'plantillas_reporte': plantillas,
+            'plantillas_reporte_datos': plantillas_datos,
+            'edad_paciente': calcular_edad(estudio.paciente.fecha_nacimiento),
+            'puede_finalizar_reporte': (
+                membresia.rol == 'RADIOLOGIA' or request.user.is_superuser
+            ),
+            'puede_editar_reporte': reporte.estado != 'FINAL',
+            'perfil_reporte': perfil_reporte,
         },
     )
+
+
+def _snapshot_reporte(estudio, usuario=None):
+    paciente = estudio.paciente
+    return {
+        'paciente': f'{paciente.nombre} {paciente.apellido}'.strip(),
+        'registro': paciente.identificacion,
+        'fecha_nacimiento': paciente.fecha_nacimiento.isoformat(),
+        'edad': calcular_edad(paciente.fecha_nacimiento),
+        'estudio': estudio.tipo_estudio.nombre,
+        'modalidad': estudio.tipo_estudio.modalidad,
+        'medico_solicitante': estudio.medico_solicitante or 'No especificado',
+        'fecha_reporte': timezone.localtime().isoformat(),
+        'radiologo': obtener_nombre_usuario(usuario) if usuario else '',
+    }
+
+
+@login_required
+@require_POST
+def guardar_reporte_radiologico(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return redirect('panel_config')
+
+    estudio = get_object_or_404(
+        Estudio.objects.select_related('paciente', 'tipo_estudio'),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+    instancia_id = request.POST.get('instancia_id')
+    destino = reverse(
+        'visor_instancia_dicom',
+        args=[estudio.id, instancia_id],
+    ) if instancia_id else reverse('estudio_radiologia', args=[estudio.id])
+
+    accion = request.POST.get('accion', 'borrador')
+    finalizar = accion == 'finalizar'
+    if finalizar and not (
+        membresia.rol == 'RADIOLOGIA' or request.user.is_superuser
+    ):
+        messages.error(request, 'Solo el médico radiólogo puede firmar el reporte final.')
+        return redirect(destino)
+
+    hallazgos = limpiar_html_reporte(request.POST.get('hallazgos_html', ''))
+    impresion = limpiar_html_reporte(request.POST.get('impresion_html', ''))
+    if finalizar and (not texto_plano_reporte(hallazgos) or not texto_plano_reporte(impresion)):
+        messages.error(request, 'El reporte final requiere hallazgos e impresión diagnóstica.')
+        return redirect(destino)
+
+    with transaction.atomic():
+        reporte, _ = ReporteRadiologico.objects.select_for_update().get_or_create(
+            institucion=membresia.institucion,
+            estudio=estudio,
+            defaults={'elaborado_por': request.user},
+        )
+        if reporte.estado == 'FINAL':
+            messages.error(
+                request,
+                'El reporte ya está finalizado. No puede modificarse silenciosamente.',
+            )
+            return redirect(destino)
+
+        cambio_previo = bool(reporte.hallazgos_html or reporte.impresion_html)
+        if cambio_previo:
+            RevisionReporteRadiologico.objects.create(
+                reporte=reporte,
+                version=reporte.version,
+                estado=reporte.estado,
+                hallazgos_html=reporte.hallazgos_html,
+                impresion_html=reporte.impresion_html,
+                modificado_por=request.user,
+                datos_snapshot=reporte.datos_snapshot,
+            )
+            reporte.version += 1
+
+        reporte.hallazgos_html = hallazgos
+        reporte.impresion_html = impresion
+        reporte.elaborado_por = request.user
+        reporte.datos_snapshot = _snapshot_reporte(estudio, request.user)
+
+        if finalizar:
+            reporte.estado = 'FINAL'
+            reporte.finalizado_por = request.user
+            reporte.finalizado_el = timezone.now()
+            estudio.reporte_final = '\n\n'.join(filter(None, [
+                texto_plano_reporte(hallazgos),
+                texto_plano_reporte(impresion),
+            ]))
+            estudio.reporte_final_por = request.user
+            estudio.fecha_reporte_final = reporte.finalizado_el
+            estudio.estado_reporte = 'FINAL'
+            estudio.save(update_fields=[
+                'reporte_final', 'reporte_final_por',
+                'fecha_reporte_final', 'estado_reporte',
+            ])
+        else:
+            reporte.estado = 'BORRADOR'
+            estudio.pre_reporte = '\n\n'.join(filter(None, [
+                texto_plano_reporte(hallazgos),
+                texto_plano_reporte(impresion),
+            ]))
+            estudio.pre_reporte_por = request.user
+            estudio.fecha_pre_reporte = timezone.now()
+            estudio.estado_reporte = 'PRE_REPORTE'
+            estudio.save(update_fields=[
+                'pre_reporte', 'pre_reporte_por',
+                'fecha_pre_reporte', 'estado_reporte',
+            ])
+        reporte.save()
+
+    messages.success(
+        request,
+        'Reporte final firmado correctamente.' if finalizar
+        else 'Borrador radiológico guardado correctamente.',
+    )
+    return redirect(destino)
+
+
+@login_required
+@require_POST
+def guardar_plantilla_reporte_radiologico(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RADIOLOGIA', 'ADMIN']:
+        return redirect('panel_config')
+    estudio = get_object_or_404(
+        Estudio.objects.select_related('paciente', 'tipo_estudio'),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+    instancia_id = request.POST.get('instancia_id')
+    nombre = request.POST.get('nombre_plantilla', '').strip()
+    if len(nombre) < 3:
+        messages.error(request, 'La plantilla necesita un nombre de al menos 3 caracteres.')
+    else:
+        PlantillaReporteRadiologico.objects.update_or_create(
+            institucion=membresia.institucion,
+            nombre=nombre,
+            defaults={
+                'creada_por': request.user,
+                'tipo_estudio': estudio.tipo_estudio,
+                'modalidad': estudio.tipo_estudio.modalidad,
+                'hallazgos_html': limpiar_html_reporte(
+                    request.POST.get('hallazgos_html', '')
+                ),
+                'impresion_html': limpiar_html_reporte(
+                    request.POST.get('impresion_html', '')
+                ),
+                'activa': True,
+            },
+        )
+        messages.success(request, f'Plantilla “{nombre}” guardada correctamente.')
+    if instancia_id:
+        return redirect('visor_instancia_dicom', estudio.id, instancia_id)
+    return redirect('estudio_radiologia', estudio.id)
+
+
+def _html_para_reportlab(valor):
+    valor = limpiar_html_reporte(valor)
+    reemplazos = {
+        '<p>': '', '</p>': '<br/><br/>',
+        '<ul>': '', '</ul>': '', '<ol>': '', '</ol>': '',
+        '<li>': '• ', '</li>': '<br/>',
+        '<strong>': '<b>', '</strong>': '</b>',
+        '<em>': '<i>', '</em>': '</i>',
+        '<u>': '', '</u>': '',
+    }
+    for origen, destino in reemplazos.items():
+        valor = valor.replace(origen, destino)
+    return valor or '—'
+
+
+@login_required
+def reporte_radiologico_pdf(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return redirect('panel_config')
+    reporte = get_object_or_404(
+        ReporteRadiologico.objects.select_related(
+            'estudio__paciente', 'estudio__tipo_estudio',
+            'institucion', 'finalizado_por', 'elaborado_por',
+        ),
+        estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+    estudio = reporte.estudio
+    paciente = estudio.paciente
+    institucion = reporte.institucion
+    firmante = reporte.finalizado_por or reporte.elaborado_por
+    perfil = PerfilMedico.objects.filter(
+        institucion=institucion, usuario=firmante, activo=True,
+    ).first() if firmante else None
+
+    buffer = BytesIO()
+    documento = SimpleDocTemplate(
+        buffer, pagesize=letter, rightMargin=1.4 * cm, leftMargin=1.4 * cm,
+        topMargin=1.0 * cm, bottomMargin=1.0 * cm,
+        title='Reporte radiológico',
+        author=obtener_nombre_usuario(firmante) if firmante else 'Loreto One',
+    )
+    estilos = getSampleStyleSheet()
+    titulo = ParagraphStyle(
+        'ReporteTitulo', parent=estilos['Heading1'], fontName='Helvetica-Bold',
+        fontSize=13, leading=15, textColor=colors.HexColor('#0f2747'),
+    )
+    subtitulo = ParagraphStyle(
+        'ReporteSubtitulo', parent=estilos['Heading2'], fontName='Helvetica-Bold',
+        fontSize=9.5, leading=12, textColor=colors.HexColor('#17365d'),
+        spaceBefore=9, spaceAfter=5,
+    )
+    normal = ParagraphStyle(
+        'ReporteNormal', parent=estilos['Normal'], fontName='Helvetica',
+        fontSize=8.5, leading=11, textColor=colors.HexColor('#111827'),
+    )
+    pequeno = ParagraphStyle(
+        'ReportePequeno', parent=normal, fontSize=7, leading=8.5,
+        textColor=colors.HexColor('#475569'),
+    )
+    centrado = ParagraphStyle('ReporteCentrado', parent=pequeno, alignment=TA_CENTER)
+
+    def imagen_campo(campo, ancho, alto):
+        if not campo:
+            return None
+        try:
+            campo.open('rb')
+            datos = campo.read()
+            campo.close()
+            return Image(BytesIO(datos), width=ancho, height=alto, kind='proportional')
+        except Exception:
+            return None
+
+    nombre_institucion = institucion.nombre_comercial or institucion.nombre
+    datos_institucion = [Paragraph(escape(nombre_institucion), titulo)]
+    for dato in [institucion.direccion, institucion.telefono, institucion.email]:
+        if dato:
+            datos_institucion.append(Paragraph(escape(str(dato)), pequeno))
+    horarios = []
+    if institucion.horarios_servicio:
+        horarios = [
+            Paragraph('<b>HORARIO DE ATENCIÓN</b>', pequeno),
+            Paragraph(escape(institucion.horarios_servicio), pequeno),
+        ]
+    encabezado = Table([[
+        imagen_campo(institucion.logo, 2.1 * cm, 1.55 * cm) or '',
+        datos_institucion,
+        horarios,
+    ]], colWidths=[2.5 * cm, 10.2 * cm, 6.1 * cm])
+    encabezado.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LINEBELOW', (0, 0), (-1, -1), 1.1, colors.HexColor('#17365d')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+
+    edad = calcular_edad(paciente.fecha_nacimiento)
+    fecha_documento = reporte.finalizado_el or reporte.actualizado_el
+    datos = [
+        [f'<b>PACIENTE:</b> {escape(paciente.nombre)} {escape(paciente.apellido)}',
+         f'<b>REGISTRO:</b> {escape(paciente.identificacion)}'],
+        [f'<b>EDAD:</b> {edad if edad is not None else "—"} años',
+         f'<b>FECHA:</b> {timezone.localtime(fecha_documento):%d/%m/%Y %H:%M}'],
+        [f'<b>ESTUDIO:</b> {escape(estudio.tipo_estudio.nombre)}',
+         f'<b>MÉDICO SOLICITANTE:</b> {escape(estudio.medico_solicitante or "No especificado")}'],
+    ]
+    tabla_datos = Table(
+        [[Paragraph(a, pequeno), Paragraph(b, pequeno)] for a, b in datos],
+        colWidths=[9.4 * cm, 9.4 * cm],
+    )
+    tabla_datos.setStyle(TableStyle([
+        ('BOX', (0, 0), (-1, -1), .45, colors.HexColor('#94a3b8')),
+        ('INNERGRID', (0, 0), (-1, -1), .25, colors.HexColor('#cbd5e1')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#fbfdff')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('PADDING', (0, 0), (-1, -1), 5),
+    ]))
+    historia = [
+        encabezado, Spacer(1, .18 * cm),
+        Paragraph('REPORTE RADIOLÓGICO', titulo), Spacer(1, .12 * cm),
+        tabla_datos,
+        Paragraph('HALLAZGOS', subtitulo),
+        Paragraph(_html_para_reportlab(reporte.hallazgos_html), normal),
+        Paragraph('IMPRESIÓN DIAGNÓSTICA', subtitulo),
+        Paragraph(_html_para_reportlab(reporte.impresion_html), normal),
+        Spacer(1, .65 * cm),
+    ]
+    firma = imagen_campo(perfil.firma, 3.4 * cm, 1.05 * cm) if perfil else None
+    firma_bloque = [firma or Spacer(1, .75 * cm)]
+    firma_bloque.extend([
+        Paragraph('_______________________________', centrado),
+        Paragraph(f'<b>{escape(obtener_nombre_usuario(firmante) if firmante else "No especificado")}</b>', centrado),
+    ])
+    datos_firma = []
+    if perfil and perfil.especialidad:
+        datos_firma.append(escape(perfil.especialidad))
+    if perfil and perfil.cedula_profesional:
+        datos_firma.append('Céd. Prof. ' + escape(perfil.cedula_profesional))
+    if datos_firma:
+        firma_bloque.append(Paragraph(' | '.join(datos_firma), centrado))
+    tabla_firma = Table([['', firma_bloque, '']], colWidths=[5.3 * cm, 8.2 * cm, 5.3 * cm])
+    tabla_firma.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'CENTER')]))
+    historia.append(KeepTogether([tabla_firma]))
+    if reporte.estado != 'FINAL':
+        historia.append(Paragraph('BORRADOR · Documento no firmado', centrado))
+    documento.build(historia)
+
+    respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'
+    respuesta['Content-Disposition'] = (
+        f'{disposicion}; filename="reporte_{paciente.identificacion}_{estudio.id}.pdf"'
+    )
+    return respuesta
 
 
 @login_required
 def imagen_instancia_dicom(request, estudio_id, instancia_id):
     membresia = obtener_membresia_usuario(request)
-    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN']:
         return HttpResponse(status=403)
 
     instancia = get_object_or_404(
@@ -1966,7 +2366,7 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
 @require_POST
 def medir_instancia_dicom(request, estudio_id, instancia_id):
     membresia = obtener_membresia_usuario(request)
-    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN']:
         return JsonResponse({'error': 'Acceso no autorizado.'}, status=403)
 
     instancia = get_object_or_404(
@@ -4454,7 +4854,7 @@ def detalle_paciente(
         institucion=membresia.institucion
     )
 
-    estudios = (
+    estudios = list(
         paciente.estudios
         .select_related(
             'tipo_estudio',
@@ -4469,6 +4869,23 @@ def detalle_paciente(
             '-fecha_creacion'
         )
     )
+    primera_instancia_por_estudio = {}
+    for instancia_dicom in (
+        InstanciaDicom.objects
+        .filter(archivo_estudio__estudio__in=estudios)
+        .select_related('archivo_estudio')
+        .order_by('archivo_estudio__estudio_id', 'serie__numero_serie', 'numero_instancia', 'id')
+    ):
+        primera_instancia_por_estudio.setdefault(
+            instancia_dicom.archivo_estudio.estudio_id,
+            instancia_dicom,
+        )
+    for estudio_item in estudios:
+        primera = primera_instancia_por_estudio.get(estudio_item.id)
+        estudio_item.visor_dicom_url = (
+            reverse('visor_instancia_dicom', args=[estudio_item.id, primera.id])
+            if primera else None
+        )
 
     consultas = (
         paciente.consultas

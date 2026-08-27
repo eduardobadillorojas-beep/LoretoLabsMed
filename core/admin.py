@@ -16,6 +16,9 @@ from .models import (
     MovimientoCaja,
     Paciente,
     PagoCobro,
+    PlantillaReporteRadiologico,
+    ReporteRadiologico,
+    RevisionReporteRadiologico,
     Servicio,
     SerieDicom,
 )
@@ -64,6 +67,47 @@ class EliminacionSerieDicomAdmin(SoloLecturaDicomAdmin):
         'estudio__paciente__identificacion',
     )
     list_filter = ('institucion', 'modalidad', 'eliminado_el')
+
+
+class RevisionReporteRadiologicoInline(admin.TabularInline):
+    model = RevisionReporteRadiologico
+    extra = 0
+    can_delete = False
+    readonly_fields = tuple(
+        field.name for field in RevisionReporteRadiologico._meta.fields
+    )
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ReporteRadiologico)
+class ReporteRadiologicoAdmin(admin.ModelAdmin):
+    list_display = (
+        'estudio', 'estado', 'version', 'elaborado_por',
+        'finalizado_por', 'actualizado_el',
+    )
+    list_filter = ('institucion', 'estado', 'actualizado_el')
+    search_fields = (
+        'estudio__paciente__identificacion',
+        'estudio__paciente__nombre',
+        'estudio__paciente__apellido',
+    )
+    readonly_fields = tuple(field.name for field in ReporteRadiologico._meta.fields)
+    inlines = (RevisionReporteRadiologicoInline,)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(PlantillaReporteRadiologico)
+class PlantillaReporteRadiologicoAdmin(admin.ModelAdmin):
+    list_display = (
+        'nombre', 'institucion', 'tipo_estudio', 'modalidad',
+        'activa', 'actualizada_el',
+    )
+    list_filter = ('institucion', 'modalidad', 'activa')
+    search_fields = ('nombre', 'tipo_estudio__nombre')
 
 
 class PagoCobroInline(admin.TabularInline):

@@ -1396,6 +1396,15 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                         Archivos del estudio
                                     </div>
 
+                                    {% if estudio.visor_dicom_url %}
+                                        <a
+                                            href="{{ estudio.visor_dicom_url }}"
+                                            class="btn btn-info btn-sm mb-2"
+                                        >
+                                            Abrir visor DICOM y reporte
+                                        </a>
+                                    {% endif %}
+
                                     <div
                                         style="
                                             display:grid;
@@ -1405,6 +1414,8 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                     >
 
                                         {% for archivo in estudio.archivos.all %}
+
+                                            {% if archivo.tipo_archivo != 'DICOM' %}
 
                                             <div
                                                 style="
@@ -1474,6 +1485,8 @@ Expediente {{ paciente.identificacion }} | Loreto One
                                                 </a>
 
                                             </div>
+
+                                            {% endif %}
 
                                         {% endfor %}
 
