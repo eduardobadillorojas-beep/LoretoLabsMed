@@ -18,6 +18,7 @@
     </div>
 
     <div class="notice">Visor clínico en desarrollo. Conserva y muestra el DICOM original, pero todavía no sustituye una estación diagnóstica certificada.</div>
+    <form id="csrf-mediciones" style="display:none;">{% csrf_token %}</form>
 
     <section class="viewer-shell">
         <div class="viewer-toolbar">
@@ -114,15 +115,16 @@
     const ww = document.getElementById('window-width');
     const baseUrl = "{% url 'imagen_instancia_dicom' estudio.id instancia.id %}";
     const measureUrl = "{% url 'medir_instancia_dicom' estudio.id instancia.id %}";
-    const csrfToken = "{{ csrf_token }}";
+    const csrfToken = document.querySelector('#csrf-mediciones input[name="csrfmiddlewaretoken"]').value;
     let zoom = 1, rotation = 0, inverted = false, x = 0, y = 0;
     let dragging = false, startX = 0, startY = 0, moved = false;
     let tool = 'pan', pending = [], annotations = [];
     let wlStartX = 0, wlStartY = 0, wlCenter = 128, wlWidth = 256;
+    let previewBrightness = 1, previewContrast = 1;
 
     function draw() {
         image.style.transform = `translate(${x}px, ${y}px) scale(${zoom}) rotate(${rotation}deg)`;
-        image.style.filter = inverted ? 'invert(1)' : 'none';
+        image.style.filter = `${inverted ? 'invert(1)' : ''} brightness(${previewBrightness}) contrast(${previewContrast})`;
         drawAnnotations();
     }
     function reset() { zoom = 1; rotation = 0; inverted = false; x = 0; y = 0; wc.value = ''; ww.value = ''; image.src = baseUrl; draw(); }
@@ -153,8 +155,10 @@
     function applyWindow(){const params=new URLSearchParams();if(wc.value!=='')params.set('wc',wc.value);if(ww.value!=='')params.set('ww',ww.value);image.src=baseUrl+(params.toString()?'?'+params:'');}
     async function serverMeasure(kind, points, item) {
         result.textContent='Calculando medición…';
-        const response=await fetch(measureUrl,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({herramienta:kind,puntos})});
-        const data=await response.json();
+        const response=await fetch(measureUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({herramienta:kind,puntos})});
+        const contenido=await response.text();
+        let data;
+        try{data=JSON.parse(contenido);}catch(error){throw new Error(`El servidor respondió ${response.status}: ${contenido.slice(0,160)}`);}
         if(!response.ok){result.textContent=data.error||'No fue posible medir.';return;}
         if(kind==='distancia'){
             item.label=`${data.valor.toFixed(2)} ${data.unidad}`;
@@ -172,7 +176,7 @@
         const needed=tool==='angulo'?3:2;drawAnnotations();if(pending.length<needed)return;
         const item={tool,points:[...pending],label:''};pending=[];annotations.push(item);
         if(tool==='angulo'){const angle=angleValue(...item.points);item.label=`${angle.toFixed(1)}°`;result.textContent=`Ángulo: ${item.label}`;drawAnnotations();}
-        else serverMeasure(tool,item.points,item).catch(()=>{result.textContent='No fue posible completar la medición.';});
+        else serverMeasure(tool,item.points,item).catch(error=>{result.textContent=`No fue posible completar la medición: ${error.message}`;});
     }
 
     document.getElementById('zoom-mas').onclick = () => { zoom = Math.min(zoom + .2, 8); draw(); };
@@ -198,11 +202,17 @@
     window.addEventListener('mousemove', event => {
         if(!dragging)return;moved=true;
         if(tool==='pan'){x=event.clientX-startX;y=event.clientY-startY;draw();}
-        else if(tool==='wl'){ww.value=Math.max(1,wlWidth+(event.clientX-wlStartX)*2).toFixed(0);wc.value=(wlCenter-(event.clientY-wlStartY)*2).toFixed(0);}
+        else if(tool==='wl'){
+            const dx=event.clientX-wlStartX,dy=event.clientY-wlStartY;
+            ww.value=Math.max(1,wlWidth+dx*2).toFixed(0);wc.value=(wlCenter-dy*2).toFixed(0);
+            previewContrast=Math.max(.25,Math.min(4,1+dx/180));
+            previewBrightness=Math.max(.25,Math.min(4,1-dy/180));
+            draw();
+        }
     });
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { stage.innerHTML = '<div class="text-danger p-4 text-center">No fue posible decodificar los píxeles de este DICOM. Revisa el registro del servidor.</div>'; });
-    image.addEventListener('load',()=>{resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);resizeCanvas();draw();
+    image.addEventListener('load',()=>{previewBrightness=1;previewContrast=1;resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);resizeCanvas();draw();
 })();
 </script>
 {% endblock %}

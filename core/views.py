@@ -1468,9 +1468,24 @@ def cargar_archivos_estudio(
     )
 
     if request.method == 'POST':
-        archivos = request.FILES.getlist(
-            'archivos'
-        )
+        archivos_manuales = request.FILES.getlist('archivos')
+        archivos_carpeta = request.FILES.getlist('carpeta_dicom')
+        dicom_carpeta = [
+            archivo for archivo in archivos_carpeta
+            if detectar_tipo_archivo(archivo.name) == 'DICOM'
+        ]
+        ignorados_carpeta = len(archivos_carpeta) - len(dicom_carpeta)
+        archivos = archivos_manuales + dicom_carpeta
+
+        if ignorados_carpeta:
+            messages.info(
+                request,
+                f'Se ignoraron {ignorados_carpeta} archivo(s) no DICOM de la carpeta.'
+            )
+
+        if not archivos:
+            messages.warning(request, 'No se encontraron archivos DICOM para cargar.')
+            return redirect('estudio_radiologia', estudio_id=estudio.id)
 
         if estudio.estado == 'PENDIENTE':
             estudio.estado = 'EN_PROCESO'
@@ -1786,16 +1801,11 @@ def medir_instancia_dicom(request, estudio_id, instancia_id):
 
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
             dataset = pydicom.dcmread(archivo)
-            pixeles = dataset.pixel_array
 
-        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
-        frame = min(frame, numero_frames - 1)
-        if numero_frames > 1:
-            pixeles = pixeles[frame]
-
-        filas, columnas = pixeles.shape[-2], pixeles.shape[-1]
-        if pixeles.ndim == 3 and pixeles.shape[-1] in (3, 4):
-            filas, columnas = pixeles.shape[0], pixeles.shape[1]
+        filas = int(getattr(dataset, 'Rows', 0) or 0)
+        columnas = int(getattr(dataset, 'Columns', 0) or 0)
+        if not filas or not columnas:
+            return JsonResponse({'error': 'El DICOM no contiene dimensiones válidas.'}, status=422)
         espaciado = getattr(dataset, 'PixelSpacing', None)
         if not espaciado:
             espaciado = getattr(dataset, 'ImagerPixelSpacing', None)
@@ -1822,6 +1832,12 @@ def medir_instancia_dicom(request, estudio_id, instancia_id):
                     {'error': 'La ROI cuantitativa HU requiere una imagen monocromática.'},
                     status=422,
                 )
+
+            pixeles = dataset.pixel_array
+            numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+            frame = min(frame, numero_frames - 1)
+            if numero_frames > 1:
+                pixeles = pixeles[frame]
             x1, y1 = punto(0)
             x2, y2 = punto(1)
             izquierda, derecha = sorted((int(round(x1)), int(round(x2))))

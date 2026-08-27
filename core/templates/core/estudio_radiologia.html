@@ -584,6 +584,7 @@ Estudio | Loreto One
                     {% if estudio.estado != 'COMPLETADO' %}
 
                         <form
+                            id="form-carga-estudio"
                             method="post"
                             enctype="multipart/form-data"
                             action="{% url 'cargar_archivos_estudio' estudio.id %}"
@@ -605,16 +606,38 @@ Estudio | Loreto One
                                     class="form-control form-control-sm"
                                 >
 
+                                <div class="small-muted my-2">o selecciona una carpeta completa de Horos:</div>
+
+                                <input
+                                    type="file"
+                                    name="carpeta_dicom"
+                                    id="carpeta-dicom"
+                                    webkitdirectory
+                                    directory
+                                    multiple
+                                    class="form-control form-control-sm"
+                                >
+
+                                <div id="resumen-carpeta-dicom" class="small-muted mt-2"></div>
+
                                 <div class="small-muted mt-2">
                                     Puedes seleccionar varios archivos.
                                 </div>
 
                                 <button
                                     type="submit"
+                                    id="boton-cargar-estudio"
                                     class="btn btn-info btn-sm mt-3"
                                 >
                                     Cargar archivos
                                 </button>
+
+                                <div id="progreso-carga-dicom" class="mt-3" style="display:none;">
+                                    <div class="progress" style="height:8px;">
+                                        <div id="barra-carga-dicom" class="progress-bar bg-info" style="width:0%;"></div>
+                                    </div>
+                                    <div id="texto-carga-dicom" class="small-muted mt-2">Preparando archivos…</div>
+                                </div>
 
                             </div>
 
@@ -977,5 +1000,53 @@ Estudio | Loreto One
     </div>
 
 </div>
+
+<script>
+(() => {
+    const carpeta = document.getElementById('carpeta-dicom');
+    const resumen = document.getElementById('resumen-carpeta-dicom');
+    const form = document.getElementById('form-carga-estudio');
+    const boton = document.getElementById('boton-cargar-estudio');
+    const progreso = document.getElementById('progreso-carga-dicom');
+    const barra = document.getElementById('barra-carga-dicom');
+    const texto = document.getElementById('texto-carga-dicom');
+    if (!carpeta || !resumen || !form || !boton || !progreso || !barra || !texto) return;
+    carpeta.addEventListener('change', () => {
+        const archivos = Array.from(carpeta.files || []);
+        const dicom = archivos.filter(file => /\.(dcm|dicom)$/i.test(file.name));
+        resumen.textContent = `${dicom.length} DICOM encontrado(s) en ${archivos.length} archivo(s) de la carpeta y sus subcarpetas.`;
+    });
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        boton.disabled = true;
+        progreso.style.display = 'block';
+        const solicitud = new XMLHttpRequest();
+        solicitud.open('POST', form.action);
+        solicitud.upload.addEventListener('progress', avance => {
+            if (!avance.lengthComputable) return;
+            const porcentaje = Math.round((avance.loaded / avance.total) * 100);
+            barra.style.width = `${porcentaje}%`;
+            texto.textContent = porcentaje < 100 ? `Subiendo archivos: ${porcentaje}%` : 'Carga terminada. Validando y organizando los DICOM…';
+        });
+        solicitud.addEventListener('load', () => {
+            if (solicitud.status >= 200 && solicitud.status < 400) {
+                window.location.href = solicitud.responseURL || window.location.href;
+                return;
+            }
+            boton.disabled = false;
+            texto.textContent = `La carga falló con código ${solicitud.status}. Intenta nuevamente.`;
+            barra.classList.remove('bg-info');
+            barra.classList.add('bg-danger');
+        });
+        solicitud.addEventListener('error', () => {
+            boton.disabled = false;
+            texto.textContent = 'Se perdió la conexión durante la carga.';
+            barra.classList.remove('bg-info');
+            barra.classList.add('bg-danger');
+        });
+        solicitud.send(new FormData(form));
+    });
+})();
+</script>
 
 {% endblock %}
