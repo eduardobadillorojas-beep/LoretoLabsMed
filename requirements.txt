@@ -9,6 +9,9 @@ jmespath==1.1.0
 packaging==26.2
 psycopg2-binary==2.9.12
 pydicom==3.0.1
+numpy>=2.0
+pylibjpeg>=2.0
+pylibjpeg-openjpeg>=2.0
 python-dateutil==2.9.0.post0
 s3transfer==0.19.2
 six==1.17.0

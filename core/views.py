@@ -35,7 +35,10 @@ from reportlab.platypus import (
 )
 
 import pydicom
+import numpy as np
+from PIL import Image as PILImage
 from pydicom.errors import InvalidDicomError
+from pydicom.pixels import apply_modality_lut
 
 from .forms import (
     CitaForm,
@@ -1660,11 +1663,103 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
         archivo_estudio__estudio_id=estudio_id,
         institucion=membresia.institucion,
     )
+    instancias_serie = list(
+        instancia.serie.instancias.order_by('numero_instancia', 'id')
+    )
+    posicion = next(
+        indice for indice, item in enumerate(instancias_serie)
+        if item.id == instancia.id
+    )
+    anterior = instancias_serie[posicion - 1] if posicion > 0 else None
+    siguiente = instancias_serie[posicion + 1] if posicion + 1 < len(instancias_serie) else None
+
     return render(
         request,
         'core/visor_instancia_dicom.html',
-        {'instancia': instancia, 'estudio': instancia.archivo_estudio.estudio, 'paciente': instancia.archivo_estudio.estudio.paciente},
+        {
+            'instancia': instancia,
+            'estudio': instancia.archivo_estudio.estudio,
+            'paciente': instancia.archivo_estudio.estudio.paciente,
+            'anterior': anterior,
+            'siguiente': siguiente,
+            'posicion': posicion + 1,
+            'total_instancias': len(instancias_serie),
+        },
     )
+
+
+@login_required
+def imagen_instancia_dicom(request, estudio_id, instancia_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse(status=403)
+
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+
+    try:
+        with instancia.archivo_estudio.archivo.open('rb') as archivo:
+            dataset = pydicom.dcmread(archivo)
+            pixeles = dataset.pixel_array
+
+        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+        frame = int(request.GET.get('frame', 0))
+        frame = max(0, min(frame, numero_frames - 1))
+        if numero_frames > 1:
+            pixeles = pixeles[frame]
+
+        muestras = int(getattr(dataset, 'SamplesPerPixel', 1) or 1)
+        if muestras == 1:
+            pixeles = apply_modality_lut(pixeles, dataset).astype(np.float64)
+
+        minimo = float(np.nanmin(pixeles))
+        maximo = float(np.nanmax(pixeles))
+        centro_predeterminado = (minimo + maximo) / 2
+        ancho_predeterminado = max(maximo - minimo, 1.0)
+
+        centro_dicom = getattr(dataset, 'WindowCenter', centro_predeterminado)
+        ancho_dicom = getattr(dataset, 'WindowWidth', ancho_predeterminado)
+        if hasattr(centro_dicom, '__iter__') and not isinstance(centro_dicom, str):
+            centro_dicom = centro_dicom[0]
+        if hasattr(ancho_dicom, '__iter__') and not isinstance(ancho_dicom, str):
+            ancho_dicom = ancho_dicom[0]
+
+        centro = float(request.GET.get('wc', centro_dicom))
+        ancho = max(float(request.GET.get('ww', ancho_dicom)), 1.0)
+        inferior = centro - ancho / 2
+        imagen_8bits = np.clip((pixeles.astype(np.float64) - inferior) / ancho, 0, 1)
+        imagen_8bits = (imagen_8bits * 255).astype(np.uint8)
+
+        if muestras == 1:
+            if valor_dicom(dataset, 'PhotometricInterpretation') == 'MONOCHROME1':
+                imagen_8bits = 255 - imagen_8bits
+            imagen = PILImage.fromarray(imagen_8bits, mode='L')
+        else:
+            imagen = PILImage.fromarray(imagen_8bits)
+
+        salida = BytesIO()
+        imagen.save(salida, format='PNG', optimize=True)
+        respuesta = HttpResponse(salida.getvalue(), content_type='image/png')
+        respuesta['Cache-Control'] = 'private, max-age=300'
+        respuesta['X-DICOM-Window-Center'] = f'{centro:g}'
+        respuesta['X-DICOM-Window-Width'] = f'{ancho:g}'
+        return respuesta
+
+    except Exception as exc:
+        logger.exception(
+            'No fue posible renderizar DICOM. instancia_id=%s error=%s',
+            instancia.id,
+            str(exc),
+        )
+        return HttpResponse(
+            'No fue posible decodificar los píxeles de esta instancia DICOM.',
+            status=422,
+            content_type='text/plain; charset=utf-8',
+        )
 
 # =========================================================
 # PRE-REPORTE TÉCNICO
