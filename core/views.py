@@ -2001,9 +2001,12 @@ def cerrar_caja_recepcion(request, corte_id):
             CorteCaja.objects.select_for_update(),
             pk=corte_id,
             institucion=membresia.institucion,
-            responsable=request.user,
-            estado='ABIERTA',
         )
+        if corte.responsable_id != request.user.id:
+            messages.error(request, 'Solo la persona responsable puede cerrar esta caja.')
+            return redirect('caja_recepcion')
+        if corte.estado == 'CERRADA':
+            return redirect('ticket_corte_caja', corte_id=corte.id)
         try:
             contado = Decimal(request.POST.get('efectivo_contado', '')).quantize(Decimal('0.01'))
             entregado = Decimal(request.POST.get('efectivo_entregado', '')).quantize(Decimal('0.01'))
