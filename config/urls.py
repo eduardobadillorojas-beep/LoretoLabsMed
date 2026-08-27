@@ -169,6 +169,7 @@ urlpatterns = [
     ),
 
     path('recepcion/caja/abrir/', views.abrir_caja_recepcion, name='abrir_caja_recepcion'),
+    path('recepcion/caja/<int:corte_id>/movimiento/', views.registrar_movimiento_caja, name='registrar_movimiento_caja'),
     path('recepcion/caja/<int:corte_id>/cerrar/', views.cerrar_caja_recepcion, name='cerrar_caja_recepcion'),
     path('recepcion/caja/<int:corte_id>/ticket/', views.ticket_corte_caja, name='ticket_corte_caja'),
     path('configuracion/auditoria-cajas/', views.auditoria_cajas, name='auditoria_cajas'),

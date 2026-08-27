@@ -10,6 +10,7 @@ from .models import (
     Estudio,
     Institucion,
     MembresiaInstitucion,
+    MovimientoCaja,
     Paciente,
     PagoCobro,
     Servicio,
@@ -42,12 +43,34 @@ class AbonoCreditoInline(admin.TabularInline):
     can_delete = False
 
 
+class MovimientoCajaInline(admin.TabularInline):
+    model = MovimientoCaja
+    extra = 0
+    readonly_fields = ('tipo', 'monto', 'motivo', 'registrado_por', 'creado_el')
+    can_delete = False
+
+
 @admin.register(CorteCaja)
 class CorteCajaAdmin(admin.ModelAdmin):
     list_display = ('folio', 'responsable', 'institucion', 'estado', 'fondo_inicial', 'efectivo_esperado', 'efectivo_contado', 'diferencia', 'abierto_el', 'cerrado_el')
     list_filter = ('institucion', 'estado', 'abierto_el', 'cerrado_el')
     search_fields = ('folio', 'responsable__username', 'responsable__first_name', 'responsable__last_name')
     readonly_fields = tuple(field.name for field in CorteCaja._meta.fields)
+    inlines = (MovimientoCajaInline,)
+    def has_add_permission(self, request):
+        return False
+    def has_change_permission(self, request, obj=None):
+        return False
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(MovimientoCaja)
+class MovimientoCajaAdmin(admin.ModelAdmin):
+    list_display = ('corte', 'tipo', 'monto', 'motivo', 'registrado_por', 'creado_el')
+    list_filter = ('tipo', 'corte__institucion', 'creado_el')
+    search_fields = ('corte__folio', 'motivo', 'registrado_por__username')
+    readonly_fields = tuple(field.name for field in MovimientoCaja._meta.fields)
     def has_add_permission(self, request):
         return False
     def has_change_permission(self, request, obj=None):

@@ -57,6 +57,7 @@ from .models import (
     IndicacionMedica,
     MedicamentoReceta,
     MembresiaInstitucion,
+    MovimientoCaja,
     Paciente,
     PagoCobro,
     PerfilMedico,
@@ -195,6 +196,12 @@ def calcular_movimientos_corte(corte, hasta=None):
             estado='CANCELADO',
         ).prefetch_related('pagos')
     )
+    movimientos = list(
+        MovimientoCaja.objects.filter(
+            corte=corte,
+            creado_el__lte=hasta,
+        ).select_related('registrado_por')
+    )
 
     for cobro in cobros:
         pagos = list(cobro.pagos.all())
@@ -222,7 +229,9 @@ def calcular_movimientos_corte(corte, hasta=None):
                 (p.monto for p in cobro.pagos.all() if p.forma_pago == 'EFECTIVO'),
                 cero,
             )
-    efectivo_esperado = corte.fondo_inicial + formas['EFECTIVO'] - reembolso_efectivo
+    total_entradas_efectivo = sum((m.monto for m in movimientos if m.tipo == 'ENTRADA'), cero)
+    total_retiros_efectivo = sum((m.monto for m in movimientos if m.tipo == 'RETIRO'), cero)
+    efectivo_esperado = corte.fondo_inicial + formas['EFECTIVO'] - reembolso_efectivo + total_entradas_efectivo - total_retiros_efectivo
 
     return {
         'total_cobros': total_cobros,
@@ -233,11 +242,15 @@ def calcular_movimientos_corte(corte, hasta=None):
         'total_tarjeta': formas['TARJETA'],
         'total_transferencia': formas['TRANSFERENCIA'],
         'total_otro': formas['OTRO'],
+        'total_entradas_efectivo': total_entradas_efectivo,
+        'total_retiros_efectivo': total_retiros_efectivo,
         'reembolso_efectivo': reembolso_efectivo,
         'efectivo_esperado': efectivo_esperado,
         'numero_cobros': len(cobros),
         'numero_abonos': len(abonos),
         'numero_reembolsos': len(reembolsos),
+        'numero_movimientos': len(movimientos),
+        'movimientos': movimientos,
     }
 
 
@@ -1990,6 +2003,52 @@ def abrir_caja_recepcion(request):
 
 
 @login_required
+def registrar_movimiento_caja(request, corte_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('inicio')
+    if request.method != 'POST':
+        return redirect('caja_recepcion')
+    with transaction.atomic():
+        corte = get_object_or_404(
+            CorteCaja.objects.select_for_update(),
+            pk=corte_id,
+            institucion=membresia.institucion,
+            responsable=request.user,
+            estado='ABIERTA',
+        )
+        tipo = request.POST.get('tipo', '').strip().upper()
+        motivo = request.POST.get('motivo', '').strip()
+        try:
+            monto = Decimal(request.POST.get('monto', '')).quantize(Decimal('0.01'))
+            if monto <= 0 or monto > Decimal('9999999999.99'):
+                raise InvalidOperation
+        except (InvalidOperation, ValueError):
+            messages.error(request, 'Escribe un importe mayor a cero.')
+            return redirect('caja_recepcion')
+        if tipo not in ['ENTRADA', 'RETIRO']:
+            messages.error(request, 'Selecciona un tipo de movimiento válido.')
+            return redirect('caja_recepcion')
+        if not motivo:
+            messages.error(request, 'El motivo del movimiento es obligatorio.')
+            return redirect('caja_recepcion')
+        if tipo == 'RETIRO':
+            resumen = calcular_movimientos_corte(corte)
+            if monto > resumen['efectivo_esperado']:
+                messages.error(request, 'El retiro no puede superar el efectivo esperado en caja.')
+                return redirect('caja_recepcion')
+        movimiento = MovimientoCaja.objects.create(
+            corte=corte,
+            tipo=tipo,
+            monto=monto,
+            motivo=motivo,
+            registrado_por=request.user,
+        )
+    messages.success(request, f'{movimiento.get_tipo_display()} registrada por ${monto:.2f}.')
+    return redirect('caja_recepcion')
+
+
+@login_required
 def cerrar_caja_recepcion(request, corte_id):
     membresia = obtener_membresia_usuario(request)
     if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
@@ -2029,6 +2088,8 @@ def cerrar_caja_recepcion(request, corte_id):
             messages.error(request, 'Explica el faltante o sobrante antes de cerrar la caja.')
             return redirect('caja_recepcion')
         for campo, valor in resumen.items():
+            if campo == 'movimientos':
+                continue
             setattr(corte, campo, valor)
         corte.efectivo_contado = contado
         corte.efectivo_entregado = entregado
@@ -2049,7 +2110,7 @@ def ticket_corte_caja(request, corte_id):
     membresia = obtener_membresia_usuario(request)
     if membresia is None or membresia.rol not in ['RECEPCION', 'ADMIN']:
         return redirect('inicio')
-    corte = get_object_or_404(CorteCaja.objects.select_related('institucion', 'responsable'), pk=corte_id, institucion=membresia.institucion, estado='CERRADA')
+    corte = get_object_or_404(CorteCaja.objects.select_related('institucion', 'responsable').prefetch_related('movimientos__registrado_por'), pk=corte_id, institucion=membresia.institucion, estado='CERRADA')
     if membresia.rol != 'ADMIN' and corte.responsable_id != request.user.id:
         return redirect('caja_recepcion')
     return render(request, 'core/ticket_corte_caja.html', {'corte': corte})
@@ -2078,6 +2139,14 @@ def auditoria_cajas(request):
             cerrado_el__date__range=(desde, hasta),
         ).select_related('responsable').order_by('-cerrado_el')
     )
+    cajas_abiertas = list(
+        CorteCaja.objects.filter(
+            institucion=membresia.institucion,
+            estado='ABIERTA',
+        ).select_related('responsable').prefetch_related('movimientos__registrado_por').order_by('abierto_el')
+    )
+    for caja in cajas_abiertas:
+        caja.resumen_actual = calcular_movimientos_corte(caja)
     servicios_frecuentes = list(
         CargoPaciente.objects.filter(
             institucion=membresia.institucion,
@@ -2088,7 +2157,7 @@ def auditoria_cajas(request):
     )
     cero = Decimal('0.00')
     context = {
-        'membresia': membresia, 'cortes': cortes, 'desde': desde, 'hasta': hasta,
+        'membresia': membresia, 'cortes': cortes, 'cajas_abiertas': cajas_abiertas, 'desde': desde, 'hasta': hasta,
         'total_neto': sum((c.total_neto for c in cortes), cero),
         'total_efectivo': sum((c.total_efectivo for c in cortes), cero),
         'total_tarjeta': sum((c.total_tarjeta for c in cortes), cero),

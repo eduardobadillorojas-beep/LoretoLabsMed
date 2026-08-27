@@ -29,8 +29,9 @@
     .turno { background:#1e293b; border:1px solid #334155; border-radius:9px; padding:14px; margin-bottom:12px; }
     .turno-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin:10px 0; }
     .turno-form { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; align-items:end; }
+    .movimiento-form { display:grid; grid-template-columns:.8fr .7fr 2fr auto; gap:9px; align-items:end; margin:10px 0; }
     .confirmaciones { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:15px; font-size:.72rem; }
-    @media (max-width: 950px) { .resumen,.turno-grid { grid-template-columns: repeat(2, 1fr); } .filtros,.turno-form { grid-template-columns: 1fr; } .caja-top { flex-direction: column; } }
+    @media (max-width: 950px) { .resumen,.turno-grid { grid-template-columns: repeat(2, 1fr); } .filtros,.turno-form,.movimiento-form { grid-template-columns: 1fr; } .caja-top { flex-direction: column; } }
 </style>
 
 <div class="caja-wrap">
@@ -48,9 +49,20 @@
         <div class="turno-grid">
             <div class="resumen-card"><div class="resumen-label">Efectivo ingresado</div><div class="resumen-value">${{ resumen_turno.total_efectivo|floatformat:2 }}</div></div>
             <div class="resumen-card"><div class="resumen-label">Reembolso efectivo</div><div class="resumen-value">-${{ resumen_turno.reembolso_efectivo|floatformat:2 }}</div></div>
+            <div class="resumen-card"><div class="resumen-label">Entradas extraordinarias</div><div class="resumen-value principal">+${{ resumen_turno.total_entradas_efectivo|floatformat:2 }}</div></div>
+            <div class="resumen-card"><div class="resumen-label">Retiros</div><div class="resumen-value" style="color:#fca5a5">{% if resumen_turno.total_retiros_efectivo %}-{% endif %}${{ resumen_turno.total_retiros_efectivo|floatformat:2 }}</div></div>
             <div class="resumen-card"><div class="resumen-label">Efectivo esperado</div><div class="resumen-value principal">${{ resumen_turno.efectivo_esperado|floatformat:2 }}</div></div>
             <div class="resumen-card"><div class="resumen-label">Neto del turno</div><div class="resumen-value">${{ resumen_turno.total_neto|floatformat:2 }}</div></div>
         </div>
+        <details style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:800;color:#38bdf8;">Registrar entrada o retiro de efectivo</summary>
+            <form method="post" action="{% url 'registrar_movimiento_caja' caja_abierta.id %}" class="movimiento-form">{% csrf_token %}
+                <div><label class="secundario">Tipo</label><select class="campo" name="tipo" required><option value="">Seleccionar</option><option value="ENTRADA">Entrada extraordinaria</option><option value="RETIRO">Retiro de efectivo</option></select></div>
+                <div><label class="secundario">Importe</label><input class="campo" type="number" name="monto" min="0.01" step="0.01" required></div>
+                <div><label class="secundario">Motivo obligatorio</label><input class="campo" type="text" name="motivo" maxlength="300" required placeholder="Ej. Cambio adicional o retiro para depósito"></div>
+                <button class="btn btn-info btn-sm" type="submit" onclick="return confirm('¿Confirmas este movimiento de efectivo?')">Registrar</button>
+            </form>
+        </details>
+        {% if resumen_turno.movimientos %}<div style="margin:10px 0;border:1px solid #334155;border-radius:7px;overflow:hidden">{% for movimiento in resumen_turno.movimientos %}<div style="display:grid;grid-template-columns:70px 1fr 150px 90px;gap:8px;padding:7px 9px;border-bottom:1px solid #334155;font-size:.68rem"><span>{{ movimiento.creado_el|date:"H:i" }}</span><span>{{ movimiento.motivo }}</span><span>{{ movimiento.get_tipo_display }}</span><strong style="color:{% if movimiento.tipo == 'ENTRADA' %}#86efac{% else %}#fca5a5{% endif %}">{% if movimiento.tipo == 'ENTRADA' %}+{% else %}-{% endif %}${{ movimiento.monto|floatformat:2 }}</strong></div>{% endfor %}</div>{% endif %}
         <details><summary style="cursor:pointer;font-weight:800;color:#fbbf24;">Cerrar y hacer corte de caja</summary>
             <form method="post" action="{% url 'cerrar_caja_recepcion' caja_abierta.id %}" class="turno-form" style="margin-top:12px;">
                 {% csrf_token %}
@@ -90,7 +102,7 @@
         <div class="resumen-card"><div class="resumen-label">Tarjeta</div><div class="resumen-value">${{ total_tarjeta|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Transferencia</div><div class="resumen-value">${{ total_transferencia|floatformat:2 }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Otros</div><div class="resumen-value">${{ total_otro|floatformat:2 }}</div></div>
-        <div class="resumen-card"><div class="resumen-label">Reembolsos</div><div class="resumen-value" style="color:#fca5a5;">-${{ total_reembolsado|floatformat:2 }}</div><div class="secundario">{{ numero_reembolsos }} reembolso{{ numero_reembolsos|pluralize }}</div></div>
+        <div class="resumen-card"><div class="resumen-label">Reembolsos</div><div class="resumen-value" style="color:#fca5a5;">{% if total_reembolsado %}-{% endif %}${{ total_reembolsado|floatformat:2 }}</div><div class="secundario">{{ numero_reembolsos }} reembolso{{ numero_reembolsos|pluralize }}</div></div>
         <div class="resumen-card"><div class="resumen-label">Abonos a créditos</div><div class="resumen-value">${{ total_abonos|floatformat:2 }}</div><div class="secundario">Incluidos en el neto</div></div>
     </div>
 

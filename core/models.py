@@ -1783,6 +1783,8 @@ class CorteCaja(models.Model):
     total_tarjeta = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_transferencia = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_otro = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_entradas_efectivo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_retiros_efectivo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     reembolso_efectivo = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     efectivo_esperado = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     efectivo_contado = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
@@ -1792,6 +1794,7 @@ class CorteCaja(models.Model):
     numero_cobros = models.PositiveIntegerField(default=0)
     numero_abonos = models.PositiveIntegerField(default=0)
     numero_reembolsos = models.PositiveIntegerField(default=0)
+    numero_movimientos = models.PositiveIntegerField(default=0)
     observaciones_apertura = models.CharField(max_length=300, blank=True, null=True)
     observaciones_cierre = models.CharField(max_length=500, blank=True, null=True)
     confirmacion_primera = models.BooleanField(default=False)
@@ -1812,6 +1815,29 @@ class CorteCaja(models.Model):
 
     def __str__(self):
         return f'{self.folio} - {self.get_estado_display()}'
+
+
+class MovimientoCaja(models.Model):
+    TIPO_CHOICES = [
+        ('ENTRADA', 'Entrada extraordinaria'),
+        ('RETIRO', 'Retiro de efectivo'),
+    ]
+
+    corte = models.ForeignKey(CorteCaja, on_delete=models.PROTECT, related_name='movimientos')
+    tipo = models.CharField(max_length=10, choices=TIPO_CHOICES)
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    motivo = models.CharField(max_length=300)
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='movimientos_caja_registrados')
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['creado_el', 'pk']
+        indexes = [
+            models.Index(fields=['corte', 'tipo', 'creado_el'], name='mov_caja_corte_tipo_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.corte.folio} - {self.get_tipo_display()} ${self.monto:.2f}'
 
 
 class CargoPaciente(models.Model):
