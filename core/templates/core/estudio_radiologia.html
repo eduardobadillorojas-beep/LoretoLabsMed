@@ -601,6 +601,7 @@ Estudio | Loreto One
                                     type="file"
                                     name="archivos"
                                     multiple
+                                    accept=".dcm,.dicom,.jpg,.jpeg,.png,.webp,.bmp,.pdf,.doc,.docx"
                                     class="form-control form-control-sm"
                                 >
 
@@ -640,6 +641,14 @@ Estudio | Loreto One
                                         {{ archivo.creado_el|date:"d/m/Y H:i" }}
                                     </div>
 
+                                    {% if archivo.tipo_archivo == 'DICOM' and archivo.instancia_dicom %}
+                                        <div class="small-muted mt-1">
+                                            Serie {{ archivo.instancia_dicom.serie.numero_serie|default:"—" }}
+                                            · Instancia {{ archivo.instancia_dicom.numero_instancia|default:"—" }}
+                                            · {{ archivo.instancia_dicom.filas|default:"—" }} × {{ archivo.instancia_dicom.columnas|default:"—" }}
+                                        </div>
+                                    {% endif %}
+
 
                                     {% if archivo.tipo_archivo == 'IMAGEN' %}
 
@@ -663,6 +672,15 @@ Estudio | Loreto One
 
                                 <div class="d-flex gap-1">
 
+                                    {% if archivo.tipo_archivo == 'DICOM' and archivo.instancia_dicom %}
+                                        <a
+                                            href="{% url 'visor_instancia_dicom' estudio.id archivo.instancia_dicom.id %}"
+                                            class="btn btn-info btn-sm"
+                                        >
+                                            Visor DICOM
+                                        </a>
+                                    {% endif %}
+
                                     <a
                                         href="{{ archivo.archivo.url }}"
                                         target="_blank"
@@ -672,7 +690,7 @@ Estudio | Loreto One
                                     </a>
 
 
-                                    {% if estudio.estado != 'COMPLETADO' %}
+                                    {% if estudio.estado != 'COMPLETADO' and not archivo.instancia_dicom %}
 
                                         <form
                                             method="post"
@@ -709,6 +727,28 @@ Estudio | Loreto One
                 </div>
 
             </div>
+
+            {% if registro_dicom %}
+                <div class="box">
+                    <div class="box-header">🩻 Organización DICOM</div>
+                    <div class="box-body">
+                        <div class="small-muted mb-2">
+                            Study UID: {{ registro_dicom.study_instance_uid }}
+                        </div>
+                        {% for serie in registro_dicom.series.all %}
+                            <div class="file-row">
+                                <div>
+                                    <strong>Serie {{ serie.numero_serie|default:"—" }} · {{ serie.descripcion|default:"Sin descripción" }}</strong>
+                                    <div class="small-muted">
+                                        {{ serie.modalidad|default:"DICOM" }} · {{ serie.region_anatomica|default:"Región no indicada" }}
+                                    </div>
+                                </div>
+                                <span class="badge bg-info text-dark">{{ serie.instancias.count }} instancia{{ serie.instancias.count|pluralize }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
 
 
             <!-- PRE-REPORTE TÉCNICO -->

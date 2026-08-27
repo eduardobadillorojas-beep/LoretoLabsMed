@@ -1,0 +1,66 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Visor DICOM | Loreto One{% endblock %}
+
+{% block content %}
+<style>
+    .dicom-wrap{max-width:1100px;margin:0 auto;padding:10px 18px 40px}.dicom-head{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:14px}.dicom-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dicom-box{background:#1e293b;border:1px solid #334155;border-radius:9px;padding:14px}.dicom-box h2{font-size:.9rem;margin:0 0 12px}.dicom-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid #334155;font-size:.75rem}.dicom-row:last-child{border:0}.dicom-label{color:#94a3b8}.uid{word-break:break-all;font-family:monospace}.notice{background:#0f172a;border:1px solid #0ea5e9;border-radius:8px;padding:12px;font-size:.76rem;margin-bottom:12px}@media(max-width:760px){.dicom-grid{grid-template-columns:1fr}.dicom-row{grid-template-columns:1fr}}
+</style>
+
+<div class="dicom-wrap">
+    <div class="dicom-head">
+        <div>
+            <a href="{% url 'estudio_radiologia' estudio.id %}" class="text-decoration-none text-secondary small">← Volver al estudio</a>
+            <h1 class="h4 mt-2 mb-1">Visor DICOM</h1>
+            <div class="text-secondary small">{{ paciente.nombre }} {{ paciente.apellido }} · Registro {{ paciente.identificacion }}</div>
+        </div>
+        <a href="{{ instancia.archivo_estudio.archivo.url }}" target="_blank" class="btn btn-outline-info btn-sm">Descargar original</a>
+    </div>
+
+    <div class="notice">
+        Primera fase PACS: validación, conservación del original y revisión de metadatos. La visualización diagnóstica de píxeles, ventana/nivel y mediciones se incorporará en la siguiente fase.
+    </div>
+
+    <div class="dicom-grid">
+        <section class="dicom-box">
+            <h2>Estudio y serie</h2>
+            <div class="dicom-row"><span class="dicom-label">Estudio RIS</span><strong>{{ estudio.tipo_estudio.nombre }}</strong></div>
+            <div class="dicom-row"><span class="dicom-label">Study Instance UID</span><span class="uid">{{ instancia.serie.estudio_dicom.study_instance_uid }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Series Instance UID</span><span class="uid">{{ instancia.serie.series_instance_uid }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Serie</span><span>{{ instancia.serie.numero_serie|default:"—" }} · {{ instancia.serie.descripcion|default:"Sin descripción" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Modalidad</span><span>{{ instancia.serie.modalidad|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Protocolo</span><span>{{ instancia.serie.protocolo|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Región</span><span>{{ instancia.serie.region_anatomica|default:"—" }}</span></div>
+        </section>
+
+        <section class="dicom-box">
+            <h2>Instancia y archivo original</h2>
+            <div class="dicom-row"><span class="dicom-label">Instancia</span><span>{{ instancia.numero_instancia|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">SOP Instance UID</span><span class="uid">{{ instancia.sop_instance_uid }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">SOP Class UID</span><span class="uid">{{ instancia.sop_class_uid|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Transfer Syntax</span><span class="uid">{{ instancia.transfer_syntax_uid|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Dimensiones</span><span>{{ instancia.filas|default:"—" }} × {{ instancia.columnas|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Frames</span><span>{{ instancia.numero_frames }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">SHA-256</span><span class="uid">{{ instancia.hash_sha256 }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Tamaño</span><span>{{ instancia.tamano_bytes|filesizeformat }}</span></div>
+        </section>
+
+        <section class="dicom-box">
+            <h2>Datos DICOM del paciente</h2>
+            <div class="dicom-row"><span class="dicom-label">Patient ID</span><span>{{ instancia.metadatos.patient_id|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Patient Name</span><span>{{ instancia.metadatos.patient_name|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Nacimiento</span><span>{{ instancia.metadatos.patient_birth_date|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Sexo</span><span>{{ instancia.metadatos.patient_sex|default:"—" }}</span></div>
+        </section>
+
+        <section class="dicom-box">
+            <h2>Adquisición</h2>
+            <div class="dicom-row"><span class="dicom-label">Fabricante</span><span>{{ instancia.metadatos.manufacturer|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Modelo</span><span>{{ instancia.metadatos.manufacturer_model|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Estación</span><span>{{ instancia.metadatos.station_name|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Fotometría</span><span>{{ instancia.interpretacion_fotometrica|default:"—" }}</span></div>
+            <div class="dicom-row"><span class="dicom-label">Bits asignados</span><span>{{ instancia.bits_asignados|default:"—" }}</span></div>
+        </section>
+    </div>
+</div>
+{% endblock %}

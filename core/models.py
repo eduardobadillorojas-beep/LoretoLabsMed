@@ -1016,6 +1016,88 @@ class ArchivoEstudio(models.Model):
         )
 
 
+class EstudioDicom(models.Model):
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='estudios_dicom')
+    estudio = models.OneToOneField(Estudio, on_delete=models.PROTECT, related_name='registro_dicom')
+    study_instance_uid = models.CharField(max_length=128)
+    accession_number = models.CharField(max_length=64, blank=True)
+    patient_id_dicom = models.CharField(max_length=128, blank=True)
+    patient_name_dicom = models.CharField(max_length=250, blank=True)
+    descripcion = models.CharField(max_length=250, blank=True)
+    fecha_estudio = models.DateField(blank=True, null=True)
+    hora_estudio = models.TimeField(blank=True, null=True)
+    medico_referente = models.CharField(max_length=250, blank=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_el']
+        constraints = [models.UniqueConstraint(fields=['institucion', 'study_instance_uid'], name='dicom_study_uid_por_institucion')]
+        indexes = [models.Index(fields=['institucion', 'study_instance_uid'], name='dicom_study_inst_uid_idx')]
+
+    def __str__(self):
+        return f'{self.estudio} · {self.study_instance_uid}'
+
+
+class SerieDicom(models.Model):
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='series_dicom')
+    estudio_dicom = models.ForeignKey(EstudioDicom, on_delete=models.PROTECT, related_name='series')
+    series_instance_uid = models.CharField(max_length=128)
+    modalidad = models.CharField(max_length=20, blank=True)
+    numero_serie = models.IntegerField(blank=True, null=True)
+    descripcion = models.CharField(max_length=250, blank=True)
+    protocolo = models.CharField(max_length=250, blank=True)
+    region_anatomica = models.CharField(max_length=100, blank=True)
+    fabricante = models.CharField(max_length=150, blank=True)
+    estacion = models.CharField(max_length=150, blank=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['numero_serie', 'id']
+        constraints = [models.UniqueConstraint(fields=['institucion', 'series_instance_uid'], name='dicom_series_uid_por_institucion')]
+        indexes = [models.Index(fields=['estudio_dicom', 'numero_serie'], name='dicom_series_study_num_idx')]
+
+    def __str__(self):
+        return self.descripcion or self.series_instance_uid
+
+
+class InstanciaDicom(models.Model):
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='instancias_dicom')
+    serie = models.ForeignKey(SerieDicom, on_delete=models.PROTECT, related_name='instancias')
+    archivo_estudio = models.OneToOneField(ArchivoEstudio, on_delete=models.PROTECT, related_name='instancia_dicom')
+    sop_instance_uid = models.CharField(max_length=128)
+    sop_class_uid = models.CharField(max_length=128, blank=True)
+    transfer_syntax_uid = models.CharField(max_length=128, blank=True)
+    numero_instancia = models.IntegerField(blank=True, null=True)
+    filas = models.PositiveIntegerField(blank=True, null=True)
+    columnas = models.PositiveIntegerField(blank=True, null=True)
+    numero_frames = models.PositiveIntegerField(default=1)
+    bits_asignados = models.PositiveIntegerField(blank=True, null=True)
+    interpretacion_fotometrica = models.CharField(max_length=64, blank=True)
+    hash_sha256 = models.CharField(max_length=64)
+    tamano_bytes = models.PositiveBigIntegerField(default=0)
+    metadatos = models.JSONField(default=dict, blank=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['numero_instancia', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['institucion', 'sop_instance_uid'], name='dicom_sop_uid_por_institucion'),
+            models.UniqueConstraint(fields=['institucion', 'hash_sha256'], name='dicom_hash_por_institucion'),
+        ]
+        indexes = [models.Index(fields=['serie', 'numero_instancia'], name='dicom_instance_series_num_idx')]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = type(self).objects.get(pk=self.pk)
+            protegidos = ('institucion_id', 'serie_id', 'archivo_estudio_id', 'sop_instance_uid', 'hash_sha256')
+            if any(getattr(original, campo) != getattr(self, campo) for campo in protegidos):
+                raise ValueError('La identidad de una instancia DICOM es inmutable.')
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.sop_instance_uid
+
+
 class BitacoraRadiologica(models.Model):
     MODALIDAD_CHOICES = [
         ('RX', 'Radiografía'),

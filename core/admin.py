@@ -8,13 +8,48 @@ from .models import (
     PagoAbonoCredito,
     Cobro,
     Estudio,
+    EstudioDicom,
     Institucion,
     MembresiaInstitucion,
+    InstanciaDicom,
     MovimientoCaja,
     Paciente,
     PagoCobro,
     Servicio,
+    SerieDicom,
 )
+
+
+class SoloLecturaDicomAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(EstudioDicom)
+class EstudioDicomAdmin(SoloLecturaDicomAdmin):
+    list_display = ('estudio', 'study_instance_uid', 'institucion', 'creado_el')
+    search_fields = ('study_instance_uid', 'accession_number', 'patient_id_dicom')
+    list_filter = ('institucion', 'creado_el')
+
+
+@admin.register(SerieDicom)
+class SerieDicomAdmin(SoloLecturaDicomAdmin):
+    list_display = ('estudio_dicom', 'numero_serie', 'modalidad', 'descripcion')
+    search_fields = ('series_instance_uid', 'descripcion', 'protocolo')
+    list_filter = ('institucion', 'modalidad')
+
+
+@admin.register(InstanciaDicom)
+class InstanciaDicomAdmin(SoloLecturaDicomAdmin):
+    list_display = ('serie', 'numero_instancia', 'sop_instance_uid', 'filas', 'columnas')
+    search_fields = ('sop_instance_uid', 'hash_sha256')
+    list_filter = ('institucion', 'creado_el')
 
 
 class PagoCobroInline(admin.TabularInline):

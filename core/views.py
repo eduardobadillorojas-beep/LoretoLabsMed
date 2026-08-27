@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
+import hashlib
 import logging
 from urllib.parse import quote
 from xml.sax.saxutils import escape
@@ -33,6 +34,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+import pydicom
+from pydicom.errors import InvalidDicomError
+
 from .forms import (
     CitaForm,
     ConsultaForm,
@@ -53,8 +57,10 @@ from .models import (
     Cobro,
     Consulta,
     Estudio,
+    EstudioDicom,
     EstudioSolicitado,
     IndicacionMedica,
+    InstanciaDicom,
     MedicamentoReceta,
     MembresiaInstitucion,
     MovimientoCaja,
@@ -65,6 +71,7 @@ from .models import (
     SesionTrabajo,
     SolicitudEstudio,
     Servicio,
+    SerieDicom,
     TipoEstudio,
 )
 
@@ -283,6 +290,85 @@ def detectar_tipo_archivo(nombre):
         return 'DOCUMENTO'
 
     return 'OTRO'
+
+
+def valor_dicom(dataset, nombre, default=''):
+    valor = getattr(dataset, nombre, default)
+    return default if valor is None else str(valor).strip()
+
+
+def entero_dicom(dataset, nombre):
+    try:
+        return int(getattr(dataset, nombre, None))
+    except (TypeError, ValueError):
+        return None
+
+
+def fecha_dicom(valor):
+    try:
+        return date.fromisoformat(f'{valor[0:4]}-{valor[4:6]}-{valor[6:8]}')
+    except (TypeError, ValueError):
+        return None
+
+
+def hora_dicom(valor):
+    try:
+        limpio = str(valor).split('.')[0].ljust(6, '0')
+        return timezone.datetime.strptime(limpio[:6], '%H%M%S').time()
+    except (TypeError, ValueError):
+        return None
+
+
+def analizar_archivo_dicom(archivo):
+    archivo.seek(0)
+    digest = hashlib.sha256()
+    tamano = 0
+    for bloque in archivo.chunks():
+        digest.update(bloque)
+        tamano += len(bloque)
+    archivo.seek(0)
+    try:
+        dataset = pydicom.dcmread(archivo, stop_before_pixels=True, force=False)
+    except (InvalidDicomError, EOFError, OSError, ValueError) as exc:
+        archivo.seek(0)
+        raise ValueError('El archivo no contiene un encabezado DICOM válido.') from exc
+
+    requeridos = {
+        'StudyInstanceUID': valor_dicom(dataset, 'StudyInstanceUID'),
+        'SeriesInstanceUID': valor_dicom(dataset, 'SeriesInstanceUID'),
+        'SOPInstanceUID': valor_dicom(dataset, 'SOPInstanceUID'),
+    }
+    faltantes = [nombre for nombre, valor in requeridos.items() if not valor]
+    if faltantes:
+        archivo.seek(0)
+        raise ValueError('Faltan identificadores DICOM obligatorios: ' + ', '.join(faltantes) + '.')
+
+    transfer_syntax = ''
+    if getattr(dataset, 'file_meta', None):
+        transfer_syntax = valor_dicom(dataset.file_meta, 'TransferSyntaxUID')
+
+    metadatos = {
+        'patient_id': valor_dicom(dataset, 'PatientID'),
+        'patient_name': valor_dicom(dataset, 'PatientName'),
+        'patient_birth_date': valor_dicom(dataset, 'PatientBirthDate'),
+        'patient_sex': valor_dicom(dataset, 'PatientSex'),
+        'study_date': valor_dicom(dataset, 'StudyDate'),
+        'study_time': valor_dicom(dataset, 'StudyTime'),
+        'study_description': valor_dicom(dataset, 'StudyDescription'),
+        'series_description': valor_dicom(dataset, 'SeriesDescription'),
+        'modality': valor_dicom(dataset, 'Modality'),
+        'manufacturer': valor_dicom(dataset, 'Manufacturer'),
+        'manufacturer_model': valor_dicom(dataset, 'ManufacturerModelName'),
+        'station_name': valor_dicom(dataset, 'StationName'),
+        'body_part_examined': valor_dicom(dataset, 'BodyPartExamined'),
+        'protocol_name': valor_dicom(dataset, 'ProtocolName'),
+        'accession_number': valor_dicom(dataset, 'AccessionNumber'),
+        'referring_physician': valor_dicom(dataset, 'ReferringPhysicianName'),
+        'sop_class_uid': valor_dicom(dataset, 'SOPClassUID'),
+        'transfer_syntax_uid': transfer_syntax,
+    }
+    archivo.seek(0)
+    return {'dataset': dataset, 'hash_sha256': digest.hexdigest(), 'tamano_bytes': tamano, 'metadatos': metadatos, **requeridos}
 
 
 def crear_bitacora_radiologica(estudio):
@@ -1167,9 +1253,17 @@ def estudio_radiologia(
     archivos = (
         estudio.archivos
         .select_related(
-            'subido_por'
+            'subido_por',
+            'instancia_dicom__serie',
         )
         .all()
+    )
+
+    registro_dicom = (
+        EstudioDicom.objects
+        .filter(estudio=estudio)
+        .prefetch_related('series__instancias')
+        .first()
     )
 
     antecedentes = (
@@ -1214,6 +1308,7 @@ def estudio_radiologia(
         'estudio': estudio,
         'paciente': estudio.paciente,
         'archivos': archivos,
+        'registro_dicom': registro_dicom,
         'antecedentes': antecedentes,
         'edad': edad,
         'membresia': membresia,
@@ -1385,19 +1480,96 @@ def cargar_archivos_estudio(
                 ]
             )
 
+        archivos_cargados = 0
         for archivo in archivos:
             try:
-                ArchivoEstudio.objects.create(
-                    estudio=estudio,
-                    archivo=archivo,
-                    tipo_archivo=(
-                        detectar_tipo_archivo(
-                            archivo.name
-                        )
-                    ),
-                    nombre_original=archivo.name,
-                    subido_por=request.user
-                )
+                tipo_archivo = detectar_tipo_archivo(archivo.name)
+
+                if tipo_archivo != 'DICOM':
+                    ArchivoEstudio.objects.create(
+                        estudio=estudio,
+                        archivo=archivo,
+                        tipo_archivo=tipo_archivo,
+                        nombre_original=archivo.name,
+                        subido_por=request.user
+                    )
+                    archivos_cargados += 1
+                    continue
+
+                datos = analizar_archivo_dicom(archivo)
+                dataset = datos['dataset']
+                institucion = estudio.paciente.institucion
+
+                if InstanciaDicom.objects.filter(institucion=institucion, sop_instance_uid=datos['SOPInstanceUID']).exists():
+                    messages.warning(request, f'{archivo.name}: la instancia DICOM ya existe.')
+                    continue
+                if InstanciaDicom.objects.filter(institucion=institucion, hash_sha256=datos['hash_sha256']).exists():
+                    messages.warning(request, f'{archivo.name}: el archivo DICOM ya fue almacenado.')
+                    continue
+
+                with transaction.atomic():
+                    registro, creado = EstudioDicom.objects.get_or_create(
+                        estudio=estudio,
+                        defaults={
+                            'institucion': institucion,
+                            'study_instance_uid': datos['StudyInstanceUID'],
+                            'accession_number': datos['metadatos']['accession_number'],
+                            'patient_id_dicom': datos['metadatos']['patient_id'],
+                            'patient_name_dicom': datos['metadatos']['patient_name'],
+                            'descripcion': datos['metadatos']['study_description'],
+                            'fecha_estudio': fecha_dicom(datos['metadatos']['study_date']),
+                            'hora_estudio': hora_dicom(datos['metadatos']['study_time']),
+                            'medico_referente': datos['metadatos']['referring_physician'],
+                        },
+                    )
+                    if not creado and registro.study_instance_uid != datos['StudyInstanceUID']:
+                        raise ValueError('El archivo pertenece a otro Study Instance UID.')
+
+                    serie, _ = SerieDicom.objects.get_or_create(
+                        institucion=institucion,
+                        series_instance_uid=datos['SeriesInstanceUID'],
+                        defaults={
+                            'estudio_dicom': registro,
+                            'modalidad': datos['metadatos']['modality'],
+                            'numero_serie': entero_dicom(dataset, 'SeriesNumber'),
+                            'descripcion': datos['metadatos']['series_description'],
+                            'protocolo': datos['metadatos']['protocol_name'],
+                            'region_anatomica': datos['metadatos']['body_part_examined'],
+                            'fabricante': datos['metadatos']['manufacturer'],
+                            'estacion': datos['metadatos']['station_name'],
+                        },
+                    )
+                    if serie.estudio_dicom_id != registro.id:
+                        raise ValueError('La serie DICOM ya pertenece a otro estudio.')
+
+                    archivo_guardado = ArchivoEstudio.objects.create(
+                        estudio=estudio,
+                        archivo=archivo,
+                        tipo_archivo='DICOM',
+                        nombre_original=archivo.name,
+                        subido_por=request.user,
+                    )
+                    InstanciaDicom.objects.create(
+                        institucion=institucion,
+                        serie=serie,
+                        archivo_estudio=archivo_guardado,
+                        sop_instance_uid=datos['SOPInstanceUID'],
+                        sop_class_uid=datos['metadatos']['sop_class_uid'],
+                        transfer_syntax_uid=datos['metadatos']['transfer_syntax_uid'],
+                        numero_instancia=entero_dicom(dataset, 'InstanceNumber'),
+                        filas=entero_dicom(dataset, 'Rows'),
+                        columnas=entero_dicom(dataset, 'Columns'),
+                        numero_frames=entero_dicom(dataset, 'NumberOfFrames') or 1,
+                        bits_asignados=entero_dicom(dataset, 'BitsAllocated'),
+                        interpretacion_fotometrica=valor_dicom(dataset, 'PhotometricInterpretation'),
+                        hash_sha256=datos['hash_sha256'],
+                        tamano_bytes=datos['tamano_bytes'],
+                        metadatos=datos['metadatos'],
+                    )
+                    archivos_cargados += 1
+
+            except ValueError as exc:
+                messages.error(request, f'{archivo.name}: {exc}')
 
             except Exception as exc:
                 logger.exception(
@@ -1412,7 +1584,10 @@ def cargar_archivos_estudio(
                     str(exc),
                 )
 
-                raise
+                messages.error(request, f'No se pudo cargar {archivo.name}. Revisa el archivo.')
+
+        if archivos_cargados:
+            messages.success(request, f'Se cargaron {archivos_cargados} archivo(s) correctamente.')
 
     return redirect(
         'estudio_radiologia',
@@ -1453,6 +1628,9 @@ def eliminar_archivo_estudio(
     )
 
     if request.method == 'POST':
+        if hasattr(archivo, 'instancia_dicom'):
+            messages.error(request, 'El original DICOM es inmutable y no puede eliminarse.')
+            return redirect('estudio_radiologia', estudio_id=estudio.id)
         archivo.archivo.delete(
             save=False
         )
@@ -1461,6 +1639,31 @@ def eliminar_archivo_estudio(
     return redirect(
         'estudio_radiologia',
         estudio_id=estudio.id
+    )
+
+
+@login_required
+def visor_instancia_dicom(request, estudio_id, instancia_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None:
+        return redirect('panel_config')
+    if membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return redirect('panel_config')
+
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related(
+            'archivo_estudio__estudio__paciente',
+            'archivo_estudio__estudio__tipo_estudio',
+            'serie__estudio_dicom',
+        ),
+        pk=instancia_id,
+        archivo_estudio__estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+    return render(
+        request,
+        'core/visor_instancia_dicom.html',
+        {'instancia': instancia, 'estudio': instancia.archivo_estudio.estudio, 'paciente': instancia.archivo_estudio.estudio.paciente},
     )
 
 # =========================================================
