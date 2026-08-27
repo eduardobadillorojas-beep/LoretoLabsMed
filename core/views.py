@@ -1681,7 +1681,9 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
         institucion=membresia.institucion,
     )
     instancias_serie = list(
-        instancia.serie.instancias.order_by('numero_instancia', 'id')
+        instancia.serie.instancias
+        .select_related('archivo_estudio')
+        .order_by('numero_instancia', 'id')
     )
     posicion = next(
         indice for indice, item in enumerate(instancias_serie)
@@ -1689,6 +1691,77 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
     )
     anterior = instancias_serie[posicion - 1] if posicion > 0 else None
     siguiente = instancias_serie[posicion + 1] if posicion + 1 < len(instancias_serie) else None
+    try:
+        frame_actual = max(0, int(request.GET.get('frame', 0) or 0))
+    except (TypeError, ValueError):
+        frame_actual = 0
+    navegacion_instancias = []
+    for indice, item in enumerate(instancias_serie):
+        total_frames = max(1, item.numero_frames or 1)
+        for frame in range(total_frames):
+            imagen_url = reverse(
+                'imagen_instancia_dicom',
+                args=[estudio_id, item.id],
+            )
+            visor_url = reverse(
+                'visor_instancia_dicom',
+                args=[estudio_id, item.id],
+            )
+            if total_frames > 1:
+                imagen_url = f'{imagen_url}?frame={frame}'
+                visor_url = f'{visor_url}?frame={frame}'
+            navegacion_instancias.append(
+                {
+                    'id': item.id,
+                    'frame': frame,
+                    'numero': item.numero_instancia or indice + 1,
+                    'imagen_url': imagen_url,
+                    'medir_url': reverse(
+                        'medir_instancia_dicom',
+                        args=[estudio_id, item.id],
+                    ),
+                    'visor_url': visor_url,
+                    'original_url': item.archivo_estudio.archivo.url,
+                    'fotometria': item.interpretacion_fotometrica or '',
+                }
+            )
+    posicion_navegacion = next(
+        (
+            indice for indice, item in enumerate(navegacion_instancias)
+            if item['id'] == instancia.id and item['frame'] == frame_actual
+        ),
+        0,
+    )
+    series_navegacion = []
+    for serie in (
+        instancia.serie.estudio_dicom.series
+        .prefetch_related('instancias')
+        .order_by('numero_serie', 'id')
+    ):
+        primera = serie.instancias.order_by('numero_instancia', 'id').first()
+        if primera is None:
+            continue
+        series_navegacion.append(
+            {
+                'id': serie.id,
+                'numero': serie.numero_serie,
+                'descripcion': serie.descripcion or 'Serie sin descripción',
+                'modalidad': serie.modalidad or 'DICOM',
+                'cantidad': sum(
+                    max(1, item.numero_frames or 1)
+                    for item in serie.instancias.all()
+                ),
+                'visor_url': reverse(
+                    'visor_instancia_dicom',
+                    args=[estudio_id, primera.id],
+                ),
+                'miniatura_url': reverse(
+                    'imagen_instancia_dicom',
+                    args=[estudio_id, primera.id],
+                ),
+                'activa': serie.id == instancia.serie_id,
+            }
+        )
 
     return render(
         request,
@@ -1699,8 +1772,11 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             'paciente': instancia.archivo_estudio.estudio.paciente,
             'anterior': anterior,
             'siguiente': siguiente,
-            'posicion': posicion + 1,
-            'total_instancias': len(instancias_serie),
+            'posicion': posicion_navegacion + 1,
+            'total_instancias': len(navegacion_instancias),
+            'frame_actual': frame_actual,
+            'navegacion_instancias': navegacion_instancias,
+            'series_navegacion': series_navegacion,
         },
     )
 
