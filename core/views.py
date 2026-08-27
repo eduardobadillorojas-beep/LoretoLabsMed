@@ -1263,6 +1263,10 @@ def estudio_radiologia(
         )
         .all()
     )
+    archivos_generales = [
+        archivo for archivo in archivos
+        if archivo.tipo_archivo != 'DICOM'
+    ]
 
     registro_dicom = (
         EstudioDicom.objects
@@ -1313,6 +1317,7 @@ def estudio_radiologia(
         'estudio': estudio,
         'paciente': estudio.paciente,
         'archivos': archivos,
+        'archivos_generales': archivos_generales,
         'registro_dicom': registro_dicom,
         'antecedentes': antecedentes,
         'edad': edad,
