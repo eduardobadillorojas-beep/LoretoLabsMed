@@ -9,6 +9,7 @@ from .models import (
     Cobro,
     Estudio,
     EstudioDicom,
+    EliminacionSerieDicom,
     Institucion,
     MembresiaInstitucion,
     InstanciaDicom,
@@ -50,6 +51,19 @@ class InstanciaDicomAdmin(SoloLecturaDicomAdmin):
     list_display = ('serie', 'numero_instancia', 'sop_instance_uid', 'filas', 'columnas')
     search_fields = ('sop_instance_uid', 'hash_sha256')
     list_filter = ('institucion', 'creado_el')
+
+
+@admin.register(EliminacionSerieDicom)
+class EliminacionSerieDicomAdmin(SoloLecturaDicomAdmin):
+    list_display = (
+        'estudio', 'numero_serie', 'modalidad', 'cantidad_instancias',
+        'usuario', 'eliminado_el',
+    )
+    search_fields = (
+        'series_instance_uid', 'descripcion',
+        'estudio__paciente__identificacion',
+    )
+    list_filter = ('institucion', 'modalidad', 'eliminado_el')
 
 
 class PagoCobroInline(admin.TabularInline):

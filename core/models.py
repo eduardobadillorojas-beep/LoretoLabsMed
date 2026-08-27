@@ -1098,6 +1098,46 @@ class InstanciaDicom(models.Model):
         return self.sop_instance_uid
 
 
+class EliminacionSerieDicom(models.Model):
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='eliminaciones_series_dicom',
+    )
+    estudio = models.ForeignKey(
+        Estudio,
+        on_delete=models.PROTECT,
+        related_name='eliminaciones_series_dicom',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='eliminaciones_series_dicom',
+        blank=True,
+        null=True,
+    )
+    series_instance_uid = models.CharField(max_length=128)
+    numero_serie = models.IntegerField(blank=True, null=True)
+    descripcion = models.CharField(max_length=250, blank=True)
+    modalidad = models.CharField(max_length=20, blank=True)
+    cantidad_instancias = models.PositiveIntegerField(default=0)
+    motivo = models.TextField()
+    metadatos = models.JSONField(default=dict, blank=True)
+    eliminado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-eliminado_el']
+        indexes = [
+            models.Index(
+                fields=['institucion', 'eliminado_el'],
+                name='dicom_del_inst_fecha_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Serie eliminada {self.series_instance_uid}'
+
+
 class BitacoraRadiologica(models.Model):
     MODALIDAD_CHOICES = [
         ('RX', 'Radiografía'),

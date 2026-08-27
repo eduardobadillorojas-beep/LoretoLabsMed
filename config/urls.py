@@ -147,6 +147,12 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/dicom/serie/<int:serie_id>/eliminar/',
+        views.eliminar_serie_dicom,
+        name='eliminar_serie_dicom'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/pre-reporte/',
         views.guardar_pre_reporte_estudio,
         name='guardar_pre_reporte_estudio'

@@ -595,18 +595,8 @@ Estudio | Loreto One
                             <div class="upload-zone">
 
                                 <div class="mb-2">
-                                    DICOM · JPG · PNG · PDF
+                                    Selecciona una carpeta DICOM completa
                                 </div>
-
-                                <input
-                                    type="file"
-                                    name="archivos"
-                                    multiple
-                                    accept=".dcm,.dicom,.jpg,.jpeg,.png,.webp,.bmp,.pdf,.doc,.docx"
-                                    class="form-control form-control-sm"
-                                >
-
-                                <div class="small-muted my-2">o selecciona una carpeta completa de Horos:</div>
 
                                 <input
                                     type="file"
@@ -621,7 +611,7 @@ Estudio | Loreto One
                                 <div id="resumen-carpeta-dicom" class="small-muted mt-2"></div>
 
                                 <div class="small-muted mt-2">
-                                    Puedes seleccionar varios archivos.
+                                    Loreto One recorrerá automáticamente sus carpetas y subcarpetas.
                                 </div>
 
                                 <button
@@ -762,6 +752,20 @@ Estudio | Loreto One
                                             </a>
                                         {% endif %}
                                     {% endwith %}
+                                    {% if estudio.estado != 'COMPLETADO' %}
+                                        <form
+                                            method="post"
+                                            action="{% url 'eliminar_serie_dicom' estudio.id serie.id %}"
+                                            onsubmit="return confirmarEliminacionSerie(this, '{{ serie.descripcion|default:'Sin descripción'|escapejs }}', {{ serie.instancias.count }});"
+                                        >
+                                            {% csrf_token %}
+                                            <input type="hidden" name="confirmar_eliminacion" value="SI">
+                                            <input type="hidden" name="motivo_eliminacion" value="">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                Eliminar serie
+                                            </button>
+                                        </form>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% endfor %}
@@ -998,6 +1002,20 @@ Estudio | Loreto One
 </div>
 
 <script>
+function confirmarEliminacionSerie(formulario, descripcion, cantidad) {
+    const aceptado = window.confirm(
+        `¿Eliminar la serie “${descripcion}” y sus ${cantidad} imagen(es)?\n\nEsta acción eliminará los archivos DICOM cargados y quedará registrada en la auditoría.`
+    );
+    if (!aceptado) return false;
+    const motivo = window.prompt('Escribe el motivo de la eliminación:');
+    if (!motivo || motivo.trim().length < 5) {
+        window.alert('Debes escribir un motivo de al menos 5 caracteres.');
+        return false;
+    }
+    formulario.querySelector('[name="motivo_eliminacion"]').value = motivo.trim();
+    return true;
+}
+
 (() => {
     const carpeta = document.getElementById('carpeta-dicom');
     const resumen = document.getElementById('resumen-carpeta-dicom');

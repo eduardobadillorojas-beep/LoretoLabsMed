@@ -63,6 +63,7 @@ from .models import (
     Consulta,
     Estudio,
     EstudioDicom,
+    EliminacionSerieDicom,
     EstudioSolicitado,
     IndicacionMedica,
     InstanciaDicom,
@@ -1665,6 +1666,107 @@ def eliminar_archivo_estudio(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
+
+
+@login_required
+@require_POST
+def eliminar_serie_dicom(request, estudio_id, serie_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None:
+        return redirect('panel_config')
+    if membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return redirect('panel_config')
+
+    estudio = get_object_or_404(
+        Estudio,
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+    if estudio.estado == 'COMPLETADO':
+        messages.error(
+            request,
+            'No se puede eliminar una serie de un estudio finalizado.',
+        )
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+    serie = get_object_or_404(
+        SerieDicom.objects.select_related('estudio_dicom'),
+        pk=serie_id,
+        estudio_dicom__estudio=estudio,
+        institucion=membresia.institucion,
+    )
+    motivo = request.POST.get('motivo_eliminacion', '').strip()
+    confirmacion = request.POST.get('confirmar_eliminacion') == 'SI'
+    if not confirmacion or len(motivo) < 5:
+        messages.error(
+            request,
+            'Confirma la eliminación e indica un motivo de al menos 5 caracteres.',
+        )
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+    instancias = list(
+        serie.instancias.select_related('archivo_estudio').all()
+    )
+    if not instancias:
+        messages.error(
+            request,
+            'La serie no contiene instancias DICOM para eliminar.',
+        )
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+    archivos_almacenados = [
+        (
+            instancia.archivo_estudio.archivo.storage,
+            instancia.archivo_estudio.archivo.name,
+        )
+        for instancia in instancias
+        if instancia.archivo_estudio.archivo.name
+    ]
+    archivo_ids = [
+        instancia.archivo_estudio_id
+        for instancia in instancias
+    ]
+    estudio_dicom = serie.estudio_dicom
+
+    with transaction.atomic():
+        EliminacionSerieDicom.objects.create(
+            institucion=membresia.institucion,
+            estudio=estudio,
+            usuario=request.user,
+            series_instance_uid=serie.series_instance_uid,
+            numero_serie=serie.numero_serie,
+            descripcion=serie.descripcion or '',
+            modalidad=serie.modalidad or '',
+            cantidad_instancias=len(instancias),
+            motivo=motivo,
+            metadatos={
+                'sop_instance_uids': [
+                    instancia.sop_instance_uid
+                    for instancia in instancias
+                ],
+            },
+        )
+        InstanciaDicom.objects.filter(serie=serie).delete()
+        ArchivoEstudio.objects.filter(pk__in=archivo_ids).delete()
+        serie.delete()
+        if not estudio_dicom.series.exists():
+            estudio_dicom.delete()
+
+    for storage, nombre in archivos_almacenados:
+        try:
+            storage.delete(nombre)
+        except Exception as exc:
+            logger.exception(
+                'No fue posible eliminar archivo DICOM del almacenamiento. nombre=%s error=%s',
+                nombre,
+                str(exc),
+            )
+
+    messages.success(
+        request,
+        f'Serie DICOM eliminada correctamente ({len(instancias)} imagen(es)).',
+    )
+    return redirect('estudio_radiologia', estudio_id=estudio.id)
 
 
 @login_required
