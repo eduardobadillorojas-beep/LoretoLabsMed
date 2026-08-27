@@ -115,6 +115,8 @@
     const ww = document.getElementById('window-width');
     const baseUrl = "{% url 'imagen_instancia_dicom' estudio.id instancia.id %}";
     const measureUrl = "{% url 'medir_instancia_dicom' estudio.id instancia.id %}";
+    const photometric = "{{ instancia.interpretacion_fotometrica|default:''|escapejs }}".toUpperCase();
+    const supportsServerWindow = photometric.startsWith('MONOCHROME');
     const csrfToken = document.querySelector('#csrf-mediciones input[name="csrfmiddlewaretoken"]').value;
     let zoom = 1, rotation = 0, inverted = false, x = 0, y = 0;
     let dragging = false, startX = 0, startY = 0, moved = false;
@@ -127,7 +129,7 @@
         image.style.filter = `${inverted ? 'invert(1)' : ''} brightness(${previewBrightness}) contrast(${previewContrast})`;
         drawAnnotations();
     }
-    function reset() { zoom = 1; rotation = 0; inverted = false; x = 0; y = 0; wc.value = ''; ww.value = ''; image.src = baseUrl; draw(); }
+    function reset() { zoom = 1; rotation = 0; inverted = false; x = 0; y = 0; previewBrightness = 1; previewContrast = 1; wc.value = ''; ww.value = ''; image.src = baseUrl; draw(); }
     function resizeCanvas() { canvas.width = stage.clientWidth; canvas.height = stage.clientHeight; drawAnnotations(); }
     function screenPoint(event) { const r = stage.getBoundingClientRect(); return {x:event.clientX-r.left,y:event.clientY-r.top}; }
     function toImage(point) {
@@ -152,10 +154,20 @@
         if(item.label){const q=p[p.length-1];ctx.font='13px sans-serif';ctx.fillStyle='#f8fafc';ctx.fillText(item.label,q.x+8,q.y-8);}
     }
     function drawAnnotations(){ctx.clearRect(0,0,canvas.width,canvas.height);annotations.forEach(drawOne);if(pending.length){const points=pending.map(toScreen);ctx.fillStyle='#facc15';points.forEach(q=>{ctx.beginPath();ctx.arc(q.x,q.y,4,0,Math.PI*2);ctx.fill();});}}
-    function applyWindow(){const params=new URLSearchParams();if(wc.value!=='')params.set('wc',wc.value);if(ww.value!=='')params.set('ww',ww.value);image.src=baseUrl+(params.toString()?'?'+params:'');}
+    function applyWindow(){
+        if(!supportsServerWindow){
+            result.textContent='W/L visual aplicado. Esta instancia RGB no contiene píxeles monocromáticos para una ventana DICOM cuantitativa.';
+            draw();
+            return;
+        }
+        const params=new URLSearchParams();
+        if(wc.value!=='')params.set('wc',wc.value);
+        if(ww.value!=='')params.set('ww',ww.value);
+        image.src=baseUrl+(params.toString()?'?'+params:'');
+    }
     async function serverMeasure(kind, points, item) {
         result.textContent='Calculando medición…';
-        const response=await fetch(measureUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({herramienta:kind,puntos})});
+        const response=await fetch(measureUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({herramienta:kind,puntos:points})});
         const contenido=await response.text();
         let data;
         try{data=JSON.parse(contenido);}catch(error){throw new Error(`El servidor respondió ${response.status}: ${contenido.slice(0,160)}`);}
