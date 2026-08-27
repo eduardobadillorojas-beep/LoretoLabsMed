@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 import hashlib
+import json
 import logging
 from urllib.parse import quote
 from xml.sax.saxutils import escape
@@ -13,10 +14,11 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.core.paginator import Paginator
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -1760,6 +1762,102 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
             status=422,
             content_type='text/plain; charset=utf-8',
         )
+
+
+@login_required
+@require_POST
+def medir_instancia_dicom(request, estudio_id, instancia_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return JsonResponse({'error': 'Acceso no autorizado.'}, status=403)
+
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+
+    try:
+        datos = json.loads(request.body.decode('utf-8'))
+        herramienta = datos.get('herramienta')
+        puntos = datos.get('puntos') or []
+        frame = max(0, int(datos.get('frame', 0)))
+
+        with instancia.archivo_estudio.archivo.open('rb') as archivo:
+            dataset = pydicom.dcmread(archivo)
+            pixeles = dataset.pixel_array
+
+        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+        frame = min(frame, numero_frames - 1)
+        if numero_frames > 1:
+            pixeles = pixeles[frame]
+
+        filas, columnas = pixeles.shape[-2], pixeles.shape[-1]
+        if pixeles.ndim == 3 and pixeles.shape[-1] in (3, 4):
+            filas, columnas = pixeles.shape[0], pixeles.shape[1]
+        espaciado = getattr(dataset, 'PixelSpacing', None)
+        if not espaciado:
+            espaciado = getattr(dataset, 'ImagerPixelSpacing', None)
+        fila_mm = float(espaciado[0]) if espaciado else None
+        columna_mm = float(espaciado[1]) if espaciado else None
+
+        def punto(indice):
+            x = max(0.0, min(float(puntos[indice]['x']), columnas - 1))
+            y = max(0.0, min(float(puntos[indice]['y']), filas - 1))
+            return x, y
+
+        if herramienta == 'distancia' and len(puntos) == 2:
+            x1, y1 = punto(0)
+            x2, y2 = punto(1)
+            if fila_mm is not None and columna_mm is not None:
+                distancia = ((x2 - x1) * columna_mm) ** 2 + ((y2 - y1) * fila_mm) ** 2
+                return JsonResponse({'valor': distancia ** 0.5, 'unidad': 'mm', 'calibrada': True})
+            distancia = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+            return JsonResponse({'valor': distancia, 'unidad': 'px', 'calibrada': False})
+
+        if herramienta == 'roi' and len(puntos) == 2:
+            if int(getattr(dataset, 'SamplesPerPixel', 1) or 1) != 1:
+                return JsonResponse(
+                    {'error': 'La ROI cuantitativa HU requiere una imagen monocromática.'},
+                    status=422,
+                )
+            x1, y1 = punto(0)
+            x2, y2 = punto(1)
+            izquierda, derecha = sorted((int(round(x1)), int(round(x2))))
+            arriba, abajo = sorted((int(round(y1)), int(round(y2))))
+            derecha = min(columnas, max(derecha + 1, izquierda + 1))
+            abajo = min(filas, max(abajo + 1, arriba + 1))
+
+            valores = apply_modality_lut(pixeles, dataset).astype(np.float64)[arriba:abajo, izquierda:derecha]
+            if valores.size == 0:
+                return JsonResponse({'error': 'La ROI no contiene píxeles.'}, status=422)
+
+            modalidad = valor_dicom(dataset, 'Modality').upper()
+            tiene_escala = hasattr(dataset, 'RescaleSlope') and hasattr(dataset, 'RescaleIntercept')
+            unidad = 'HU' if modalidad == 'CT' and tiene_escala else 'valor de píxel'
+            area = None
+            if fila_mm is not None and columna_mm is not None:
+                area = valores.size * fila_mm * columna_mm
+
+            return JsonResponse({
+                'promedio': float(np.mean(valores)),
+                'minimo': float(np.min(valores)),
+                'maximo': float(np.max(valores)),
+                'desviacion': float(np.std(valores)),
+                'area_mm2': area,
+                'pixeles': int(valores.size),
+                'unidad': unidad,
+                'es_hu': unidad == 'HU',
+            })
+
+        return JsonResponse({'error': 'Medición no válida.'}, status=400)
+
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        return JsonResponse({'error': f'Datos de medición inválidos: {exc}'}, status=400)
+    except Exception as exc:
+        logger.exception('Error al medir DICOM. instancia_id=%s error=%s', instancia.id, str(exc))
+        return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
 
 # =========================================================
 # PRE-REPORTE TÉCNICO

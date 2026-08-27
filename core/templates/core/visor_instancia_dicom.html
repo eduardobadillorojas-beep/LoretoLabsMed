@@ -4,7 +4,7 @@
 
 {% block content %}
 <style>
-    .dicom-wrap{max-width:1250px;margin:0 auto;padding:10px 18px 40px}.dicom-head{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:14px}.dicom-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dicom-box{background:#1e293b;border:1px solid #334155;border-radius:9px;padding:14px}.dicom-box h2{font-size:.9rem;margin:0 0 12px}.dicom-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid #334155;font-size:.75rem}.dicom-row:last-child{border:0}.dicom-label{color:#94a3b8}.uid{word-break:break-all;font-family:monospace}.notice{background:#0f172a;border:1px solid #f59e0b;border-radius:8px;padding:10px 12px;font-size:.72rem;margin-bottom:12px}.viewer-shell{background:#05070a;border:1px solid #334155;border-radius:9px;overflow:hidden;margin-bottom:12px}.viewer-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:9px;background:#111827;border-bottom:1px solid #334155}.viewer-toolbar button,.viewer-toolbar a{font-size:.72rem}.viewer-stage{height:620px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;cursor:grab;user-select:none}.viewer-stage.dragging{cursor:grabbing}.viewer-image{max-width:100%;max-height:100%;transform-origin:center center;pointer-events:none}.tool-value{width:90px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:4px 6px;font-size:.72rem}.counter{color:#94a3b8;font-size:.72rem;margin-left:auto}@media(max-width:760px){.dicom-grid{grid-template-columns:1fr}.dicom-row{grid-template-columns:1fr}.viewer-stage{height:480px}.counter{width:100%;margin-left:0}}
+    .dicom-wrap{max-width:1250px;margin:0 auto;padding:10px 18px 40px}.dicom-head{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:14px}.dicom-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dicom-box{background:#1e293b;border:1px solid #334155;border-radius:9px;padding:14px}.dicom-box h2{font-size:.9rem;margin:0 0 12px}.dicom-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid #334155;font-size:.75rem}.dicom-row:last-child{border:0}.dicom-label{color:#94a3b8}.uid{word-break:break-all;font-family:monospace}.notice{background:#0f172a;border:1px solid #f59e0b;border-radius:8px;padding:10px 12px;font-size:.72rem;margin-bottom:12px}.viewer-shell{background:#05070a;border:1px solid #334155;border-radius:9px;overflow:hidden;margin-bottom:12px}.viewer-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:9px;background:#111827;border-bottom:1px solid #334155}.viewer-toolbar button,.viewer-toolbar a{font-size:.72rem}.viewer-toolbar .active-tool{background:#0ea5e9;color:#001018}.viewer-stage{height:620px;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;cursor:crosshair;user-select:none}.viewer-stage.dragging{cursor:grabbing}.viewer-image{max-width:100%;max-height:100%;transform-origin:center center;pointer-events:none}.measurement-layer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.tool-value{width:85px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:4px 6px;font-size:.72rem}.counter{color:#94a3b8;font-size:.72rem;margin-left:auto}.measurement-result{padding:9px 12px;background:#111827;border-top:1px solid #334155;color:#e2e8f0;font-size:.75rem;min-height:38px}.preset-row{display:flex;gap:6px;flex-wrap:wrap;padding:7px 9px;background:#0b1220;border-bottom:1px solid #334155}.preset-row button{font-size:.68rem}@media(max-width:760px){.dicom-grid{grid-template-columns:1fr}.dicom-row{grid-template-columns:1fr}.viewer-stage{height:480px}.counter{width:100%;margin-left:0}}
 </style>
 
 <div class="dicom-wrap">
@@ -28,10 +28,24 @@
             <button type="button" class="btn btn-outline-info btn-sm" id="rotar">Rotar</button>
             <button type="button" class="btn btn-outline-info btn-sm" id="invertir">Invertir</button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="restablecer">Restablecer</button>
+            <button type="button" class="btn btn-outline-light btn-sm tool-button active-tool" data-tool="pan">Mover</button>
+            <button type="button" class="btn btn-outline-light btn-sm tool-button" data-tool="wl">W/L mouse</button>
+            <button type="button" class="btn btn-outline-light btn-sm tool-button" data-tool="distancia">Regla</button>
+            <button type="button" class="btn btn-outline-light btn-sm tool-button" data-tool="angulo">Ángulo</button>
+            <button type="button" class="btn btn-outline-light btn-sm tool-button" data-tool="roi">ROI/HU</button>
             <label class="small text-secondary ms-2">Centro</label><input id="window-center" class="tool-value" type="number" step="1" placeholder="Auto">
             <label class="small text-secondary">Ancho</label><input id="window-width" class="tool-value" type="number" min="1" step="1" placeholder="Auto">
             <button type="button" class="btn btn-outline-warning btn-sm" id="aplicar-ventana">Aplicar W/L</button>
             <span class="counter">Imagen {{ posicion }} de {{ total_instancias }}</span>
+        </div>
+        <div class="preset-row">
+            <span class="small text-secondary align-self-center">Presets TAC:</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm preset" data-wc="-600" data-ww="1500">Pulmón</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm preset" data-wc="40" data-ww="400">Mediastino</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm preset" data-wc="500" data-ww="2000">Hueso</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm preset" data-wc="40" data-ww="80">Cerebro</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm preset" data-wc="50" data-ww="400">Abdomen</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="borrar-mediciones">Borrar mediciones</button>
         </div>
         <div class="viewer-stage" id="viewer-stage">
             <img
@@ -41,7 +55,9 @@
                 alt="Imagen DICOM"
                 draggable="false"
             >
+            <canvas id="measurement-layer" class="measurement-layer"></canvas>
         </div>
+        <div id="measurement-result" class="measurement-result">Selecciona una herramienta. La regla necesita 2 puntos, el ángulo 3 y la ROI dos esquinas.</div>
     </section>
 
     <div class="dicom-grid">
@@ -91,39 +107,102 @@
 (() => {
     const stage = document.getElementById('viewer-stage');
     const image = document.getElementById('dicom-image');
+    const canvas = document.getElementById('measurement-layer');
+    const ctx = canvas.getContext('2d');
+    const result = document.getElementById('measurement-result');
     const wc = document.getElementById('window-center');
     const ww = document.getElementById('window-width');
     const baseUrl = "{% url 'imagen_instancia_dicom' estudio.id instancia.id %}";
+    const measureUrl = "{% url 'medir_instancia_dicom' estudio.id instancia.id %}";
+    const csrfToken = "{{ csrf_token }}";
     let zoom = 1, rotation = 0, inverted = false, x = 0, y = 0;
-    let dragging = false, startX = 0, startY = 0;
+    let dragging = false, startX = 0, startY = 0, moved = false;
+    let tool = 'pan', pending = [], annotations = [];
+    let wlStartX = 0, wlStartY = 0, wlCenter = 128, wlWidth = 256;
 
     function draw() {
         image.style.transform = `translate(${x}px, ${y}px) scale(${zoom}) rotate(${rotation}deg)`;
         image.style.filter = inverted ? 'invert(1)' : 'none';
+        drawAnnotations();
     }
     function reset() { zoom = 1; rotation = 0; inverted = false; x = 0; y = 0; wc.value = ''; ww.value = ''; image.src = baseUrl; draw(); }
+    function resizeCanvas() { canvas.width = stage.clientWidth; canvas.height = stage.clientHeight; drawAnnotations(); }
+    function screenPoint(event) { const r = stage.getBoundingClientRect(); return {x:event.clientX-r.left,y:event.clientY-r.top}; }
+    function toImage(point) {
+        const cx = stage.clientWidth / 2 + x, cy = stage.clientHeight / 2 + y;
+        const angle = -rotation * Math.PI / 180;
+        const dx = point.x - cx, dy = point.y - cy;
+        const rx = (dx * Math.cos(angle) - dy * Math.sin(angle)) / zoom;
+        const ry = (dx * Math.sin(angle) + dy * Math.cos(angle)) / zoom;
+        return {x:(rx/image.offsetWidth+.5)*image.naturalWidth,y:(ry/image.offsetHeight+.5)*image.naturalHeight};
+    }
+    function toScreen(point) {
+        const lx = (point.x/image.naturalWidth-.5)*image.offsetWidth*zoom;
+        const ly = (point.y/image.naturalHeight-.5)*image.offsetHeight*zoom;
+        const angle = rotation * Math.PI / 180;
+        return {x:stage.clientWidth/2+x+lx*Math.cos(angle)-ly*Math.sin(angle),y:stage.clientHeight/2+y+lx*Math.sin(angle)+ly*Math.cos(angle)};
+    }
+    function line(a,b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    function drawOne(item) {
+        const p=item.points.map(toScreen); ctx.strokeStyle='#22d3ee';ctx.fillStyle='#22d3ee';ctx.lineWidth=2;
+        if(item.tool==='roi'){ctx.strokeRect(p[0].x,p[0].y,p[1].x-p[0].x,p[1].y-p[0].y);} else {line(p[0],p[1]);if(item.tool==='angulo')line(p[1],p[2]);}
+        p.forEach(q=>{ctx.beginPath();ctx.arc(q.x,q.y,4,0,Math.PI*2);ctx.fill();});
+        if(item.label){const q=p[p.length-1];ctx.font='13px sans-serif';ctx.fillStyle='#f8fafc';ctx.fillText(item.label,q.x+8,q.y-8);}
+    }
+    function drawAnnotations(){ctx.clearRect(0,0,canvas.width,canvas.height);annotations.forEach(drawOne);if(pending.length){const points=pending.map(toScreen);ctx.fillStyle='#facc15';points.forEach(q=>{ctx.beginPath();ctx.arc(q.x,q.y,4,0,Math.PI*2);ctx.fill();});}}
+    function applyWindow(){const params=new URLSearchParams();if(wc.value!=='')params.set('wc',wc.value);if(ww.value!=='')params.set('ww',ww.value);image.src=baseUrl+(params.toString()?'?'+params:'');}
+    async function serverMeasure(kind, points, item) {
+        result.textContent='Calculando medición…';
+        const response=await fetch(measureUrl,{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},body:JSON.stringify({herramienta:kind,puntos})});
+        const data=await response.json();
+        if(!response.ok){result.textContent=data.error||'No fue posible medir.';return;}
+        if(kind==='distancia'){
+            item.label=`${data.valor.toFixed(2)} ${data.unidad}`;
+            result.textContent=`Distancia: ${item.label}${data.calibrada?'':' · Sin PixelSpacing: medición no calibrada'}`;
+        } else {
+            item.label=`${data.promedio.toFixed(1)} ${data.unidad}`;
+            const area=data.area_mm2===null?'sin calibración':data.area_mm2.toFixed(2)+' mm²';
+            result.textContent=`ROI · Promedio ${data.promedio.toFixed(2)} ${data.unidad} · Mín ${data.minimo.toFixed(2)} · Máx ${data.maximo.toFixed(2)} · DE ${data.desviacion.toFixed(2)} · Área ${area}`;
+        }
+        drawAnnotations();
+    }
+    function angleValue(a,b,c){const u={x:a.x-b.x,y:a.y-b.y},v={x:c.x-b.x,y:c.y-b.y};const dot=u.x*v.x+u.y*v.y;const mag=Math.hypot(u.x,u.y)*Math.hypot(v.x,v.y);return Math.acos(Math.max(-1,Math.min(1,dot/mag)))*180/Math.PI;}
+    function addPoint(event){
+        if(!image.naturalWidth)return;pending.push(toImage(screenPoint(event)));
+        const needed=tool==='angulo'?3:2;drawAnnotations();if(pending.length<needed)return;
+        const item={tool,points:[...pending],label:''};pending=[];annotations.push(item);
+        if(tool==='angulo'){const angle=angleValue(...item.points);item.label=`${angle.toFixed(1)}°`;result.textContent=`Ángulo: ${item.label}`;drawAnnotations();}
+        else serverMeasure(tool,item.points,item).catch(()=>{result.textContent='No fue posible completar la medición.';});
+    }
 
     document.getElementById('zoom-mas').onclick = () => { zoom = Math.min(zoom + .2, 8); draw(); };
     document.getElementById('zoom-menos').onclick = () => { zoom = Math.max(zoom - .2, .2); draw(); };
     document.getElementById('rotar').onclick = () => { rotation = (rotation + 90) % 360; draw(); };
     document.getElementById('invertir').onclick = () => { inverted = !inverted; draw(); };
     document.getElementById('restablecer').onclick = reset;
-    document.getElementById('aplicar-ventana').onclick = () => {
-        const params = new URLSearchParams();
-        if (wc.value !== '') params.set('wc', wc.value);
-        if (ww.value !== '') params.set('ww', ww.value);
-        image.src = baseUrl + (params.toString() ? '?' + params.toString() : '');
-    };
+    document.getElementById('aplicar-ventana').onclick = applyWindow;
+    document.querySelectorAll('.preset').forEach(button=>button.onclick=()=>{wc.value=button.dataset.wc;ww.value=button.dataset.ww;applyWindow();});
+    document.querySelectorAll('.tool-button').forEach(button=>button.onclick=()=>{tool=button.dataset.tool;pending=[];document.querySelectorAll('.tool-button').forEach(b=>b.classList.remove('active-tool'));button.classList.add('active-tool');result.textContent=tool==='pan'?'Arrastra para desplazar la imagen.':tool==='wl'?'Arrastra horizontalmente para ancho y verticalmente para centro.':`Marca ${tool==='angulo'?3:2} puntos sobre la imagen.`;drawAnnotations();});
+    document.getElementById('borrar-mediciones').onclick=()=>{annotations=[];pending=[];result.textContent='Mediciones eliminadas.';drawAnnotations();};
     stage.addEventListener('wheel', event => {
         event.preventDefault();
         zoom = Math.max(.2, Math.min(8, zoom + (event.deltaY < 0 ? .15 : -.15)));
         draw();
     }, { passive: false });
-    stage.addEventListener('mousedown', event => { dragging = true; startX = event.clientX - x; startY = event.clientY - y; stage.classList.add('dragging'); });
-    window.addEventListener('mousemove', event => { if (!dragging) return; x = event.clientX - startX; y = event.clientY - startY; draw(); });
-    window.addEventListener('mouseup', () => { dragging = false; stage.classList.remove('dragging'); });
+    stage.addEventListener('mousedown', event => {
+        moved=false;
+        if(tool==='pan'){dragging=true;startX=event.clientX-x;startY=event.clientY-y;stage.classList.add('dragging');}
+        else if(tool==='wl'){dragging=true;wlStartX=event.clientX;wlStartY=event.clientY;wlCenter=parseFloat(wc.value||128);wlWidth=parseFloat(ww.value||256);}
+        else addPoint(event);
+    });
+    window.addEventListener('mousemove', event => {
+        if(!dragging)return;moved=true;
+        if(tool==='pan'){x=event.clientX-startX;y=event.clientY-startY;draw();}
+        else if(tool==='wl'){ww.value=Math.max(1,wlWidth+(event.clientX-wlStartX)*2).toFixed(0);wc.value=(wlCenter-(event.clientY-wlStartY)*2).toFixed(0);}
+    });
+    window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { stage.innerHTML = '<div class="text-danger p-4 text-center">No fue posible decodificar los píxeles de este DICOM. Revisa el registro del servidor.</div>'; });
-    draw();
+    image.addEventListener('load',()=>{resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);resizeCanvas();draw();
 })();
 </script>
 {% endblock %}
