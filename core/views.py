@@ -104,11 +104,17 @@ class _LimpiadorReporteHTML(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         if tag in self.etiquetas_permitidas:
-            self.partes.append(f'<{tag}>')
+            # ReportLab trata ``br`` como una etiqueta XML vacía. Aunque
+            # ``<br>`` es válido en HTML, su parser exige ``<br/>`` y puede
+            # lanzar "No content allowed in br tag" al generar el PDF.
+            if tag == 'br':
+                self.partes.append('<br/>')
+            else:
+                self.partes.append(f'<{tag}>')
 
     def handle_startendtag(self, tag, attrs):
         if tag in self.etiquetas_permitidas:
-            self.partes.append(f'<{tag}/>')
+            self.partes.append('<br/>' if tag == 'br' else f'<{tag}/>')
 
     def handle_endtag(self, tag):
         if tag in self.etiquetas_permitidas and tag != 'br':
@@ -2249,6 +2255,18 @@ def _html_para_reportlab(valor):
     return valor or '—'
 
 
+def _parrafo_reporte_seguro(valor, estilo):
+    """Crea un Paragraph sin permitir que HTML histórico rompa el PDF."""
+    try:
+        return Paragraph(_html_para_reportlab(valor), estilo)
+    except (ValueError, TypeError):
+        logger.exception(
+            'Se corrigió contenido HTML incompatible al generar un reporte.'
+        )
+        texto = escape(texto_plano_reporte(valor) or '—')
+        return Paragraph(texto.replace('\n', '<br/>'), estilo)
+
+
 @login_required
 def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
     membresia = obtener_membresia_usuario(request)
@@ -2367,13 +2385,13 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         Paragraph('REPORTE RADIOLÓGICO', titulo), Spacer(1, .12 * cm),
         tabla_datos,
         Paragraph('DESCRIPCIÓN E IMPRESIÓN RADIOLÓGICA', subtitulo),
-        Paragraph(_html_para_reportlab(reporte.hallazgos_html), normal),
+        _parrafo_reporte_seguro(reporte.hallazgos_html, normal),
         Spacer(1, .65 * cm),
     ]
     if reporte.impresion_html:
         historia.extend([
             Paragraph('IMPRESIÓN DIAGNÓSTICA', subtitulo),
-            Paragraph(_html_para_reportlab(reporte.impresion_html), normal),
+            _parrafo_reporte_seguro(reporte.impresion_html, normal),
             Spacer(1, .25 * cm),
         ])
     if documento_firmado:
