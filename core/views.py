@@ -1934,8 +1934,14 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
         {
             'id': plantilla.id,
             'nombre': plantilla.nombre,
-            'hallazgos_html': plantilla.hallazgos_html,
-            'impresion_html': plantilla.impresion_html,
+            'contenido_html': ''.join(filter(None, [
+                plantilla.hallazgos_html,
+                (
+                    '<p><b>Impresión diagnóstica:</b></p>'
+                    + plantilla.impresion_html
+                    if plantilla.impresion_html else ''
+                ),
+            ])),
         }
         for plantilla in plantillas
     ]
@@ -1971,6 +1977,14 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             ),
             'puede_editar_reporte': reporte.estado != 'FINAL',
             'perfil_reporte': perfil_reporte,
+            'contenido_reporte_html': ''.join(filter(None, [
+                reporte.hallazgos_html,
+                (
+                    '<p><b>Impresión diagnóstica:</b></p>'
+                    + reporte.impresion_html
+                    if reporte.impresion_html else ''
+                ),
+            ])),
         },
     )
 
@@ -2018,10 +2032,13 @@ def guardar_reporte_radiologico(request, estudio_id):
         messages.error(request, 'Solo el médico radiólogo puede firmar el reporte final.')
         return redirect(destino)
 
-    hallazgos = limpiar_html_reporte(request.POST.get('hallazgos_html', ''))
-    impresion = limpiar_html_reporte(request.POST.get('impresion_html', ''))
-    if finalizar and (not texto_plano_reporte(hallazgos) or not texto_plano_reporte(impresion)):
-        messages.error(request, 'El reporte final requiere hallazgos e impresión diagnóstica.')
+    contenido = request.POST.get('contenido_html')
+    if contenido is None:
+        contenido = request.POST.get('hallazgos_html', '')
+    hallazgos = limpiar_html_reporte(contenido)
+    impresion = ''
+    if finalizar and not texto_plano_reporte(hallazgos):
+        messages.error(request, 'El reporte final no puede estar vacío.')
         return redirect(destino)
 
     with transaction.atomic():
@@ -2117,11 +2134,12 @@ def guardar_plantilla_reporte_radiologico(request, estudio_id):
                 'tipo_estudio': estudio.tipo_estudio,
                 'modalidad': estudio.tipo_estudio.modalidad,
                 'hallazgos_html': limpiar_html_reporte(
-                    request.POST.get('hallazgos_html', '')
+                    request.POST.get(
+                        'contenido_html',
+                        request.POST.get('hallazgos_html', ''),
+                    )
                 ),
-                'impresion_html': limpiar_html_reporte(
-                    request.POST.get('impresion_html', '')
-                ),
+                'impresion_html': '',
                 'activa': True,
             },
         )
@@ -2254,12 +2272,16 @@ def reporte_radiologico_pdf(request, estudio_id):
         encabezado, Spacer(1, .18 * cm),
         Paragraph('REPORTE RADIOLÓGICO', titulo), Spacer(1, .12 * cm),
         tabla_datos,
-        Paragraph('HALLAZGOS', subtitulo),
+        Paragraph('DESCRIPCIÓN E IMPRESIÓN RADIOLÓGICA', subtitulo),
         Paragraph(_html_para_reportlab(reporte.hallazgos_html), normal),
-        Paragraph('IMPRESIÓN DIAGNÓSTICA', subtitulo),
-        Paragraph(_html_para_reportlab(reporte.impresion_html), normal),
         Spacer(1, .65 * cm),
     ]
+    if reporte.impresion_html:
+        historia.extend([
+            Paragraph('IMPRESIÓN DIAGNÓSTICA', subtitulo),
+            Paragraph(_html_para_reportlab(reporte.impresion_html), normal),
+            Spacer(1, .25 * cm),
+        ])
     firma = imagen_campo(perfil.firma, 3.4 * cm, 1.05 * cm) if perfil else None
     firma_bloque = [firma or Spacer(1, .75 * cm)]
     firma_bloque.extend([
@@ -2278,7 +2300,47 @@ def reporte_radiologico_pdf(request, estudio_id):
     historia.append(KeepTogether([tabla_firma]))
     if reporte.estado != 'FINAL':
         historia.append(Paragraph('BORRADOR · Documento no firmado', centrado))
-    documento.build(historia)
+    try:
+        documento.build(historia)
+    except Exception as exc:
+        logger.exception(
+            'Falló el diseño enriquecido del reporte radiológico. estudio_id=%s error=%s',
+            estudio.id,
+            str(exc),
+        )
+        buffer = BytesIO()
+        documento = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=1.6 * cm,
+            leftMargin=1.6 * cm,
+            topMargin=1.2 * cm,
+            bottomMargin=1.2 * cm,
+            title='Reporte radiológico',
+        )
+        contenido_plano = '\n\n'.join(filter(None, [
+            texto_plano_reporte(reporte.hallazgos_html),
+            texto_plano_reporte(reporte.impresion_html),
+        ])) or 'Sin contenido.'
+        historia_respaldo = [
+            Paragraph(escape(nombre_institucion), titulo),
+            Paragraph('REPORTE RADIOLÓGICO', subtitulo),
+            Paragraph(
+                '<b>Paciente:</b> '
+                + escape(f'{paciente.nombre} {paciente.apellido}')
+                + '<br/><b>Registro:</b> '
+                + escape(paciente.identificacion)
+                + '<br/><b>Estudio:</b> '
+                + escape(estudio.tipo_estudio.nombre),
+                normal,
+            ),
+            Spacer(1, .3 * cm),
+            Paragraph(
+                escape(contenido_plano).replace('\n', '<br/>'),
+                normal,
+            ),
+        ]
+        documento.build(historia_respaldo)
 
     respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'
