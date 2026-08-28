@@ -189,6 +189,26 @@ Expediente {{ paciente.identificacion }} | Loreto One
         line-height: 1.5;
     }
 
+    .exp-box.is-collapsible > .exp-box-header {cursor:pointer;user-select:none;min-height:48px;padding:12px 14px;font-size:.9rem}
+    .exp-box.is-collapsible > .exp-box-header::after {content:'Abrir';margin-left:auto;color:#38bdf8;border:1px solid #0ea5e9;border-radius:7px;padding:4px 9px;font-size:.68rem}
+    .exp-box.is-collapsible.is-open > .exp-box-header::after {content:'Cerrar';color:#cbd5e1;border-color:#64748b}
+    .exp-box.is-collapsible:not(.is-open) > .exp-box-body {display:none}
+    .legacy-history {display:none!important}
+    .timeline-box .exp-box-body{padding:8px}
+    .timeline-event{background:#0f172a;border:1px solid #334155;border-radius:9px;margin-bottom:7px;overflow:hidden}
+    .timeline-event:last-child{margin-bottom:0}
+    .timeline-event summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:115px 118px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 12px}
+    .timeline-event summary::-webkit-details-marker{display:none}
+    .timeline-event summary:hover{background:#15213a}
+    .timeline-date{font-size:.7rem;color:#cbd5e1;font-weight:700}
+    .timeline-type{display:inline-flex;justify-content:center;border-radius:999px;padding:4px 8px;background:#0c4a6e;color:#bae6fd;font-size:.65rem;font-weight:800}
+    .timeline-title{min-width:0;color:#f8fafc;font-size:.78rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .timeline-status{color:#94a3b8;font-size:.65rem;white-space:nowrap}
+    .timeline-detail{border-top:1px solid #334155;padding:12px;background:#111827;font-size:.75rem;line-height:1.5}
+    .timeline-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .timeline-actions .btn{min-width:145px;font-weight:700}
+    .exp-empty{padding:18px;text-align:center;color:#94a3b8}
+
     @media (max-width: 1000px) {
         .exp-grid {
             grid-template-columns: 1fr;
@@ -209,6 +229,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
         .clinical-grid .full {
             grid-column: auto;
         }
+        .timeline-event summary{grid-template-columns:1fr auto}.timeline-type,.timeline-status{display:none}
     }
 </style>
 
@@ -1239,9 +1260,53 @@ Expediente {{ paciente.identificacion }} | Loreto One
             {% endif %}
 
 
-            <!-- HISTORIAL MÉDICO -->
+            <!-- EXPEDIENTE CRONOLÓGICO -->
+            <section class="exp-box timeline-box">
+                <div class="exp-box-header">
+                    🗂️ Historial clínico y de atención
+                    <span class="tiny">{{ historial_eventos|length }} movimientos</span>
+                </div>
+                <div class="exp-box-body">
+                    {% for evento in historial_eventos %}
+                        <details class="timeline-event">
+                            <summary>
+                                <span class="timeline-date">{{ evento.fecha|date:"d/m/Y H:i" }}</span>
+                                <span class="timeline-type">{{ evento.etiqueta }}</span>
+                                <span class="timeline-title">{{ evento.titulo }}</span>
+                                <span class="timeline-status">{{ evento.estado }} ›</span>
+                            </summary>
+                            <div class="timeline-detail">
+                                {% if evento.tipo == 'REGISTRO' %}
+                                    Expediente creado en Recepción con el registro <strong>{{ paciente.identificacion }}</strong>.
+                                {% elif evento.tipo == 'CONSULTA' %}
+                                    {% with consulta=evento.objeto %}
+                                        {% if consulta.medico %}<div><strong>Médico:</strong> {{ consulta.medico.get_full_name|default:consulta.medico.username }}</div>{% endif %}
+                                        <div><strong>Motivo:</strong> {{ consulta.motivo_consulta|default:"No especificado" }}</div>
+                                        {% if consulta.presion_sistolica or consulta.frecuencia_cardiaca or consulta.temperatura %}<div class="tiny mt-2">{% if consulta.presion_sistolica %}TA {{ consulta.presion_sistolica }}/{{ consulta.presion_diastolica|default:"—" }} mmHg{% endif %}{% if consulta.frecuencia_cardiaca %} · FC {{ consulta.frecuencia_cardiaca }}{% endif %}{% if consulta.temperatura %} · {{ consulta.temperatura }} °C{% endif %}{% if consulta.saturacion_oxigeno %} · SpO₂ {{ consulta.saturacion_oxigeno }}%{% endif %}</div>{% endif %}
+                                        {% if consulta.diagnostico %}<div class="note-readonly mt-2"><strong>Diagnóstico</strong><br>{{ consulta.diagnostico }}</div>{% endif %}
+                                        {% if consulta.plan_tratamiento %}<div class="note-readonly mt-2"><strong>Plan y tratamiento</strong><br>{{ consulta.plan_tratamiento }}</div>{% endif %}
+                                    {% endwith %}
+                                {% elif evento.tipo == 'IMAGEN' %}
+                                    {% with estudio=evento.objeto %}
+                                        <div><strong>Estudio:</strong> {{ estudio.tipo_estudio.nombre }}</div>
+                                        <div><strong>Médico solicitante:</strong> {{ estudio.medico_solicitante|default:"No especificado" }}</div>
+                                        {% if estudio.descripcion %}<div class="text-secondary mt-1">{{ estudio.descripcion }}</div>{% endif %}
+                                        <div class="timeline-actions">
+                                            {% if estudio.visor_dicom_url %}<a href="{{ estudio.visor_dicom_url }}" class="btn btn-info btn-sm">🩻 Abrir estudio DICOM</a>{% endif %}
+                                            {% if estudio.reporte_pdf_url %}<a href="{{ estudio.reporte_pdf_url }}" target="_blank" class="btn btn-outline-info btn-sm">📄 Abrir reporte</a>{% elif estudio.estado_reporte == 'FINAL' and estudio.reporte_final %}<button type="button" class="btn btn-outline-info btn-sm" onclick="this.closest('.timeline-detail').querySelector('.legacy-report').classList.toggle('d-none')">📄 Ver reporte</button>{% endif %}
+                                        </div>
+                                        {% if estudio.estado_reporte == 'FINAL' and estudio.reporte_final %}<div class="legacy-report note-readonly mt-2 d-none">{{ estudio.reporte_final }}</div>{% endif %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
+                        </details>
+                    {% empty %}<div class="exp-empty">Todavía no hay movimientos en este expediente.</div>{% endfor %}
+                </div>
+            </section>
 
-            <section class="exp-box">
+            <!-- HISTORIAL MÉDICO ANTERIOR (conservado sin mostrar) -->
+
+            <section class="exp-box legacy-history">
 
                 <div class="exp-box-header">
                     📋 Historial de consultas
@@ -1345,7 +1410,7 @@ Expediente {{ paciente.identificacion }} | Loreto One
 
             <!-- ESTUDIOS -->
 
-            <section class="exp-box">
+            <section class="exp-box legacy-history">
 
                 <div class="exp-box-header">
                     🩻 Estudios y reportes
@@ -1628,6 +1693,30 @@ Expediente {{ paciente.identificacion }} | Loreto One
         contenedor.appendChild(nueva);
         renumerarFilas('.estudio-solicitud-fila', 'Estudio');
     }
+
+    document.querySelectorAll('.exp-grid > div:first-child .exp-box').forEach(function (caja) {
+        const encabezado = caja.querySelector('.exp-box-header');
+        const cuerpo = caja.querySelector('.exp-box-body');
+        if (!encabezado || !cuerpo) return;
+        caja.classList.add('is-collapsible');
+        encabezado.setAttribute('role', 'button');
+        encabezado.setAttribute('tabindex', '0');
+        encabezado.setAttribute('aria-expanded', 'false');
+        cuerpo.hidden = true;
+        function alternar() {
+            const abierto = cuerpo.hidden;
+            cuerpo.hidden = !abierto;
+            caja.classList.toggle('is-open', abierto);
+            encabezado.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+        }
+        encabezado.addEventListener('click', alternar);
+        encabezado.addEventListener('keydown', function (evento) {
+            if (evento.key === 'Enter' || evento.key === ' ') {
+                evento.preventDefault();
+                alternar();
+            }
+        });
+    });
 </script>
 
 {% endblock %}

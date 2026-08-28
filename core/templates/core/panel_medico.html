@@ -1,245 +1,28 @@
 {% extends 'core/base.html' %}
-
-{% block title %}
-Panel médico | Loreto One
-{% endblock %}
-
+{% block title %}Panel médico | Loreto One{% endblock %}
 {% block content %}
-
 <style>
-.med-dashboard{max-width:1500px;margin:0 auto;padding:8px 16px 18px}
-.med-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:8px}
-.med-heading h1{margin:0;font-size:1.45rem;font-weight:800;letter-spacing:-.02em}
-.med-heading p{margin:2px 0 0;color:#94a3b8;font-size:.72rem}
-.med-stats{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px;margin-bottom:9px}
-.med-stat{min-height:52px;padding:7px 11px;border-radius:10px;border:1px solid #334155;background:linear-gradient(180deg,#1e293b 0%,#182235 100%);box-shadow:0 8px 20px rgba(2,6,23,.14)}
-.med-stat-label{color:#94a3b8;font-size:.61rem;text-transform:uppercase;letter-spacing:.035em}
-.med-stat-value{margin-top:1px;font-size:1.12rem;font-weight:800;line-height:1.05}
-.med-search-wrap{max-width:720px;margin:0 auto 10px}
-.med-search-label{text-align:center;color:#cbd5e1;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.045em;margin-bottom:4px}
-.med-search-box{display:grid;grid-template-columns:1fr auto;gap:7px;padding:7px;border:1px solid #334155;border-radius:11px;background:linear-gradient(180deg,#1e293b 0%,#0f172a 100%);box-shadow:0 10px 24px rgba(2,6,23,.18)}
-.med-search-box input{width:100%;min-width:0;border:1px solid #475569;border-radius:8px;background:#0f172a;color:#f8fafc;padding:7px 10px;font-size:.75rem;outline:none}
-.med-search-box input:focus{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.10)}
-.med-search-box input::placeholder{color:#64748b}
-.med-workspace{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,.85fr);gap:9px;align-items:start}
-.med-column{display:grid;gap:9px;min-width:0}
-.med-panel{overflow:hidden;border:1px solid #334155;border-radius:10px;background:linear-gradient(180deg,#1e293b 0%,#172033 100%);box-shadow:0 9px 22px rgba(2,6,23,.14)}
-.med-panel-header{min-height:38px;padding:7px 10px;border-bottom:1px solid #334155;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.med-panel-title{font-size:.76rem;font-weight:800}
-.med-panel-subtitle{color:#94a3b8;font-size:.58rem;margin-top:1px}
-.med-panel-scroll{max-height:215px;overflow-y:auto}
-.med-panel-scroll.tall{max-height:245px}
-.med-table{margin:0;font-size:.7rem}
-.med-table th{position:sticky;top:0;z-index:2;background:#172033!important;color:#94a3b8;font-size:.59rem;font-weight:700;text-transform:uppercase;letter-spacing:.025em;padding:6px 8px;white-space:nowrap}
-.med-table td{padding:6px 8px;vertical-align:middle}
-.patient-name{color:#f8fafc;font-weight:750;line-height:1.15}
-.tiny{margin-top:1px;color:#94a3b8;font-size:.58rem;line-height:1.2}
-.btn-med{padding:2px 7px;font-size:.62rem;white-space:nowrap}
-.empty-state{padding:18px 12px;text-align:center;color:#64748b;font-size:.69rem}
-.med-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.med-hidden{display:none!important}
-.status-pill{display:inline-flex;align-items:center;border-radius:999px;padding:2px 7px;font-size:.58rem;font-weight:750;white-space:nowrap}
-.status-pending{background:rgba(100,116,139,.28);color:#e2e8f0;border:1px solid rgba(148,163,184,.25)}
-.status-process{background:rgba(245,158,11,.18);color:#fde68a;border:1px solid rgba(245,158,11,.35)}
-.status-complete{background:rgba(34,197,94,.18);color:#bbf7d0;border:1px solid rgba(34,197,94,.35)}
-.status-report{background:rgba(14,165,233,.18);color:#bae6fd;border:1px solid rgba(14,165,233,.35)}
-@media(max-width:1050px){.med-workspace{grid-template-columns:1fr}.med-stats{grid-template-columns:repeat(2,1fr)}.med-panel-scroll,.med-panel-scroll.tall{max-height:none}}
-@media(max-width:650px){.med-dashboard{padding-left:10px;padding-right:10px}.med-stats,.med-mini-grid{grid-template-columns:1fr}.med-search-box{grid-template-columns:1fr}}
+.doctor-page{max-width:1480px;margin:auto;padding:18px}.doctor-head,.section-head,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px}.doctor-head h1{font-size:1.65rem;margin:0;font-weight:800}.doctor-head p,.muted{color:#a9bdd5;margin:4px 0 0}.doctor-profile,.action{min-height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:8px 14px;font-weight:750;text-decoration:none;border:1px solid #22d3ee;color:#67e8f9;background:#0f172a}.action.primary{background:#22d3ee;color:#03131c}.action.success{background:#16a34a;border-color:#22c55e;color:#fff}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:17px 0}.stat,.card,.fold{border:1px solid #3b4d68;background:#1b293e;border-radius:11px}.stat{padding:12px 15px}.stat small{color:#a9bdd5}.stat strong{display:block;font-size:1.45rem}.search{max-width:850px;margin:0 auto 16px;padding:10px;display:flex;gap:9px;background:#152238;border:1px solid #3b4d68;border-radius:12px}.search input{flex:1;background:#0c1628;border:1px solid #50627e;color:#fff;border-radius:8px;padding:11px 13px;font-size:.92rem}.search button{min-width:100px;border:0;border-radius:8px;background:#0284c7;color:#fff;font-weight:750}.grid{display:grid;grid-template-columns:1.15fr .85fr;gap:13px;align-items:start}.card{overflow:hidden}.section-head{padding:12px 14px;border-bottom:1px solid #3b4d68}.section-head h2{font-size:1rem;margin:0}.count{border-radius:999px;padding:4px 10px;background:#1677ff;color:#fff;font-weight:800}.row{padding:13px 14px;border-bottom:1px solid #34445d;display:grid;grid-template-columns:minmax(170px,1fr) minmax(130px,.75fr) auto;gap:14px;align-items:center}.row:last-child{border-bottom:0}.name{font-size:.94rem;font-weight:800}.meta{color:#a9bdd5;font-size:.75rem;margin-top:3px}.reason{font-size:.83rem}.actions{justify-content:flex-end}.actions form{margin:0}.empty{padding:25px;text-align:center;color:#93a7c0}.secondary{margin-top:13px}.fold{margin-bottom:10px;overflow:hidden}.fold summary{list-style:none;cursor:pointer;padding:13px 15px;font-weight:800;display:flex;justify-content:space-between;align-items:center}.fold summary::-webkit-details-marker{display:none}.fold summary::after{content:'Abrir  +';color:#67e8f9;font-size:.77rem}.fold[open] summary::after{content:'Cerrar  −'}.fold[open] summary{border-bottom:1px solid #3b4d68}.compact{max-height:310px;overflow:auto}.compact-row{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid #34445d;font-size:.82rem}.med-hidden{display:none!important}.hint{color:#a9bdd5;font-size:.78rem}.status{font-size:.7rem;border-radius:999px;padding:3px 8px;background:#334155}.status.green{background:#106b40}.status.gold{background:#815b08}
+@media(max-width:950px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.doctor-page{padding:12px}.doctor-head{align-items:flex-start;flex-direction:column}.search{flex-direction:column}.row,.compact-row{grid-template-columns:1fr}.actions{justify-content:flex-start;flex-wrap:wrap}}
 </style>
-
-<div class="med-dashboard">
-  <div class="med-top">
-    <div class="med-heading">
-      <h1>👨‍⚕️ Panel Médico</h1>
-      <p>{{ institucion.nombre }} · atención clínica, pacientes y resultados.</p>
-    </div>
-
-    <a
-      href="{% url 'perfil_medico' %}"
-      class="btn btn-outline-info btn-sm"
-    >
-      👤 Mi perfil profesional
-    </a>
-  </div>
-
-  <div class="med-stats">
-    <div class="med-stat"><div class="med-stat-label">En espera</div><div class="med-stat-value">{{ consultas_en_espera.count }}</div></div>
-    <div class="med-stat"><div class="med-stat-label">En consulta</div><div class="med-stat-value">{{ consultas_en_curso.count }}</div></div>
-    <div class="med-stat"><div class="med-stat-label">Citas hoy</div><div class="med-stat-value">{{ citas_medicas_hoy.count }}</div></div>
-    <div class="med-stat"><div class="med-stat-label">Atendidos</div><div class="med-stat-value">{{ pacientes_atendidos|length }}</div></div>
-  </div>
-
-  <div class="med-search-wrap">
-    <div class="med-search-label">Buscar paciente</div>
-    <div class="med-search-box">
-      <input type="search" id="medPatientSearch" placeholder="Escribe nombre, registro, motivo o estudio..." autocomplete="off">
-      <button type="button" class="btn btn-info btn-sm" id="medPatientSearchClear">Limpiar</button>
-    </div>
-  </div>
-
-  <div class="med-workspace">
-    <div class="med-column">
-      <section class="med-panel">
-        <div class="med-panel-header">
-          <div><div class="med-panel-title">🕒 Pacientes en espera</div><div class="med-panel-subtitle">Prioridad de atención</div></div>
-          <span class="badge bg-primary">{{ consultas_en_espera.count }}</span>
-        </div>
-        <div class="med-panel-scroll tall">
-          <div class="table-responsive">
-            <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Registro</th><th>Paciente</th><th>Motivo</th><th>Llegada</th><th class="text-end">Acciones</th></tr></thead>
-              <tbody>
-              {% for consulta in consultas_en_espera %}
-                <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }} {{ consulta.motivo_consulta }}">
-                  <td>{{ consulta.paciente.identificacion }}</td>
-                  <td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div></td>
-                  <td>{{ consulta.motivo_consulta|default:"Sin motivo registrado"|truncatechars:70 }}</td>
-                  <td>{{ consulta.fecha_llegada|date:"H:i" }}</td>
-                  <td class="text-end">
-                    <div class="d-flex gap-1 justify-content-end">
-                      <a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-info btn-med">Expediente</a>
-                      <form method="post" action="{% url 'atender_consulta_medica' consulta.id %}">{% csrf_token %}<button type="submit" class="btn btn-primary btn-med">Atender</button></form>
-                    </div>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="5"><div class="empty-state">No hay pacientes esperando consulta.</div></td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section class="med-panel">
-        <div class="med-panel-header">
-          <div><div class="med-panel-title">🩻 Estudios y resultados recientes</div><div class="med-panel-subtitle">Acceso rápido al expediente e interpretación</div></div>
-        </div>
-        <div class="med-panel-scroll tall">
-          <div class="table-responsive">
-            <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th>Estudio</th><th>Servicio</th><th>Reporte</th><th class="text-end">Acción</th></tr></thead>
-              <tbody>
-              {% for estudio in estudios_recientes %}
-                <tr class="med-search-row" data-search="{{ estudio.paciente.identificacion }} {{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }} {{ estudio.tipo_estudio.nombre }}">
-                  <td><div class="patient-name">{{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }}</div><div class="tiny">{{ estudio.paciente.identificacion }}</div></td>
-                  <td>{{ estudio.tipo_estudio.nombre }}</td>
-                  <td>
-                    {% if estudio.estado == 'PENDIENTE' %}<span class="status-pill status-pending">Pendiente</span>
-                    {% elif estudio.estado == 'EN_PROCESO' %}<span class="status-pill status-process">En proceso</span>
-                    {% else %}<span class="status-pill status-complete">Completado</span>{% endif %}
-                  </td>
-                  <td>
-                    {% if estudio.estado_reporte == 'FINAL' %}<span class="status-pill status-report">Reporte final</span>
-                    {% elif estudio.estado_reporte == 'POR_VALIDAR' %}<span class="status-pill status-process">Por validar</span>
-                    {% else %}<span class="tiny">Sin reporte final</span>{% endif %}
-                  </td>
-                  <td class="text-end"><a href="{% url 'detalle_paciente' estudio.paciente.id %}" class="btn btn-outline-info btn-med">Expediente</a></td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="5"><div class="empty-state">No hay estudios registrados.</div></td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <div class="med-column">
-      <section class="med-panel">
-        <div class="med-panel-header">
-          <div><div class="med-panel-title">🩺 Consultas en curso</div><div class="med-panel-subtitle">Consultas activas</div></div>
-          <span class="badge bg-warning text-dark">{{ consultas_en_curso.count }}</span>
-        </div>
-        <div class="med-panel-scroll">
-          <div class="table-responsive">
-            <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th>Inicio</th><th class="text-end">Acción</th></tr></thead>
-              <tbody>
-              {% for consulta in consultas_en_curso %}
-                <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}">
-                  <td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="tiny">{{ consulta.paciente.identificacion }}</div></td>
-                  <td>{{ consulta.fecha_inicio|date:"H:i"|default:"—" }}</td>
-                  <td class="text-end">
-                    <div class="d-flex gap-1 justify-content-end">
-                      <a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-info btn-med">Continuar</a>
-                      <form method="post" action="{% url 'finalizar_consulta_medica' consulta.id %}" onsubmit="return confirm('¿Finalizar esta consulta?');">{% csrf_token %}<button type="submit" class="btn btn-success btn-med">Finalizar</button></form>
-                    </div>
-                  </td>
-                </tr>
-              {% empty %}
-                <tr><td colspan="3"><div class="empty-state">No hay consultas activas.</div></td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <div class="med-mini-grid">
-        <section class="med-panel">
-          <div class="med-panel-header"><div class="med-panel-title">📅 Citas de hoy</div><span class="badge bg-primary">{{ citas_medicas_hoy.count }}</span></div>
-          <div class="med-panel-scroll">
-            <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Hora</th><th>Paciente</th></tr></thead>
-              <tbody>
-              {% for cita in citas_medicas_hoy %}
-                <tr class="med-search-row" data-search="{{ cita.nombre_paciente }} {{ cita.telefono }} {{ cita.get_area_display }}"><td>{{ cita.fecha_hora|date:"H:i" }}</td><td><div class="patient-name">{{ cita.nombre_paciente }}</div>{% if cita.telefono %}<div class="tiny">{{ cita.telefono }}</div>{% endif %}</td></tr>
-              {% empty %}
-                <tr><td colspan="2"><div class="empty-state">Sin citas hoy.</div></td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="med-panel">
-          <div class="med-panel-header"><div class="med-panel-title">✅ Atendidos</div></div>
-          <div class="med-panel-scroll">
-            <table class="table table-dark table-hover med-table">
-              <thead><tr><th>Paciente</th><th class="text-end">Acción</th></tr></thead>
-              <tbody>
-              {% for consulta in pacientes_atendidos %}
-                <tr class="med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}"><td><div class="patient-name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="tiny">{{ consulta.fecha_finalizacion|date:"d/m H:i"|default:"—" }}</div></td><td class="text-end"><a href="{% url 'detalle_paciente' consulta.paciente.id %}" class="btn btn-outline-secondary btn-med">Ver</a></td></tr>
-              {% empty %}
-                <tr><td colspan="2"><div class="empty-state">Sin consultas finalizadas.</div></td></tr>
-              {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <section class="med-panel">
-        <div class="med-panel-header"><div><div class="med-panel-title">🗓️ Próximas citas</div><div class="med-panel-subtitle">Agenda próxima</div></div><span class="badge bg-secondary">{{ proximas_citas_medicas|length }}</span></div>
-        <div class="med-panel-scroll">
-          <table class="table table-dark table-hover med-table">
-            <thead><tr><th>Fecha</th><th>Paciente</th></tr></thead>
-            <tbody>
-            {% for cita in proximas_citas_medicas %}
-              <tr class="med-search-row" data-search="{{ cita.nombre_paciente }} {{ cita.get_area_display }}"><td>{{ cita.fecha_hora|date:"d/m H:i" }}</td><td>{{ cita.nombre_paciente }}</td></tr>
-            {% empty %}
-              <tr><td colspan="2"><div class="empty-state">No hay próximas citas.</div></td></tr>
-            {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  </div>
-</div>
-
-<script>
-(function(){
-  const input=document.getElementById('medPatientSearch');
-  const clear=document.getElementById('medPatientSearchClear');
-  const rows=[...document.querySelectorAll('.med-search-row')];
-  function norm(v){return (v||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
-  function filter(){const term=norm(input.value);rows.forEach(r=>r.classList.toggle('med-hidden',!!term&&!norm(r.dataset.search).includes(term)));}
-  input.addEventListener('input',filter);
-  clear.addEventListener('click',()=>{input.value='';filter();input.focus();});
-})();
-</script>
-
+<main class="doctor-page">
+ <header class="doctor-head"><div><h1>👨‍⚕️ Panel Médico</h1><p>{{ institucion.nombre }} · Atención, estudios y reportes en un mismo lugar.</p></div><a href="{% url 'perfil_medico' %}" class="doctor-profile">👤 Mi perfil profesional</a></header>
+ <section class="stats"><div class="stat"><small>Pacientes en espera</small><strong>{{ consultas_en_espera.count }}</strong></div><div class="stat"><small>Consultas activas</small><strong>{{ consultas_en_curso.count }}</strong></div><div class="stat"><small>Citas de hoy</small><strong>{{ citas_medicas_hoy.count }}</strong></div><div class="stat"><small>Atendidos hoy</small><strong>{{ pacientes_atendidos|length }}</strong></div></section>
+ <div class="search"><input type="search" id="medPatientSearch" placeholder="Buscar por nombre, registro, motivo o estudio…" aria-label="Buscar paciente"><button id="medPatientSearchClear" type="button">Limpiar</button></div>
+ <p class="hint">Las tareas que requieren atención están visibles. La agenda, resultados e historial están ordenados en secciones desplegables.</p>
+ <div class="grid">
+  <section class="card"><div class="section-head"><div><h2>🕒 Pacientes esperando atención</h2><p class="muted">Abre el expediente o inicia la consulta.</p></div><span class="count">{{ consultas_en_espera.count }}</span></div>
+   {% for consulta in consultas_en_espera %}<article class="row med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }} {{ consulta.motivo_consulta }}"><div><div class="name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="meta">Registro {{ consulta.paciente.identificacion }} · Llegó {{ consulta.fecha_llegada|date:'H:i' }}</div></div><div class="reason">{{ consulta.motivo_consulta|default:'Sin motivo registrado'|truncatechars:75 }}</div><div class="actions"><a class="action" href="{% url 'detalle_paciente' consulta.paciente.id %}">Ver expediente</a><form method="post" action="{% url 'atender_consulta_medica' consulta.id %}">{% csrf_token %}<button class="action primary" type="submit">Atender ahora</button></form></div></article>{% empty %}<div class="empty">✓ No hay pacientes esperando consulta.</div>{% endfor %}
+  </section>
+  <section class="card"><div class="section-head"><div><h2>🩺 Consultas en curso</h2><p class="muted">Continúa donde te quedaste.</p></div><span class="count">{{ consultas_en_curso.count }}</span></div>
+   {% for consulta in consultas_en_curso %}<article class="row med-search-row" style="grid-template-columns:1fr auto" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}"><div><div class="name">{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</div><div class="meta">Registro {{ consulta.paciente.identificacion }} · Inicio {{ consulta.fecha_inicio|date:'H:i'|default:'—' }}</div></div><div class="actions"><a class="action primary" href="{% url 'detalle_paciente' consulta.paciente.id %}">Continuar</a><form method="post" action="{% url 'finalizar_consulta_medica' consulta.id %}" onsubmit="return confirm('¿Confirmas que deseas finalizar esta consulta?');">{% csrf_token %}<button class="action success" type="submit">Finalizar</button></form></div></article>{% empty %}<div class="empty">No hay consultas activas.</div>{% endfor %}
+  </section>
+ </div>
+ <section class="secondary">
+  <details class="fold"><summary>🩻 Estudios y resultados recientes <span class="count">{{ estudios_recientes|length }}</span></summary><div class="compact">{% for estudio in estudios_recientes %}<div class="compact-row med-search-row" data-search="{{ estudio.paciente.identificacion }} {{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }} {{ estudio.tipo_estudio.nombre }}"><div><b>{{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }}</b><div class="meta">{{ estudio.paciente.identificacion }}</div></div><div><b>{{ estudio.tipo_estudio.nombre }}</b><div class="meta">{% if estudio.estado_reporte == 'FINAL' %}Reporte final disponible{% elif estudio.estado_reporte == 'POR_VALIDAR' %}Reporte por validar{% else %}Sin reporte final{% endif %}</div></div><a class="action" href="{% url 'detalle_paciente' estudio.paciente.id %}">Abrir expediente</a></div>{% empty %}<div class="empty">No hay estudios recientes.</div>{% endfor %}</div></details>
+  <details class="fold"><summary>📅 Agenda médica <span class="count">{{ citas_medicas_hoy.count }}</span></summary><div class="compact">{% for cita in citas_medicas_hoy %}<div class="compact-row med-search-row" data-search="{{ cita.nombre_paciente }} {{ cita.telefono }}"><b>Hoy {{ cita.fecha_hora|date:'H:i' }}</b><div>{{ cita.nombre_paciente }}<div class="meta">{{ cita.telefono|default:'Sin teléfono' }}</div></div><span class="status gold">Hoy</span></div>{% endfor %}{% for cita in proximas_citas_medicas %}<div class="compact-row med-search-row" data-search="{{ cita.nombre_paciente }}"><b>{{ cita.fecha_hora|date:'d/m/Y H:i' }}</b><div>{{ cita.nombre_paciente }}</div><span class="status">Próxima</span></div>{% empty %}{% if not citas_medicas_hoy %}<div class="empty">No hay citas programadas.</div>{% endif %}{% endfor %}</div></details>
+  <details class="fold"><summary>✅ Pacientes atendidos <span class="count">{{ pacientes_atendidos|length }}</span></summary><div class="compact">{% for consulta in pacientes_atendidos %}<div class="compact-row med-search-row" data-search="{{ consulta.paciente.identificacion }} {{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}"><div><b>{{ consulta.paciente.nombre }} {{ consulta.paciente.apellido }}</b><div class="meta">{{ consulta.fecha_finalizacion|date:'d/m/Y H:i'|default:'—' }}</div></div><span class="status green">Atendido</span><a class="action" href="{% url 'detalle_paciente' consulta.paciente.id %}">Ver expediente</a></div>{% empty %}<div class="empty">No hay consultas finalizadas.</div>{% endfor %}</div></details>
+ </section>
+</main>
+<script>(function(){const input=document.getElementById('medPatientSearch'),clear=document.getElementById('medPatientSearchClear'),rows=[...document.querySelectorAll('.med-search-row')];function norm(v){return(v||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim()}function filter(){const term=norm(input.value);rows.forEach(row=>row.classList.toggle('med-hidden',!!term&&!norm(row.dataset.search).includes(term)))}input.addEventListener('input',filter);clear.addEventListener('click',()=>{input.value='';filter();input.focus()})})();</script>
 {% endblock %}

@@ -5,6 +5,7 @@ from pathlib import Path
 import hashlib
 import json
 import logging
+import textwrap
 from html.parser import HTMLParser
 from urllib.parse import quote
 from xml.sax.saxutils import escape
@@ -37,6 +38,7 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from reportlab.pdfgen import canvas as pdf_canvas
 
 import pydicom
 import numpy as np
@@ -2165,7 +2167,7 @@ def _html_para_reportlab(valor):
 
 
 @login_required
-def reporte_radiologico_pdf(request, estudio_id):
+def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
     membresia = obtener_membresia_usuario(request)
     if membresia is None or membresia.rol not in [
         'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
@@ -2342,6 +2344,97 @@ def reporte_radiologico_pdf(request, estudio_id):
         ]
         documento.build(historia_respaldo)
 
+    respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'
+    respuesta['Content-Disposition'] = (
+        f'{disposicion}; filename="reporte_{paciente.identificacion}_{estudio.id}.pdf"'
+    )
+    return respuesta
+
+
+@login_required
+def reporte_radiologico_pdf(request, estudio_id):
+    """Genera el PDF y nunca deja al usuario frente a un error 500.
+
+    El diseño institucional enriquecido es la primera opción. Si ReportLab
+    encuentra un archivo, una fuente o un contenido inesperado, se entrega
+    automáticamente un PDF clínico simplificado con la misma información.
+    """
+    try:
+        return _reporte_radiologico_pdf_enriquecido(request, estudio_id)
+    except Exception as exc:
+        logger.exception(
+            'Se activó el PDF de respaldo del reporte. estudio_id=%s error=%s',
+            estudio_id,
+            str(exc),
+        )
+
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return redirect('panel_config')
+    reporte = get_object_or_404(
+        ReporteRadiologico.objects.select_related(
+            'estudio__paciente', 'estudio__tipo_estudio',
+            'institucion', 'finalizado_por', 'elaborado_por',
+        ),
+        estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+    estudio = reporte.estudio
+    paciente = estudio.paciente
+    institucion = reporte.institucion
+    firmante = reporte.finalizado_por or reporte.elaborado_por
+    buffer = BytesIO()
+    lienzo = pdf_canvas.Canvas(buffer, pagesize=letter)
+    ancho_pagina, alto_pagina = letter
+    margen = 1.6 * cm
+    y = alto_pagina - margen
+
+    def nueva_pagina():
+        nonlocal y
+        lienzo.showPage()
+        y = alto_pagina - margen
+
+    def escribir(texto, tamano=9, negrita=False, espacio=4):
+        nonlocal y
+        fuente = 'Helvetica-Bold' if negrita else 'Helvetica'
+        lienzo.setFont(fuente, tamano)
+        caracteres = max(38, int((ancho_pagina - 2 * margen) / (tamano * .52)))
+        lineas = []
+        for parrafo in str(texto or '—').splitlines() or ['—']:
+            lineas.extend(textwrap.wrap(parrafo, width=caracteres) or [''])
+        for linea in lineas:
+            if y < margen + 1.2 * cm:
+                nueva_pagina()
+                lienzo.setFont(fuente, tamano)
+            lienzo.drawString(margen, y, linea)
+            y -= tamano + 3
+        y -= espacio
+
+    nombre_institucion = institucion.nombre_comercial or institucion.nombre
+    escribir(nombre_institucion, 14, True, 2)
+    escribir('REPORTE RADIOLÓGICO', 12, True, 10)
+    escribir(f'Paciente: {paciente.nombre} {paciente.apellido}', 9, True)
+    escribir(f'Registro: {paciente.identificacion}')
+    escribir(f'Estudio: {estudio.tipo_estudio.nombre}')
+    escribir(f'Médico solicitante: {estudio.medico_solicitante or "No especificado"}')
+    escribir('DESCRIPCIÓN E IMPRESIÓN RADIOLÓGICA', 10, True, 7)
+    contenido = '\n\n'.join(filter(None, [
+        texto_plano_reporte(reporte.hallazgos_html),
+        texto_plano_reporte(reporte.impresion_html),
+    ])) or 'Sin contenido.'
+    escribir(contenido, 9, False, 16)
+    escribir('________________________________________', 9, False, 2)
+    escribir(
+        obtener_nombre_usuario(firmante) if firmante else 'No especificado',
+        9,
+        True,
+    )
+    if reporte.estado != 'FINAL':
+        escribir('BORRADOR · Documento no firmado', 8, True)
+    lienzo.save()
     respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'
     respuesta['Content-Disposition'] = (
@@ -4949,7 +5042,7 @@ def detalle_paciente(
             if primera else None
         )
 
-    consultas = (
+    consultas = list(
         paciente.consultas
         .select_related(
             'medico'
@@ -4960,7 +5053,7 @@ def detalle_paciente(
         )
     )
 
-    citas = (
+    citas = list(
         paciente.citas
         .select_related(
             'tipo_estudio'
@@ -4969,6 +5062,48 @@ def detalle_paciente(
         .order_by(
             '-fecha_hora'
         )
+    )
+
+    historial_eventos = []
+    if paciente.creado_el:
+        historial_eventos.append({
+            'fecha': paciente.creado_el,
+            'tipo': 'REGISTRO',
+            'etiqueta': 'Registro inicial',
+            'titulo': 'Paciente registrado en Recepción',
+            'estado': 'Expediente creado',
+            'objeto': paciente,
+        })
+    for consulta_item in consultas:
+        historial_eventos.append({
+            'fecha': consulta_item.fecha_llegada,
+            'tipo': 'CONSULTA',
+            'etiqueta': 'Consulta',
+            'titulo': consulta_item.motivo_consulta or 'Consulta médica',
+            'estado': consulta_item.get_estado_display(),
+            'objeto': consulta_item,
+        })
+    for estudio_item in estudios:
+        estudio_item.reporte_pdf_url = None
+        try:
+            reporte_item = estudio_item.reporte_radiologico
+        except ReporteRadiologico.DoesNotExist:
+            reporte_item = None
+        if reporte_item:
+            estudio_item.reporte_pdf_url = reverse(
+                'reporte_radiologico_pdf', args=[estudio_item.id],
+            )
+        historial_eventos.append({
+            'fecha': estudio_item.fecha_creacion,
+            'tipo': 'IMAGEN',
+            'etiqueta': estudio_item.tipo_estudio.get_modalidad_display(),
+            'titulo': estudio_item.tipo_estudio.nombre,
+            'estado': estudio_item.get_estado_display(),
+            'objeto': estudio_item,
+        })
+    historial_eventos.sort(
+        key=lambda evento: evento['fecha'] or timezone.now(),
+        reverse=True,
     )
 
     consulta_activa = None
@@ -5063,6 +5198,7 @@ def detalle_paciente(
         'receta_activa': receta_activa,
         'indicacion_activa': indicacion_activa,
         'solicitudes_activas': solicitudes_activas,
+        'historial_eventos': historial_eventos,
     }
 
     return render(
