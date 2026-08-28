@@ -8,15 +8,7 @@
   <div class="delivery-brand">LoretoOne</div>
   <h1>Resultados de imagen</h1>
   <p>{{ entrega.institucion.nombre_comercial|default:entrega.institucion.nombre }}</p>
-  {% if disponible %}
-    <p>Escribe el código de seis dígitos que recibiste junto con este enlace.</p>
-    {% for message in messages %}<div class="delivery-error">{{ message }}</div>{% endfor %}
-    <form method="post">{% csrf_token %}
-      <input class="delivery-code" name="codigo" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
-      <button class="delivery-button" type="submit">Abrir mis resultados</button>
-    </form>
-    <p class="delivery-note">Enlace vigente hasta {{ entrega.vence_el|date:'d/m/Y H:i' }}. No compartas tu código con personas que no autorices.</p>
-  {% else %}
+  {% if not disponible %}
     <div class="delivery-error">Este enlace venció, fue revocado o se bloqueó por seguridad. Solicita uno nuevo a la clínica.</div>
   {% endif %}
 </section></div>

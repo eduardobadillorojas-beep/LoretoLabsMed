@@ -185,7 +185,11 @@
                 <form method="post" action="{% url 'generar_entrega_digital_estudio' estudio.id %}" class="mt-2" onsubmit="return confirm('Se creará un enlace temporal protegido para entregar el estudio y el reporte al paciente. ¿Continuar?');">
                     {% csrf_token %}
                     <input type="hidden" name="vigencia_horas" value="72">
-                    <button type="submit" class="btn btn-success btn-sm w-100">Compartir con el paciente</button>
+                    <label class="report-help" for="telefono-entrega">WhatsApp del paciente o médico</label>
+                    <div class="d-flex gap-2">
+                        <input id="telefono-entrega" name="telefono_entrega" type="tel" inputmode="tel" value="{{ paciente.telefono|default:'' }}" placeholder="10 dígitos" class="form-control form-control-sm">
+                        <button type="submit" class="btn btn-success btn-sm">Compartir</button>
+                    </div>
                 </form>
                 {% if entregas_digitales_activas %}
                 <details class="mt-2">

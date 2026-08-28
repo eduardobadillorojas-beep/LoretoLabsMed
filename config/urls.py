@@ -207,6 +207,12 @@ urlpatterns = [
     ),
 
     path(
+        'resultados/<uuid:token>/medir/<int:instancia_id>/',
+        views.entrega_digital_medir,
+        name='entrega_digital_medir'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/pre-reporte/',
         views.guardar_pre_reporte_estudio,
         name='guardar_pre_reporte_estudio'

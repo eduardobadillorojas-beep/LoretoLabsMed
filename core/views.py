@@ -2624,7 +2624,19 @@ def reporte_radiologico_pdf(request, estudio_id):
 
 
 def _sesion_entrega_valida(request, entrega):
-    return bool(request.session.get(f'entrega_digital_{entrega.token}'))
+    # El UUID funciona como credencial temporal (enlace llave). No se exige
+    # una segunda clave para mantener el acceso sencillo para adultos mayores.
+    return True
+
+
+def _entrega_disponible(entrega):
+    return bool(
+        entrega.activa
+        and entrega.vence_el > timezone.now()
+        and entrega.bloqueada_el is None
+        and entrega.estudio.estado == 'COMPLETADO'
+        and entrega.estudio.reporte_radiologico.estado == 'FINAL'
+    )
 
 
 def _obtener_entrega_vigente(token):
@@ -2661,11 +2673,12 @@ def generar_entrega_digital_estudio(request, estudio_id):
         horas = min(max(int(request.POST.get('vigencia_horas', 72)), 1), 168)
     except (TypeError, ValueError):
         horas = 72
-    codigo = f'{secrets.randbelow(1000000):06d}'
     entrega = EntregaDigitalEstudio.objects.create(
         institucion=membresia.institucion,
         estudio=estudio,
-        codigo_hash=make_password(codigo),
+        # Se conserva el campo por compatibilidad con la migración 0034,
+        # pero el acceso actual se autoriza exclusivamente con el token UUID.
+        codigo_hash=make_password(secrets.token_urlsafe(32)),
         vence_el=timezone.now() + timedelta(hours=horas),
         creada_por=request.user,
     )
@@ -2673,20 +2686,28 @@ def generar_entrega_digital_estudio(request, estudio_id):
         reverse('entrega_digital_acceso', args=[entrega.token])
     )
     telefono = ''.join(
-        caracter for caracter in (estudio.paciente.telefono or '')
+        caracter for caracter in (
+            request.POST.get('telefono_entrega')
+            or estudio.paciente.telefono
+            or ''
+        )
         if caracter.isdigit()
     )
+    if telefono and len(telefono) == 10:
+        telefono = '52' + telefono
     mensaje = quote(
-        f'{membresia.institucion.nombre_comercial or membresia.institucion.nombre}\n'
-        f'Resultados de {estudio.tipo_estudio.nombre}\n'
-        f'Enlace: {enlace}\nCódigo de acceso: {codigo}\n'
-        f'El enlace vence el {timezone.localtime(entrega.vence_el):%d/%m/%Y a las %H:%M}.'
+        f'Hola {estudio.paciente.nombre},\n\n'
+        f'ya están disponibles las imágenes y el reporte de tu estudio '
+        f'{estudio.tipo_estudio.nombre}, realizado en '
+        f'{membresia.institucion.nombre_comercial or membresia.institucion.nombre}.\n\n'
+        f'Para ver tus resultados abre este enlace:\n{enlace}\n\n'
+        f'El enlace vence el {timezone.localtime(entrega.vence_el):%d/%m/%Y a las %H:%M}. '
+        f'No lo compartas con personas que no autorices.'
     )
     enlace_whatsapp = f'https://wa.me/{telefono}?text={mensaje}' if telefono else ''
     return render(request, 'core/entrega_digital_creada.html', {
         'entrega': entrega,
         'estudio': estudio,
-        'codigo': codigo,
         'enlace': enlace,
         'enlace_whatsapp': enlace_whatsapp,
     })
@@ -2713,57 +2734,48 @@ def revocar_entrega_digital_estudio(request, entrega_id):
 
 def entrega_digital_acceso(request, token):
     entrega = _obtener_entrega_vigente(token)
-    ahora = timezone.now()
-    disponible = (
-        entrega.activa
-        and entrega.vence_el > ahora
-        and entrega.bloqueada_el is None
-        and entrega.estudio.estado == 'COMPLETADO'
-        and entrega.estudio.reporte_radiologico.estado == 'FINAL'
-    )
-    if request.method == 'POST' and disponible:
-        codigo = ''.join(c for c in request.POST.get('codigo', '') if c.isdigit())
-        if check_password(codigo, entrega.codigo_hash):
-            request.session[f'entrega_digital_{entrega.token}'] = True
-            request.session.set_expiry(7200)
-            entrega.intentos_fallidos = 0
-            entrega.accesos += 1
-            entrega.ultimo_acceso_el = ahora
-            entrega.save(update_fields=[
-                'intentos_fallidos', 'accesos', 'ultimo_acceso_el',
-            ])
-            return redirect('entrega_digital_estudio', token=entrega.token)
-        entrega.intentos_fallidos += 1
-        if entrega.intentos_fallidos >= 8:
-            entrega.bloqueada_el = ahora
-        entrega.save(update_fields=['intentos_fallidos', 'bloqueada_el'])
-        messages.error(request, 'Código incorrecto. Verifica los seis dígitos recibidos.')
-    return render(request, 'core/entrega_digital_acceso.html', {
-        'entrega': entrega,
-        'disponible': disponible,
-    }, status=200 if disponible else 410)
+    if not _entrega_disponible(entrega):
+        return render(request, 'core/entrega_digital_acceso.html', {
+            'entrega': entrega,
+            'disponible': False,
+        }, status=410)
+    entrega.accesos += 1
+    entrega.ultimo_acceso_el = timezone.now()
+    entrega.save(update_fields=['accesos', 'ultimo_acceso_el'])
+    return redirect('entrega_digital_estudio', token=entrega.token)
 
 
 def entrega_digital_estudio(request, token):
     entrega = _obtener_entrega_vigente(token)
-    if (
-        not entrega.activa or entrega.vence_el <= timezone.now()
-        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
-    ):
-        return redirect('entrega_digital_acceso', token=entrega.token)
+    if not _entrega_disponible(entrega):
+        return render(request, 'core/entrega_digital_acceso.html', {
+            'entrega': entrega, 'disponible': False,
+        }, status=410)
     series = []
     registro = EstudioDicom.objects.filter(estudio=entrega.estudio).first()
     if registro:
         for serie in registro.series.prefetch_related('instancias').all():
             imagenes = []
             for instancia in serie.instancias.all():
-                imagenes.append({
-                    'numero': instancia.numero_instancia,
-                    'url': reverse(
+                total_frames = max(1, instancia.numero_frames or 1)
+                for frame in range(total_frames):
+                    url = reverse(
                         'entrega_digital_imagen',
                         args=[entrega.token, instancia.id],
-                    ),
-                })
+                    )
+                    if total_frames > 1:
+                        url = f'{url}?frame={frame}'
+                    imagenes.append({
+                        'id': instancia.id,
+                        'frame': frame,
+                        'numero': instancia.numero_instancia,
+                        'url': url,
+                        'medir_url': reverse(
+                            'entrega_digital_medir',
+                            args=[entrega.token, instancia.id],
+                        ),
+                        'fotometria': instancia.interpretacion_fotometrica or '',
+                    })
             if imagenes:
                 series.append({
                     'nombre': serie.descripcion or 'Serie sin descripción',
@@ -2781,11 +2793,8 @@ def entrega_digital_estudio(request, token):
 
 def entrega_digital_reporte_pdf(request, token):
     entrega = _obtener_entrega_vigente(token)
-    if (
-        not entrega.activa or entrega.vence_el <= timezone.now()
-        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
-    ):
-        return redirect('entrega_digital_acceso', token=entrega.token)
+    if not _entrega_disponible(entrega):
+        return HttpResponse('Este enlace ya no está disponible.', status=410)
     return _reporte_radiologico_pdf_enriquecido(
         request,
         entrega.estudio_id,
@@ -2795,10 +2804,7 @@ def entrega_digital_reporte_pdf(request, token):
 
 def entrega_digital_imagen(request, token, instancia_id):
     entrega = _obtener_entrega_vigente(token)
-    if (
-        not entrega.activa or entrega.vence_el <= timezone.now()
-        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
-    ):
+    if not _entrega_disponible(entrega):
         return HttpResponse(status=403)
     instancia = get_object_or_404(
         InstanciaDicom.objects.select_related('archivo_estudio'),
@@ -2810,14 +2816,26 @@ def entrega_digital_imagen(request, token, instancia_id):
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
             dataset = pydicom.dcmread(archivo)
             pixeles = dataset.pixel_array
-        if int(getattr(dataset, 'NumberOfFrames', 1) or 1) > 1:
-            pixeles = pixeles[0]
+        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+        frame = max(0, min(int(request.GET.get('frame', 0)), numero_frames - 1))
+        if numero_frames > 1:
+            pixeles = pixeles[frame]
         muestras = int(getattr(dataset, 'SamplesPerPixel', 1) or 1)
         if muestras == 1:
             pixeles = apply_modality_lut(pixeles, dataset).astype(np.float64)
         minimo, maximo = float(np.nanmin(pixeles)), float(np.nanmax(pixeles))
-        ancho = max(maximo - minimo, 1.0)
-        imagen_8bits = (np.clip((pixeles - minimo) / ancho, 0, 1) * 255).astype(np.uint8)
+        centro_dicom = getattr(dataset, 'WindowCenter', (minimo + maximo) / 2)
+        ancho_dicom = getattr(dataset, 'WindowWidth', max(maximo - minimo, 1.0))
+        if hasattr(centro_dicom, '__iter__') and not isinstance(centro_dicom, str):
+            centro_dicom = centro_dicom[0]
+        if hasattr(ancho_dicom, '__iter__') and not isinstance(ancho_dicom, str):
+            ancho_dicom = ancho_dicom[0]
+        centro = float(request.GET.get('wc', centro_dicom))
+        ancho = max(float(request.GET.get('ww', ancho_dicom)), 1.0)
+        inferior = centro - ancho / 2
+        imagen_8bits = (
+            np.clip((pixeles.astype(np.float64) - inferior) / ancho, 0, 1) * 255
+        ).astype(np.uint8)
         if muestras == 1:
             if valor_dicom(dataset, 'PhotometricInterpretation') == 'MONOCHROME1':
                 imagen_8bits = 255 - imagen_8bits
@@ -2832,6 +2850,74 @@ def entrega_digital_imagen(request, token, instancia_id):
     except Exception as exc:
         logger.exception('No fue posible generar imagen de entrega. %s', exc)
         return HttpResponse('Imagen no disponible.', status=422)
+
+
+@require_POST
+def entrega_digital_medir(request, token, instancia_id):
+    entrega = _obtener_entrega_vigente(token)
+    if not _entrega_disponible(entrega):
+        return JsonResponse({'error': 'Este enlace ya no está disponible.'}, status=403)
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio=entrega.estudio,
+        institucion=entrega.institucion,
+    )
+    try:
+        datos = json.loads(request.body.decode('utf-8'))
+        herramienta = datos.get('herramienta')
+        puntos = datos.get('puntos') or []
+        frame = max(0, int(datos.get('frame', 0)))
+        with instancia.archivo_estudio.archivo.open('rb') as archivo:
+            dataset = pydicom.dcmread(archivo)
+        filas = int(getattr(dataset, 'Rows', 0) or 0)
+        columnas = int(getattr(dataset, 'Columns', 0) or 0)
+        espaciado = getattr(dataset, 'PixelSpacing', None) or getattr(
+            dataset, 'ImagerPixelSpacing', None
+        )
+        fila_mm = float(espaciado[0]) if espaciado else None
+        columna_mm = float(espaciado[1]) if espaciado else None
+
+        def punto(indice):
+            return (
+                max(0.0, min(float(puntos[indice]['x']), columnas - 1)),
+                max(0.0, min(float(puntos[indice]['y']), filas - 1)),
+            )
+
+        if herramienta == 'distancia' and len(puntos) == 2:
+            x1, y1 = punto(0); x2, y2 = punto(1)
+            if fila_mm is not None and columna_mm is not None:
+                valor = (((x2-x1)*columna_mm)**2 + ((y2-y1)*fila_mm)**2) ** .5
+                return JsonResponse({'valor': valor, 'unidad': 'mm', 'calibrada': True})
+            return JsonResponse({
+                'valor': ((x2-x1)**2 + (y2-y1)**2) ** .5,
+                'unidad': 'px', 'calibrada': False,
+            })
+        if herramienta == 'roi' and len(puntos) == 2:
+            if int(getattr(dataset, 'SamplesPerPixel', 1) or 1) != 1:
+                return JsonResponse({'error': 'La ROI requiere una imagen monocromática.'}, status=422)
+            pixeles = dataset.pixel_array
+            total_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+            if total_frames > 1:
+                pixeles = pixeles[min(frame, total_frames - 1)]
+            x1, y1 = punto(0); x2, y2 = punto(1)
+            izquierda, derecha = sorted((int(round(x1)), int(round(x2))))
+            arriba, abajo = sorted((int(round(y1)), int(round(y2))))
+            valores = apply_modality_lut(pixeles, dataset).astype(np.float64)[
+                arriba:max(abajo + 1, arriba + 1),
+                izquierda:max(derecha + 1, izquierda + 1),
+            ]
+            modalidad = valor_dicom(dataset, 'Modality').upper()
+            es_hu = modalidad == 'CT' and hasattr(dataset, 'RescaleSlope')
+            return JsonResponse({
+                'promedio': float(np.mean(valores)), 'minimo': float(np.min(valores)),
+                'maximo': float(np.max(valores)), 'desviacion': float(np.std(valores)),
+                'unidad': 'HU' if es_hu else 'valor de píxel',
+            })
+        return JsonResponse({'error': 'Medición no válida.'}, status=400)
+    except Exception as exc:
+        logger.exception('Error en medición pública DICOM. %s', exc)
+        return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
 
 
 @login_required
