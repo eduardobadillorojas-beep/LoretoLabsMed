@@ -1965,13 +1965,15 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
     puede_firmar_reporte = bool(
         perfil_usuario_actual
         and perfil_usuario_actual.cedula_profesional
-        and membresia.rol in ['MEDICO', 'RADIOLOGIA', 'ADMIN']
+        and perfil_usuario_actual.firma
+        and membresia.rol in ['MEDICO', 'ADMIN']
     )
     reporte_esta_firmado = bool(
         reporte.estado == 'FINAL'
         and reporte.finalizado_por
         and perfil_reporte
         and perfil_reporte.cedula_profesional
+        and perfil_reporte.firma
     )
 
     return render(
@@ -2056,10 +2058,14 @@ def guardar_reporte_radiologico(request, estudio_id):
     puede_firmar = bool(
         perfil_firmante
         and perfil_firmante.cedula_profesional
-        and membresia.rol in ['MEDICO', 'RADIOLOGIA', 'ADMIN']
+        and perfil_firmante.firma
+        and membresia.rol in ['MEDICO', 'ADMIN']
     )
     if finalizar and not puede_firmar:
-        messages.error(request, 'Solo el médico radiólogo puede firmar el reporte final.')
+        messages.error(
+            request,
+            'Para firmar el reporte se requiere un perfil médico activo con cédula y firma registradas.',
+        )
         return redirect(destino)
 
     if accion == 'reabrir':
@@ -2158,9 +2164,13 @@ def guardar_reporte_radiologico(request, estudio_id):
             estudio.reporte_final_por = request.user
             estudio.fecha_reporte_final = reporte.finalizado_el
             estudio.estado_reporte = 'FINAL'
+            estudio.estado = 'COMPLETADO'
+            if not estudio.fecha_finalizacion:
+                estudio.fecha_finalizacion = reporte.finalizado_el
             estudio.save(update_fields=[
                 'reporte_final', 'reporte_final_por',
                 'fecha_reporte_final', 'estado_reporte',
+                'estado', 'fecha_finalizacion',
             ])
         else:
             reporte.estado = 'BORRADOR'
@@ -2266,6 +2276,7 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         and firmante
         and perfil
         and perfil.cedula_profesional
+        and perfil.firma
     )
 
     buffer = BytesIO()
@@ -2482,6 +2493,7 @@ def reporte_radiologico_pdf(request, estudio_id):
         and firmante
         and perfil
         and perfil.cedula_profesional
+        and perfil.firma
     )
     buffer = BytesIO()
     lienzo = pdf_canvas.Canvas(buffer, pagesize=letter)
@@ -5151,6 +5163,7 @@ def detalle_paciente(
             'tipo_estudio',
             'reporte_final_por',
             'pre_reporte_por',
+            'reporte_radiologico__finalizado_por',
         )
         .prefetch_related(
             'archivos'
@@ -5219,22 +5232,56 @@ def detalle_paciente(
             'estado': consulta_item.get_estado_display(),
             'objeto': consulta_item,
         })
+    usuarios_firmantes = []
+    for estudio_item in estudios:
+        try:
+            reporte_relacionado = estudio_item.reporte_radiologico
+        except ReporteRadiologico.DoesNotExist:
+            reporte_relacionado = None
+        if reporte_relacionado and reporte_relacionado.finalizado_por_id:
+            usuarios_firmantes.append(reporte_relacionado.finalizado_por_id)
+    perfiles_firmantes = {
+        perfil.usuario_id: perfil
+        for perfil in PerfilMedico.objects.filter(
+            institucion=membresia.institucion,
+            usuario_id__in=usuarios_firmantes,
+            activo=True,
+        )
+    }
+
     for estudio_item in estudios:
         estudio_item.reporte_pdf_url = None
         try:
             reporte_item = estudio_item.reporte_radiologico
         except ReporteRadiologico.DoesNotExist:
             reporte_item = None
+        perfil_firmante = (
+            perfiles_firmantes.get(reporte_item.finalizado_por_id)
+            if reporte_item and reporte_item.finalizado_por_id else None
+        )
+        estudio_item.reporte_firmado = bool(
+            reporte_item
+            and reporte_item.estado == 'FINAL'
+            and perfil_firmante
+            and perfil_firmante.cedula_profesional
+            and perfil_firmante.firma
+        )
         if reporte_item:
             estudio_item.reporte_pdf_url = reverse(
                 'reporte_radiologico_pdf', args=[estudio_item.id],
             )
+        if estudio_item.reporte_firmado:
+            estado_evento = 'Completado · Reporte firmado'
+        elif estudio_item.estado == 'COMPLETADO':
+            estado_evento = 'Estudio realizado · Reporte pendiente'
+        else:
+            estado_evento = estudio_item.get_estado_display()
         historial_eventos.append({
             'fecha': estudio_item.fecha_creacion,
             'tipo': 'IMAGEN',
             'etiqueta': estudio_item.tipo_estudio.get_modalidad_display(),
             'titulo': estudio_item.tipo_estudio.nombre,
-            'estado': estudio_item.get_estado_display(),
+            'estado': estado_evento,
             'objeto': estudio_item,
         })
     historial_eventos.sort(

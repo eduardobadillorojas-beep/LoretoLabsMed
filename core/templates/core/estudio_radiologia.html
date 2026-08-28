@@ -949,15 +949,16 @@ Estudio | Loreto One
                     <div class="box-body">
 
                         <p class="small-muted">
-                            Puedes finalizar aunque no hayas
-                            cargado archivos, por ejemplo si el
-                            estudio fue gestionado mediante EDEN PACS.
+                            Este botón termina la adquisición técnica. No firma el reporte médico.
+                            El estudio quedará realizado y el reporte permanecerá pendiente hasta
+                            que un médico con cédula y firma registradas lo revise y pulse
+                            <strong>Firmar final</strong>.
                         </p>
 
                         <form
                             method="post"
                             action="{% url 'finalizar_estudio_radiologia' estudio.id %}"
-                            onsubmit="return confirm('¿Finalizar este estudio?');"
+                            onsubmit="return confirm('¿Finalizar la adquisición técnica? Esta acción no firma el reporte médico.');"
                         >
 
                             {% csrf_token %}
