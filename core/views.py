@@ -2645,7 +2645,9 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
             imagen = PILImage.fromarray(imagen_8bits)
 
         salida = BytesIO()
-        imagen.save(salida, format='PNG', optimize=True)
+        # La compresión baja reduce considerablemente el uso de CPU durante
+        # cine y navegación rápida por series, sin alterar los píxeles.
+        imagen.save(salida, format='PNG', optimize=False, compress_level=1)
         respuesta = HttpResponse(salida.getvalue(), content_type='image/png')
         respuesta['Cache-Control'] = 'private, max-age=900'
         respuesta['X-DICOM-Window-Center'] = f'{centro:g}'

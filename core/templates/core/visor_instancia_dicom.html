@@ -9,6 +9,7 @@
 <style>
     .viewer-workspace{display:grid;grid-template-columns:190px minmax(520px,1fr) 365px;gap:12px;margin-bottom:12px}.series-panel{background:#111827;border:1px solid #334155;border-radius:9px;padding:10px;max-height:760px;overflow:auto}.series-panel h2{font-size:.82rem;margin:0 0 9px}.series-card{display:block;color:#e2e8f0;text-decoration:none;background:#0b1220;border:1px solid #334155;border-radius:7px;padding:7px;margin-bottom:8px}.series-card:hover,.series-card.active{border-color:#22d3ee;color:#fff}.series-thumb{width:100%;height:92px;object-fit:contain;background:#020617;border-radius:4px;margin-bottom:6px}.series-name{font-size:.7rem;font-weight:700;line-height:1.2}.series-meta{font-size:.62rem;color:#94a3b8;margin-top:4px}.preset-details{background:#0b1220;border-bottom:1px solid #334155}.preset-details summary{cursor:pointer;list-style:none;padding:8px 10px;color:#94a3b8;font-size:.72rem}.preset-details summary::-webkit-details-marker{display:none}.preset-details summary::before{content:'▸';display:inline-block;margin-right:7px;color:#22d3ee;transition:transform .15s}.preset-details[open] summary::before{transform:rotate(90deg)}.preset-row{border-bottom:0;padding-top:2px}.cine-row{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;padding:6px 8px;background:#0b1220;border-bottom:1px solid #334155;white-space:nowrap}.cine-row button{font-size:.62rem;padding:3px 6px}.cine-speed{width:62px;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:2px 4px;font-size:.62rem}.cine-row .small{font-size:.61rem}.report-panel{background:#111827;border:1px solid #334155;border-radius:9px;display:flex;flex-direction:column;min-height:620px;overflow:hidden}.report-scroll{padding:10px;overflow:auto;flex:1}.report-panel h2{font-size:.88rem;margin:0}.report-state{font-size:.62rem;padding:3px 7px;border-radius:20px;background:#334155}.report-state.final{background:#166534}.auto-data{font-size:.66rem;color:#cbd5e1;background:#0b1220;border:1px solid #334155;border-radius:6px;padding:8px;margin:8px 0;line-height:1.5}.report-label{display:block;font-size:.68rem;color:#93c5fd;margin:8px 0 4px}.rich-toolbar{display:flex;gap:3px;flex-wrap:nowrap;margin-bottom:4px}.rich-toolbar button{min-width:23px;font-size:.61rem;padding:2px 5px}.rich-editor{min-height:355px;background:#f8fafc;color:#111827;border:1px solid #64748b;border-radius:5px;padding:8px;font-size:.75rem;line-height:1.42;overflow:auto}.rich-editor[contenteditable=false]{background:#cbd5e1}.report-footer{background:#0b1220;border-top:1px solid #334155;padding:9px}.report-actions{display:flex;gap:6px;flex-wrap:wrap}.template-row{display:flex;gap:5px}.template-row select{min-width:0;flex:1}.template-save{display:grid;grid-template-columns:1fr auto;gap:5px;margin-top:7px}.template-save input{min-width:0;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:5px;padding:5px 6px;font-size:.67rem}.report-help{font-size:.6rem;color:#94a3b8;margin-top:6px}.technical-details{background:#111827;border:1px solid #334155;border-radius:9px;margin-top:12px}.technical-details>summary{cursor:pointer;padding:11px 14px;color:#93c5fd;font-weight:700;font-size:.78rem}.technical-details>summary span{color:#94a3b8;font-weight:400;margin-left:7px}.technical-details .dicom-grid{padding:0 12px 12px}.technical-details .dicom-box{background:#0f172a}@media(max-width:1180px){.viewer-workspace{grid-template-columns:180px minmax(0,1fr)}.report-panel{grid-column:1/-1;min-height:540px}.rich-editor{min-height:260px}}@media(max-width:900px){.viewer-workspace{grid-template-columns:1fr}.series-panel{display:flex;gap:8px;max-height:none;overflow-x:auto}.series-panel h2{min-width:100%;display:none}.series-card{min-width:145px}.series-thumb{height:70px}.report-panel{grid-column:auto}.cine-row{flex-wrap:wrap}.technical-details .dicom-grid{grid-template-columns:1fr}}
     .viewer-workspace{align-items:start}.viewer-shell{align-self:start}
+    .slice-slider-wrap{position:absolute;right:10px;top:18px;bottom:18px;z-index:4;display:flex;flex-direction:column;align-items:center;gap:7px;padding:8px 6px;background:rgba(15,23,42,.88);border:1px solid #475569;border-radius:9px;backdrop-filter:blur(3px)}.slice-slider-wrap[hidden]{display:none}.slice-slider-label{font-size:.61rem;color:#cbd5e1;white-space:nowrap}.slice-slider{writing-mode:vertical-lr;direction:rtl;width:24px;flex:1;min-height:180px;accent-color:#22d3ee;cursor:pointer;touch-action:none}.slice-slider-value{font-size:.66rem;font-weight:700;color:#fff;min-width:42px;text-align:center}@media(max-width:760px){.slice-slider-wrap{right:5px;top:10px;bottom:10px;padding:7px 4px}.slice-slider{min-height:140px}.slice-slider-label{display:none}}
 </style>
 
 <div class="dicom-wrap">
@@ -94,6 +95,20 @@
                 draggable="false"
             >
             <canvas id="measurement-layer" class="measurement-layer"></canvas>
+            <div class="slice-slider-wrap" id="slice-slider-wrap"{% if total_instancias <= 1 %} hidden{% endif %}>
+                <span class="slice-slider-label">Cortes</span>
+                <input
+                    id="slice-slider"
+                    class="slice-slider"
+                    type="range"
+                    min="1"
+                    max="{{ total_instancias }}"
+                    value="{{ posicion }}"
+                    step="1"
+                    aria-label="Seleccionar corte de la tomografía"
+                >
+                <span class="slice-slider-value" id="slice-slider-value">{{ posicion }}/{{ total_instancias }}</span>
+            </div>
         </div>
         <div id="measurement-result" class="measurement-result">Selecciona una herramienta. La regla necesita 2 puntos, el ángulo 3 y la ROI dos esquinas.</div>
         </section>
@@ -258,6 +273,8 @@
     const wc = document.getElementById('window-center');
     const ww = document.getElementById('window-width');
     const counter = document.getElementById('contador-imagen');
+    const sliceSlider = document.getElementById('slice-slider');
+    const sliceSliderValue = document.getElementById('slice-slider-value');
     const downloadOriginal = document.getElementById('descargar-original');
     const instances = JSON.parse(document.getElementById('instancias-serie-data').textContent);
     const currentInstanceId = {{ instancia.id }};
@@ -274,7 +291,8 @@
     const annotationsByInstance = {};
     let wlStartX = 0, wlStartY = 0, wlCenter = 128, wlWidth = 256;
     let previewBrightness = 1, previewContrast = 1;
-    let cineTimer = null, resetPreviewOnLoad = false;
+    let cineTimer = null, resetPreviewOnLoad = false, imageLoading = !image.complete;
+    let sliderTimer = null;
 
     function draw() {
         image.style.transform = `translate(${x}px, ${y}px) scale(${zoom}) rotate(${rotation}deg)`;
@@ -320,11 +338,8 @@
         const preload=new Image();preload.decoding='async';preload.src=url;imageCache.set(url,preload);
     }
     function preloadAround(index){
-        for(let offset=-2;offset<=2;offset+=1){
-            const position=index+offset;
-            if(position<0||position>=instances.length)continue;
-            preloadUrl(instances[position].imagen_url);
-        }
+        const next=index+1;
+        if(next<instances.length)preloadUrl(instances[next].imagen_url);
     }
     function loadInstance(index, wrap=false){
         if(!instances.length)return;
@@ -337,9 +352,12 @@
         supportsServerWindow=photometric.startsWith('MONOCHROME');
         annotations=annotationsByInstance[annotationKey(selected)]||[];pending=[];
         counter.textContent=`Corte ${currentIndex+1} de ${instances.length}`;
+        if(sliceSlider){sliceSlider.value=String(currentIndex+1);}
+        if(sliceSliderValue){sliceSliderValue.textContent=`${currentIndex+1}/${instances.length}`;}
         downloadOriginal.href=selected.original_url;
         history.replaceState({},'',selected.visor_url);
         resetPreviewOnLoad=false;
+        imageLoading=true;
         if(supportsServerWindow&&(wc.value!==''||ww.value!=='')){
             image.src=windowedUrl(baseUrl);
         }else{image.src=baseUrl;}
@@ -392,12 +410,24 @@
     document.getElementById('borrar-mediciones').onclick=()=>{annotations=[];pending=[];result.textContent='Mediciones eliminadas.';drawAnnotations();};
     document.getElementById('corte-anterior').onclick=()=>loadInstance(currentIndex-1);
     document.getElementById('corte-siguiente').onclick=()=>loadInstance(currentIndex+1);
+    if(sliceSlider){
+        const solicitarCorte=()=>{
+            const index=Math.max(0,Math.min(instances.length-1,Number(sliceSlider.value)-1));
+            sliceSliderValue.textContent=`${index+1}/${instances.length}`;
+            clearTimeout(sliderTimer);
+            sliderTimer=setTimeout(()=>{stopCine();loadInstance(index);},110);
+        };
+        sliceSlider.addEventListener('input',solicitarCorte);
+        sliceSlider.addEventListener('change',()=>{
+            clearTimeout(sliderTimer);stopCine();loadInstance(Number(sliceSlider.value)-1);
+        });
+    }
     function stopCine(){if(cineTimer){clearInterval(cineTimer);cineTimer=null;}}
     document.getElementById('cine-pausar').onclick=stopCine;
     document.getElementById('cine-reproducir').onclick=()=>{
         stopCine();
         const fps=Math.max(1,parseInt(document.getElementById('cine-velocidad').value,10)||5);
-        cineTimer=setInterval(()=>loadInstance(currentIndex+1,true),1000/fps);
+        cineTimer=setInterval(()=>{if(!imageLoading)loadInstance(currentIndex+1,true);},1000/fps);
     };
     let wheelFrame=null,pendingWheelDirection=0;
     stage.addEventListener('wheel', event => {
@@ -425,8 +455,8 @@
         }
     });
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
-    image.addEventListener('error', () => { stage.innerHTML = '<div class="text-danger p-4 text-center">No fue posible decodificar los píxeles de este DICOM. Revisa el registro del servidor.</div>'; });
-    image.addEventListener('load',()=>{if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
+    image.addEventListener('error', () => { imageLoading=false;result.textContent='No fue posible cargar este corte. Espera unos segundos e inténtalo nuevamente.'; });
+    image.addEventListener('load',()=>{imageLoading=false;if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
 })();
 </script>
 {% endblock %}
