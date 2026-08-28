@@ -1064,12 +1064,22 @@ class EntregaDigitalEstudio(models.Model):
     )
     token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     codigo_hash = models.CharField(max_length=128)
-    vence_el = models.DateTimeField()
+    vence_el = models.DateTimeField(blank=True, null=True)
+    destinatario = models.CharField(max_length=160, blank=True)
+    telefono_destino = models.CharField(max_length=24, blank=True)
     activa = models.BooleanField(default=True)
     intentos_fallidos = models.PositiveSmallIntegerField(default=0)
     bloqueada_el = models.DateTimeField(blank=True, null=True)
     accesos = models.PositiveIntegerField(default=0)
     ultimo_acceso_el = models.DateTimeField(blank=True, null=True)
+    revocada_el = models.DateTimeField(blank=True, null=True)
+    revocada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='entregas_digitales_estudios_revocadas',
+        blank=True,
+        null=True,
+    )
     creada_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

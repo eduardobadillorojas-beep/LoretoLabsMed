@@ -1984,10 +1984,10 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
         and perfil_reporte.cedula_profesional
         and perfil_reporte.firma
     )
-    entregas_digitales_activas = (
+    entregas_digitales = (
         estudio.entregas_digitales
-        .filter(activa=True, vence_el__gt=timezone.now())
-        .order_by('-creada_el')[:5]
+        .select_related('creada_por', 'revocada_por')
+        .order_by('-creada_el')[:20]
     )
 
     return render(
@@ -2014,7 +2014,7 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
                 reporte.estado == 'FINAL' and puede_firmar_reporte
             ),
             'reporte_esta_firmado': reporte_esta_firmado,
-            'entregas_digitales_activas': entregas_digitales_activas,
+            'entregas_digitales': entregas_digitales,
             'perfil_reporte': perfil_reporte,
             'contenido_reporte_html': ''.join(filter(None, [
                 reporte.hallazgos_html,
@@ -2632,7 +2632,7 @@ def _sesion_entrega_valida(request, entrega):
 def _entrega_disponible(entrega):
     return bool(
         entrega.activa
-        and entrega.vence_el > timezone.now()
+        and (entrega.vence_el is None or entrega.vence_el > timezone.now())
         and entrega.bloqueada_el is None
         and entrega.estudio.estado == 'COMPLETADO'
         and entrega.estudio.reporte_radiologico.estado == 'FINAL'
@@ -2669,17 +2669,27 @@ def generar_entrega_digital_estudio(request, estudio_id):
             'La entrega digital requiere un estudio completado y un reporte firmado.',
         )
         return redirect('estudio_radiologia', estudio_id=estudio.id)
-    try:
-        horas = min(max(int(request.POST.get('vigencia_horas', 72)), 1), 168)
-    except (TypeError, ValueError):
-        horas = 72
+    vence_el = None
+    if request.POST.get('usar_caducidad') == '1':
+        try:
+            dias = min(max(int(request.POST.get('vigencia_dias', 30)), 1), 3650)
+        except (TypeError, ValueError):
+            dias = 30
+        vence_el = timezone.now() + timedelta(days=dias)
+    telefono_original = request.POST.get('telefono_entrega') or estudio.paciente.telefono or ''
+    destinatario = (
+        request.POST.get('destinatario_entrega')
+        or f'{estudio.paciente.nombre} {estudio.paciente.apellido}'
+    ).strip()
     entrega = EntregaDigitalEstudio.objects.create(
         institucion=membresia.institucion,
         estudio=estudio,
         # Se conserva el campo por compatibilidad con la migración 0034,
         # pero el acceso actual se autoriza exclusivamente con el token UUID.
         codigo_hash=make_password(secrets.token_urlsafe(32)),
-        vence_el=timezone.now() + timedelta(hours=horas),
+        vence_el=vence_el,
+        destinatario=destinatario[:160],
+        telefono_destino=''.join(c for c in telefono_original if c.isdigit())[:24],
         creada_por=request.user,
     )
     enlace = request.build_absolute_uri(
@@ -2687,9 +2697,7 @@ def generar_entrega_digital_estudio(request, estudio_id):
     )
     telefono = ''.join(
         caracter for caracter in (
-            request.POST.get('telefono_entrega')
-            or estudio.paciente.telefono
-            or ''
+            telefono_original
         )
         if caracter.isdigit()
     )
@@ -2701,8 +2709,12 @@ def generar_entrega_digital_estudio(request, estudio_id):
         f'{estudio.tipo_estudio.nombre}, realizado en '
         f'{membresia.institucion.nombre_comercial or membresia.institucion.nombre}.\n\n'
         f'Para ver tus resultados abre este enlace:\n{enlace}\n\n'
-        f'El enlace vence el {timezone.localtime(entrega.vence_el):%d/%m/%Y a las %H:%M}. '
-        f'No lo compartas con personas que no autorices.'
+        + (
+            f'El enlace estará disponible hasta el {timezone.localtime(entrega.vence_el):%d/%m/%Y}. '
+            if entrega.vence_el else
+            'El enlace permanecerá disponible mientras la clínica no lo revoque. '
+        )
+        + 'No lo compartas con personas que no autorices.'
     )
     enlace_whatsapp = f'https://wa.me/{telefono}?text={mensaje}' if telefono else ''
     return render(request, 'core/entrega_digital_creada.html', {
@@ -2727,7 +2739,9 @@ def revocar_entrega_digital_estudio(request, entrega_id):
         institucion=membresia.institucion,
     )
     entrega.activa = False
-    entrega.save(update_fields=['activa'])
+    entrega.revocada_el = timezone.now()
+    entrega.revocada_por = request.user
+    entrega.save(update_fields=['activa', 'revocada_el', 'revocada_por'])
     messages.success(request, 'El enlace de entrega digital fue revocado.')
     return redirect('estudio_radiologia', estudio_id=entrega.estudio_id)
 

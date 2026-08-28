@@ -182,25 +182,28 @@
                 {% if reporte_esta_firmado %}<div class="report-help">Firmado por {{ reporte_radiologico.finalizado_por.get_full_name|default:reporte_radiologico.finalizado_por.username }} · {{ reporte_radiologico.finalizado_el|date:"d/m/Y H:i" }}</div>{% else %}<div class="report-help">Pre-reporte sin firma médica. Debe revisarlo y firmarlo un médico con cédula profesional.</div>{% endif %}
             {% endif %}
             {% if reporte_esta_firmado %}
-                <form method="post" action="{% url 'generar_entrega_digital_estudio' estudio.id %}" class="mt-2" onsubmit="return confirm('Se creará un enlace temporal protegido para entregar el estudio y el reporte al paciente. ¿Continuar?');">
+                <form method="post" action="{% url 'generar_entrega_digital_estudio' estudio.id %}" class="mt-2" onsubmit="return confirm('Se creará un enlace privado para entregar el estudio y el reporte. ¿Continuar?');">
                     {% csrf_token %}
-                    <input type="hidden" name="vigencia_horas" value="72">
                     <label class="report-help" for="telefono-entrega">WhatsApp del paciente o médico</label>
                     <div class="d-flex gap-2">
                         <input id="telefono-entrega" name="telefono_entrega" type="tel" inputmode="tel" value="{{ paciente.telefono|default:'' }}" placeholder="10 dígitos" class="form-control form-control-sm">
                         <button type="submit" class="btn btn-success btn-sm">Compartir</button>
                     </div>
+                    <input name="destinatario_entrega" type="text" value="{{ paciente.nombre }} {{ paciente.apellido }}" placeholder="Nombre del destinatario" class="form-control form-control-sm mt-2">
+                    <details class="mt-2"><summary class="report-help">Opciones de seguridad</summary><label class="report-help d-block mt-2"><input type="checkbox" name="usar_caducidad" value="1"> Hacer que el enlace caduque</label><div class="d-flex align-items-center gap-2 mt-1"><input type="number" name="vigencia_dias" value="30" min="1" max="3650" class="form-control form-control-sm" style="max-width:110px"><small>días</small></div></details>
                 </form>
-                {% if entregas_digitales_activas %}
+                {% if entregas_digitales %}
                 <details class="mt-2">
-                    <summary class="report-help">Enlaces activos ({{ entregas_digitales_activas|length }})</summary>
-                    {% for entrega in entregas_digitales_activas %}
-                    <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
-                        <small>Vence {{ entrega.vence_el|date:"d/m/Y H:i" }} · {{ entrega.accesos }} acceso{{ entrega.accesos|pluralize }}</small>
+                    <summary class="report-help">Historial de entregas ({{ entregas_digitales|length }})</summary>
+                    {% for entrega in entregas_digitales %}
+                    <div class="d-flex justify-content-between align-items-center gap-2 mt-2 border-top pt-2">
+                        <small><strong>{% if entrega.activa %}Activo{% else %}Revocado{% endif %}</strong> · {{ entrega.destinatario|default:"Sin destinatario" }}{% if entrega.telefono_destino %} · {{ entrega.telefono_destino }}{% endif %}<br>Creado {{ entrega.creada_el|date:"d/m/Y H:i" }} por {{ entrega.creada_por.get_full_name|default:entrega.creada_por.username|default:"Usuario eliminado" }} · {{ entrega.accesos }} acceso{{ entrega.accesos|pluralize }}{% if entrega.ultimo_acceso_el %} · Último {{ entrega.ultimo_acceso_el|date:"d/m/Y H:i" }}{% endif %}<br>{% if entrega.vence_el %}Caduca {{ entrega.vence_el|date:"d/m/Y H:i" }}{% else %}Sin caducidad{% endif %}</small>
+                        {% if entrega.activa %}
                         <form method="post" action="{% url 'revocar_entrega_digital_estudio' entrega.id %}" onsubmit="return confirm('¿Revocar este enlace? El paciente dejará de tener acceso inmediatamente.');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline-danger btn-sm">Revocar</button>
                         </form>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </details>

@@ -114,7 +114,7 @@ class PlantillaReporteRadiologicoAdmin(admin.ModelAdmin):
 @admin.register(EntregaDigitalEstudio)
 class EntregaDigitalEstudioAdmin(admin.ModelAdmin):
     list_display = (
-        'estudio', 'activa', 'vence_el', 'accesos',
+        'estudio', 'destinatario', 'telefono_destino', 'activa', 'vence_el', 'accesos',
         'intentos_fallidos', 'bloqueada_el', 'creada_el',
     )
     list_filter = ('institucion', 'activa', 'vence_el', 'bloqueada_el')
@@ -122,6 +122,7 @@ class EntregaDigitalEstudioAdmin(admin.ModelAdmin):
         'estudio__paciente__identificacion',
         'estudio__paciente__nombre',
         'estudio__paciente__apellido',
+        'destinatario', 'telefono_destino',
     )
     readonly_fields = tuple(
         field.name for field in EntregaDigitalEstudio._meta.fields
