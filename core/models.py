@@ -1051,6 +1051,48 @@ class ReporteRadiologico(models.Model):
         return f'Reporte {self.estudio_id} - {self.estado}'
 
 
+class EntregaDigitalEstudio(models.Model):
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='entregas_digitales_estudios',
+    )
+    estudio = models.ForeignKey(
+        Estudio,
+        on_delete=models.PROTECT,
+        related_name='entregas_digitales',
+    )
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    codigo_hash = models.CharField(max_length=128)
+    vence_el = models.DateTimeField()
+    activa = models.BooleanField(default=True)
+    intentos_fallidos = models.PositiveSmallIntegerField(default=0)
+    bloqueada_el = models.DateTimeField(blank=True, null=True)
+    accesos = models.PositiveIntegerField(default=0)
+    ultimo_acceso_el = models.DateTimeField(blank=True, null=True)
+    creada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='entregas_digitales_estudios_creadas',
+        blank=True,
+        null=True,
+    )
+    creada_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creada_el']
+        indexes = [
+            models.Index(
+                fields=['institucion', 'estudio', 'activa'],
+                name='core_entrega_inst_est_act_idx',
+            ),
+            models.Index(fields=['vence_el'], name='core_entrega_vence_idx'),
+        ]
+
+    def __str__(self):
+        return f'Entrega digital {self.estudio_id} · {self.token}'
+
+
 class RevisionReporteRadiologico(models.Model):
     reporte = models.ForeignKey(
         ReporteRadiologico,

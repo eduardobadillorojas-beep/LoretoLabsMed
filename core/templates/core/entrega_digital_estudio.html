@@ -1,0 +1,23 @@
+{% extends 'core/base.html' %}
+{% block title %}Mis resultados | Loreto One{% endblock %}
+{% block content %}
+<style>
+.patient-results{max-width:1100px;margin:0 auto;padding:18px}.results-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:15px}.results-card{background:#1e293b;border:1px solid #334155;border-radius:11px;padding:15px;margin-bottom:12px}.patient-name{font-size:1.25rem;font-weight:800}.viewer-public{background:#030712;border-radius:9px;min-height:420px;display:grid;place-items:center;position:relative;overflow:hidden}.viewer-public img{max-width:100%;max-height:68vh;object-fit:contain}.public-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}.public-slider{flex:1;min-width:180px}.series-tabs{display:flex;gap:7px;overflow-x:auto;padding-bottom:6px}.series-tab{white-space:nowrap;background:#0f172a;color:#fff;border:1px solid #475569;border-radius:7px;padding:7px 10px}.series-tab.active{border-color:#22d3ee;color:#22d3ee}.privacy-note{color:#94a3b8;font-size:.72rem}.empty-series{color:#94a3b8;padding:55px 15px;text-align:center}@media(max-width:650px){.results-head{align-items:flex-start;flex-direction:column}.viewer-public{min-height:300px}}
+</style>
+<div class="patient-results">
+ <header class="results-head"><div><div class="text-info fw-bold">{{ entrega.institucion.nombre_comercial|default:entrega.institucion.nombre }}</div><div class="patient-name">{{ paciente.nombre }} {{ paciente.apellido }}</div><div class="text-secondary small">{{ estudio.tipo_estudio.nombre }} · {{ estudio.fecha_creacion|date:'d/m/Y' }}</div></div><a class="btn btn-info" href="{% url 'entrega_digital_reporte_pdf' entrega.token %}" target="_blank">Abrir reporte firmado</a></header>
+ <section class="results-card">
+  <h2 class="h6">Imágenes del estudio</h2>
+  {% if series %}
+   {{ series|json_script:'public-series-data' }}
+   <div class="series-tabs" id="series-tabs"></div>
+   <div class="viewer-public"><img id="public-image" alt="Imagen del estudio"></div>
+   <div class="public-controls"><button id="prev-image" class="btn btn-outline-info btn-sm">◀ Anterior</button><input id="public-slider" class="public-slider" type="range" min="1" value="1"><button id="next-image" class="btn btn-outline-info btn-sm">Siguiente ▶</button><strong id="public-counter"></strong></div>
+  {% else %}<div class="empty-series">Este estudio no contiene imágenes disponibles para visualización web.</div>{% endif %}
+ </section>
+ <p class="privacy-note">Acceso temporal y confidencial. Las imágenes deben ser interpretadas junto con el reporte del médico radiólogo.</p>
+</div>
+{% if series %}<script>
+(()=>{const series=JSON.parse(document.getElementById('public-series-data').textContent),tabs=document.getElementById('series-tabs'),image=document.getElementById('public-image'),slider=document.getElementById('public-slider'),counter=document.getElementById('public-counter');let s=0,i=0;function render(){const imgs=series[s].imagenes;i=Math.max(0,Math.min(i,imgs.length-1));image.src=imgs[i].url;slider.max=imgs.length;slider.value=i+1;counter.textContent=`${i+1} / ${imgs.length}`;[...tabs.children].forEach((x,n)=>x.classList.toggle('active',n===s))}series.forEach((serie,n)=>{const b=document.createElement('button');b.className='series-tab';b.textContent=`${serie.modalidad} · ${serie.nombre}`;b.onclick=()=>{s=n;i=0;render()};tabs.appendChild(b)});slider.oninput=()=>{i=Number(slider.value)-1;render()};document.getElementById('prev-image').onclick=()=>{i--;render()};document.getElementById('next-image').onclick=()=>{i++;render()};render()})();
+</script>{% endif %}
+{% endblock %}

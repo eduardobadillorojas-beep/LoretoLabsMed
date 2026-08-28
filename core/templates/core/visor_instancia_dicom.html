@@ -181,6 +181,27 @@
                 </div>
                 {% if reporte_esta_firmado %}<div class="report-help">Firmado por {{ reporte_radiologico.finalizado_por.get_full_name|default:reporte_radiologico.finalizado_por.username }} · {{ reporte_radiologico.finalizado_el|date:"d/m/Y H:i" }}</div>{% else %}<div class="report-help">Pre-reporte sin firma médica. Debe revisarlo y firmarlo un médico con cédula profesional.</div>{% endif %}
             {% endif %}
+            {% if reporte_esta_firmado %}
+                <form method="post" action="{% url 'generar_entrega_digital_estudio' estudio.id %}" class="mt-2" onsubmit="return confirm('Se creará un enlace temporal protegido para entregar el estudio y el reporte al paciente. ¿Continuar?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="vigencia_horas" value="72">
+                    <button type="submit" class="btn btn-success btn-sm w-100">Compartir con el paciente</button>
+                </form>
+                {% if entregas_digitales_activas %}
+                <details class="mt-2">
+                    <summary class="report-help">Enlaces activos ({{ entregas_digitales_activas|length }})</summary>
+                    {% for entrega in entregas_digitales_activas %}
+                    <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+                        <small>Vence {{ entrega.vence_el|date:"d/m/Y H:i" }} · {{ entrega.accesos }} acceso{{ entrega.accesos|pluralize }}</small>
+                        <form method="post" action="{% url 'revocar_entrega_digital_estudio' entrega.id %}" onsubmit="return confirm('¿Revocar este enlace? El paciente dejará de tener acceso inmediatamente.');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">Revocar</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </details>
+                {% endif %}
+            {% endif %}
           </div>
         </aside>
     </div>

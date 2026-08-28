@@ -10,6 +10,7 @@ from .models import (
     Estudio,
     EstudioDicom,
     EliminacionSerieDicom,
+    EntregaDigitalEstudio,
     Institucion,
     MembresiaInstitucion,
     InstanciaDicom,
@@ -108,6 +109,29 @@ class PlantillaReporteRadiologicoAdmin(admin.ModelAdmin):
     )
     list_filter = ('institucion', 'modalidad', 'activa')
     search_fields = ('nombre', 'tipo_estudio__nombre')
+
+
+@admin.register(EntregaDigitalEstudio)
+class EntregaDigitalEstudioAdmin(admin.ModelAdmin):
+    list_display = (
+        'estudio', 'activa', 'vence_el', 'accesos',
+        'intentos_fallidos', 'bloqueada_el', 'creada_el',
+    )
+    list_filter = ('institucion', 'activa', 'vence_el', 'bloqueada_el')
+    search_fields = (
+        'estudio__paciente__identificacion',
+        'estudio__paciente__nombre',
+        'estudio__paciente__apellido',
+    )
+    readonly_fields = tuple(
+        field.name for field in EntregaDigitalEstudio._meta.fields
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class PagoCobroInline(admin.TabularInline):

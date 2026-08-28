@@ -171,6 +171,42 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/entrega-digital/',
+        views.generar_entrega_digital_estudio,
+        name='generar_entrega_digital_estudio'
+    ),
+
+    path(
+        'radiologia/entrega-digital/<int:entrega_id>/revocar/',
+        views.revocar_entrega_digital_estudio,
+        name='revocar_entrega_digital_estudio'
+    ),
+
+    path(
+        'resultados/<uuid:token>/',
+        views.entrega_digital_acceso,
+        name='entrega_digital_acceso'
+    ),
+
+    path(
+        'resultados/<uuid:token>/estudio/',
+        views.entrega_digital_estudio,
+        name='entrega_digital_estudio'
+    ),
+
+    path(
+        'resultados/<uuid:token>/reporte.pdf',
+        views.entrega_digital_reporte_pdf,
+        name='entrega_digital_reporte_pdf'
+    ),
+
+    path(
+        'resultados/<uuid:token>/imagen/<int:instancia_id>/',
+        views.entrega_digital_imagen,
+        name='entrega_digital_imagen'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/pre-reporte/',
         views.guardar_pre_reporte_estudio,
         name='guardar_pre_reporte_estudio'

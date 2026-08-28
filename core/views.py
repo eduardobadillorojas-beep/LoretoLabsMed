@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
 import hashlib
 import json
 import logging
+import secrets
 import textwrap
 from html.parser import HTMLParser
 from urllib.parse import quote
@@ -13,6 +14,7 @@ from xml.sax.saxutils import escape
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q
 from django.core.paginator import Paginator
@@ -68,6 +70,7 @@ from .models import (
     Consulta,
     Estudio,
     EstudioDicom,
+    EntregaDigitalEstudio,
     EliminacionSerieDicom,
     EstudioSolicitado,
     IndicacionMedica,
@@ -1981,6 +1984,11 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
         and perfil_reporte.cedula_profesional
         and perfil_reporte.firma
     )
+    entregas_digitales_activas = (
+        estudio.entregas_digitales
+        .filter(activa=True, vence_el__gt=timezone.now())
+        .order_by('-creada_el')[:5]
+    )
 
     return render(
         request,
@@ -2006,6 +2014,7 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
                 reporte.estado == 'FINAL' and puede_firmar_reporte
             ),
             'reporte_esta_firmado': reporte_esta_firmado,
+            'entregas_digitales_activas': entregas_digitales_activas,
             'perfil_reporte': perfil_reporte,
             'contenido_reporte_html': ''.join(filter(None, [
                 reporte.hallazgos_html,
@@ -2267,20 +2276,25 @@ def _parrafo_reporte_seguro(valor, estilo):
         return Paragraph(texto.replace('\n', '<br/>'), estilo)
 
 
-@login_required
-def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
-    membresia = obtener_membresia_usuario(request)
-    if membresia is None or membresia.rol not in [
-        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
-    ]:
-        return redirect('panel_config')
+def _reporte_radiologico_pdf_enriquecido(
+    request,
+    estudio_id,
+    institucion_autorizada=None,
+):
+    if institucion_autorizada is None:
+        membresia = obtener_membresia_usuario(request)
+        if membresia is None or membresia.rol not in [
+            'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+        ]:
+            return redirect('panel_config')
+        institucion_autorizada = membresia.institucion
     reporte = get_object_or_404(
         ReporteRadiologico.objects.select_related(
             'estudio__paciente', 'estudio__tipo_estudio',
             'institucion', 'finalizado_por', 'elaborado_por',
         ),
         estudio_id=estudio_id,
-        institucion=membresia.institucion,
+        institucion=institucion_autorizada,
     )
     estudio = reporte.estudio
     paciente = estudio.paciente
@@ -2607,6 +2621,217 @@ def reporte_radiologico_pdf(request, estudio_id):
         f'{disposicion}; filename="reporte_{paciente.identificacion}_{estudio.id}.pdf"'
     )
     return respuesta
+
+
+def _sesion_entrega_valida(request, entrega):
+    return bool(request.session.get(f'entrega_digital_{entrega.token}'))
+
+
+def _obtener_entrega_vigente(token):
+    return get_object_or_404(
+        EntregaDigitalEstudio.objects.select_related(
+            'institucion', 'estudio__paciente', 'estudio__tipo_estudio',
+            'estudio__reporte_radiologico',
+        ),
+        token=token,
+    )
+
+
+@login_required
+@require_POST
+def generar_entrega_digital_estudio(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return redirect('panel_config')
+    estudio = get_object_or_404(
+        Estudio.objects.select_related('paciente', 'tipo_estudio'),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+    reporte = getattr(estudio, 'reporte_radiologico', None)
+    if estudio.estado != 'COMPLETADO' or not reporte or reporte.estado != 'FINAL':
+        messages.error(
+            request,
+            'La entrega digital requiere un estudio completado y un reporte firmado.',
+        )
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+    try:
+        horas = min(max(int(request.POST.get('vigencia_horas', 72)), 1), 168)
+    except (TypeError, ValueError):
+        horas = 72
+    codigo = f'{secrets.randbelow(1000000):06d}'
+    entrega = EntregaDigitalEstudio.objects.create(
+        institucion=membresia.institucion,
+        estudio=estudio,
+        codigo_hash=make_password(codigo),
+        vence_el=timezone.now() + timedelta(hours=horas),
+        creada_por=request.user,
+    )
+    enlace = request.build_absolute_uri(
+        reverse('entrega_digital_acceso', args=[entrega.token])
+    )
+    telefono = ''.join(
+        caracter for caracter in (estudio.paciente.telefono or '')
+        if caracter.isdigit()
+    )
+    mensaje = quote(
+        f'{membresia.institucion.nombre_comercial or membresia.institucion.nombre}\n'
+        f'Resultados de {estudio.tipo_estudio.nombre}\n'
+        f'Enlace: {enlace}\nCódigo de acceso: {codigo}\n'
+        f'El enlace vence el {timezone.localtime(entrega.vence_el):%d/%m/%Y a las %H:%M}.'
+    )
+    enlace_whatsapp = f'https://wa.me/{telefono}?text={mensaje}' if telefono else ''
+    return render(request, 'core/entrega_digital_creada.html', {
+        'entrega': entrega,
+        'estudio': estudio,
+        'codigo': codigo,
+        'enlace': enlace,
+        'enlace_whatsapp': enlace_whatsapp,
+    })
+
+
+@login_required
+@require_POST
+def revocar_entrega_digital_estudio(request, entrega_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return redirect('panel_config')
+    entrega = get_object_or_404(
+        EntregaDigitalEstudio,
+        pk=entrega_id,
+        institucion=membresia.institucion,
+    )
+    entrega.activa = False
+    entrega.save(update_fields=['activa'])
+    messages.success(request, 'El enlace de entrega digital fue revocado.')
+    return redirect('estudio_radiologia', estudio_id=entrega.estudio_id)
+
+
+def entrega_digital_acceso(request, token):
+    entrega = _obtener_entrega_vigente(token)
+    ahora = timezone.now()
+    disponible = (
+        entrega.activa
+        and entrega.vence_el > ahora
+        and entrega.bloqueada_el is None
+        and entrega.estudio.estado == 'COMPLETADO'
+        and entrega.estudio.reporte_radiologico.estado == 'FINAL'
+    )
+    if request.method == 'POST' and disponible:
+        codigo = ''.join(c for c in request.POST.get('codigo', '') if c.isdigit())
+        if check_password(codigo, entrega.codigo_hash):
+            request.session[f'entrega_digital_{entrega.token}'] = True
+            request.session.set_expiry(7200)
+            entrega.intentos_fallidos = 0
+            entrega.accesos += 1
+            entrega.ultimo_acceso_el = ahora
+            entrega.save(update_fields=[
+                'intentos_fallidos', 'accesos', 'ultimo_acceso_el',
+            ])
+            return redirect('entrega_digital_estudio', token=entrega.token)
+        entrega.intentos_fallidos += 1
+        if entrega.intentos_fallidos >= 8:
+            entrega.bloqueada_el = ahora
+        entrega.save(update_fields=['intentos_fallidos', 'bloqueada_el'])
+        messages.error(request, 'Código incorrecto. Verifica los seis dígitos recibidos.')
+    return render(request, 'core/entrega_digital_acceso.html', {
+        'entrega': entrega,
+        'disponible': disponible,
+    }, status=200 if disponible else 410)
+
+
+def entrega_digital_estudio(request, token):
+    entrega = _obtener_entrega_vigente(token)
+    if (
+        not entrega.activa or entrega.vence_el <= timezone.now()
+        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
+    ):
+        return redirect('entrega_digital_acceso', token=entrega.token)
+    series = []
+    registro = EstudioDicom.objects.filter(estudio=entrega.estudio).first()
+    if registro:
+        for serie in registro.series.prefetch_related('instancias').all():
+            imagenes = []
+            for instancia in serie.instancias.all():
+                imagenes.append({
+                    'numero': instancia.numero_instancia,
+                    'url': reverse(
+                        'entrega_digital_imagen',
+                        args=[entrega.token, instancia.id],
+                    ),
+                })
+            if imagenes:
+                series.append({
+                    'nombre': serie.descripcion or 'Serie sin descripción',
+                    'modalidad': serie.modalidad or 'DICOM',
+                    'imagenes': imagenes,
+                })
+    return render(request, 'core/entrega_digital_estudio.html', {
+        'entrega': entrega,
+        'estudio': entrega.estudio,
+        'paciente': entrega.estudio.paciente,
+        'reporte': entrega.estudio.reporte_radiologico,
+        'series': series,
+    })
+
+
+def entrega_digital_reporte_pdf(request, token):
+    entrega = _obtener_entrega_vigente(token)
+    if (
+        not entrega.activa or entrega.vence_el <= timezone.now()
+        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
+    ):
+        return redirect('entrega_digital_acceso', token=entrega.token)
+    return _reporte_radiologico_pdf_enriquecido(
+        request,
+        entrega.estudio_id,
+        institucion_autorizada=entrega.institucion,
+    )
+
+
+def entrega_digital_imagen(request, token, instancia_id):
+    entrega = _obtener_entrega_vigente(token)
+    if (
+        not entrega.activa or entrega.vence_el <= timezone.now()
+        or entrega.bloqueada_el or not _sesion_entrega_valida(request, entrega)
+    ):
+        return HttpResponse(status=403)
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio=entrega.estudio,
+        institucion=entrega.institucion,
+    )
+    try:
+        with instancia.archivo_estudio.archivo.open('rb') as archivo:
+            dataset = pydicom.dcmread(archivo)
+            pixeles = dataset.pixel_array
+        if int(getattr(dataset, 'NumberOfFrames', 1) or 1) > 1:
+            pixeles = pixeles[0]
+        muestras = int(getattr(dataset, 'SamplesPerPixel', 1) or 1)
+        if muestras == 1:
+            pixeles = apply_modality_lut(pixeles, dataset).astype(np.float64)
+        minimo, maximo = float(np.nanmin(pixeles)), float(np.nanmax(pixeles))
+        ancho = max(maximo - minimo, 1.0)
+        imagen_8bits = (np.clip((pixeles - minimo) / ancho, 0, 1) * 255).astype(np.uint8)
+        if muestras == 1:
+            if valor_dicom(dataset, 'PhotometricInterpretation') == 'MONOCHROME1':
+                imagen_8bits = 255 - imagen_8bits
+            imagen = PILImage.fromarray(imagen_8bits, mode='L')
+        else:
+            imagen = PILImage.fromarray(imagen_8bits)
+        salida = BytesIO()
+        imagen.save(salida, format='JPEG', quality=88, optimize=False)
+        respuesta = HttpResponse(salida.getvalue(), content_type='image/jpeg')
+        respuesta['Cache-Control'] = 'private, max-age=900'
+        return respuesta
+    except Exception as exc:
+        logger.exception('No fue posible generar imagen de entrega. %s', exc)
+        return HttpResponse('Imagen no disponible.', status=422)
 
 
 @login_required

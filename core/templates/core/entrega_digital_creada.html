@@ -1,0 +1,23 @@
+{% extends 'core/base.html' %}
+{% block title %}Entrega digital creada | Loreto One{% endblock %}
+{% block content %}
+<style>
+.created-wrap{max-width:760px;margin:35px auto;padding:18px}.created-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px}.created-ok{color:#4ade80;font-weight:800}.created-grid{display:grid;grid-template-columns:1fr 180px;gap:12px;margin:18px 0}.created-field{background:#0f172a;border:1px solid #475569;border-radius:7px;padding:10px;color:#fff;word-break:break-all}.created-code{font-size:1.55rem;letter-spacing:.25em;text-align:center;font-weight:900}.created-actions{display:flex;gap:8px;flex-wrap:wrap}.created-note{color:#fbbf24;font-size:.78rem;margin-top:16px}@media(max-width:650px){.created-grid{grid-template-columns:1fr}}
+</style>
+<div class="created-wrap"><section class="created-card">
+  <div class="created-ok">✓ Entrega digital creada</div>
+  <h1 class="h4 mt-2">{{ estudio.tipo_estudio.nombre }}</h1>
+  <p>{{ estudio.paciente.nombre }} {{ estudio.paciente.apellido }} · Registro {{ estudio.paciente.identificacion }}</p>
+  <div class="created-grid">
+    <div><small>Enlace protegido</small><div class="created-field" id="delivery-link">{{ enlace }}</div></div>
+    <div><small>Código de acceso</small><div class="created-field created-code">{{ codigo }}</div></div>
+  </div>
+  <p>Vence: <strong>{{ entrega.vence_el|date:'d/m/Y H:i' }}</strong></p>
+  <div class="created-actions">
+    {% if enlace_whatsapp %}<a class="btn btn-success" href="{{ enlace_whatsapp }}" target="_blank" rel="noopener">Enviar por WhatsApp</a>{% endif %}
+    <button class="btn btn-info" type="button" onclick="navigator.clipboard.writeText(document.getElementById('delivery-link').textContent.trim())">Copiar enlace</button>
+    <a class="btn btn-outline-light" href="{% url 'estudio_radiologia' estudio.id %}">Volver al estudio</a>
+  </div>
+  <div class="created-note">El código solamente se muestra ahora. El personal no podrá consultarlo después; si se pierde, genera una entrega nueva.</div>
+</section></div>
+{% endblock %}
