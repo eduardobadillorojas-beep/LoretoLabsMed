@@ -153,8 +153,18 @@
                 {% if puede_finalizar_reporte %}<form method="post" action="{% url 'guardar_plantilla_reporte_radiologico' estudio.id %}" class="template-save" id="form-plantilla">{% csrf_token %}<input type="hidden" name="instancia_id" value="{{ instancia.id }}"><input type="hidden" name="contenido_html" class="plantilla-contenido"><input type="text" name="nombre_plantilla" placeholder="Nombre de la nueva plantilla" required minlength="3"><button type="submit" class="btn btn-outline-info btn-sm">Guardar como plantilla</button></form>{% endif %}
                 <div class="report-help">El encabezado se toma del expediente y no se guarda en la plantilla.</div>
             {% else %}
-                <div class="report-actions"><a href="{% url 'reporte_radiologico_pdf' estudio.id %}" target="_blank" class="btn btn-info btn-sm">Abrir PDF firmado</a><a href="{% url 'reporte_radiologico_pdf' estudio.id %}?descargar=1" class="btn btn-outline-light btn-sm">Descargar</a></div>
-                <div class="report-help">Finalizado por {{ reporte_radiologico.finalizado_por.get_full_name|default:reporte_radiologico.finalizado_por.username }} · {{ reporte_radiologico.finalizado_el|date:"d/m/Y H:i" }}</div>
+                <div class="report-actions">
+                    <a href="{% url 'reporte_radiologico_pdf' estudio.id %}" target="_blank" class="btn btn-info btn-sm">Abrir PDF</a>
+                    <a href="{% url 'reporte_radiologico_pdf' estudio.id %}?descargar=1" class="btn btn-outline-light btn-sm">Descargar</a>
+                    {% if puede_reabrir_reporte %}
+                    <form method="post" action="{% url 'guardar_reporte_radiologico' estudio.id %}" class="m-0" onsubmit="return confirm('¿Abrir nuevamente este reporte para corregirlo? La firma actual se retirará y deberá firmarse otra vez.');">
+                        {% csrf_token %}
+                        <input type="hidden" name="instancia_id" value="{{ instancia.id }}">
+                        <button type="submit" name="accion" value="reabrir" class="btn btn-warning btn-sm">Editar reporte</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% if reporte_esta_firmado %}<div class="report-help">Firmado por {{ reporte_radiologico.finalizado_por.get_full_name|default:reporte_radiologico.finalizado_por.username }} · {{ reporte_radiologico.finalizado_el|date:"d/m/Y H:i" }}</div>{% else %}<div class="report-help">Pre-reporte sin firma médica. Debe revisarlo y firmarlo un médico con cédula profesional.</div>{% endif %}
             {% endif %}
           </div>
         </aside>
@@ -304,11 +314,25 @@
         if(!params.toString())return url;
         return url+(url.includes('?')?'&':'?')+params;
     }
+    const imageCache=new Map();
+    function preloadUrl(url){
+        if(!url||imageCache.has(url))return;
+        const preload=new Image();preload.decoding='async';preload.src=url;imageCache.set(url,preload);
+    }
     function preloadAround(index){
-        [index-2,index-1,index+1,index+2].forEach(position=>{
-            if(position<0||position>=instances.length)return;
-            const preload=new Image();preload.src=instances[position].imagen_url;
-        });
+        for(let offset=-8;offset<=8;offset+=1){
+            const position=index+offset;
+            if(position<0||position>=instances.length)continue;
+            preloadUrl(instances[position].imagen_url);
+        }
+    }
+    function preloadSeriesInBackground(){
+        let position=0;
+        function batch(){
+            for(let count=0;count<4&&position<instances.length;count+=1,position+=1)preloadUrl(instances[position].imagen_url);
+            if(position<instances.length)setTimeout(batch,120);
+        }
+        setTimeout(batch,250);
     }
     function loadInstance(index, wrap=false){
         if(!instances.length)return;
@@ -383,10 +407,13 @@
         const fps=Math.max(1,parseInt(document.getElementById('cine-velocidad').value,10)||5);
         cineTimer=setInterval(()=>loadInstance(currentIndex+1,true),1000/fps);
     };
+    let wheelFrame=null,pendingWheelDirection=0;
     stage.addEventListener('wheel', event => {
         event.preventDefault();
         if(event.ctrlKey){zoom=Math.max(.2,Math.min(8,zoom+(event.deltaY<0 ? .15 : -.15)));draw();return;}
-        stopCine();loadInstance(currentIndex+(event.deltaY>0?1:-1));
+        stopCine();pendingWheelDirection=event.deltaY>0?1:-1;
+        if(wheelFrame)return;
+        wheelFrame=requestAnimationFrame(()=>{wheelFrame=null;loadInstance(currentIndex+pendingWheelDirection);});
     }, { passive: false });
     stage.addEventListener('mousedown', event => {
         moved=false;
@@ -407,7 +434,7 @@
     });
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { stage.innerHTML = '<div class="text-danger p-4 text-center">No fue posible decodificar los píxeles de este DICOM. Revisa el registro del servidor.</div>'; });
-    image.addEventListener('load',()=>{if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
+    image.addEventListener('load',()=>{if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);preloadSeriesInBackground();resizeCanvas();draw();
 })();
 </script>
 {% endblock %}

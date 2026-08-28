@@ -28,6 +28,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     Image,
     KeepTogether,
@@ -1956,6 +1957,23 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             activo=True,
         ).first()
 
+    perfil_usuario_actual = PerfilMedico.objects.filter(
+        institucion=membresia.institucion,
+        usuario=request.user,
+        activo=True,
+    ).first()
+    puede_firmar_reporte = bool(
+        perfil_usuario_actual
+        and perfil_usuario_actual.cedula_profesional
+        and membresia.rol in ['MEDICO', 'RADIOLOGIA', 'ADMIN']
+    )
+    reporte_esta_firmado = bool(
+        reporte.estado == 'FINAL'
+        and reporte.finalizado_por
+        and perfil_reporte
+        and perfil_reporte.cedula_profesional
+    )
+
     return render(
         request,
         'core/visor_instancia_dicom.html',
@@ -1974,10 +1992,12 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             'plantillas_reporte': plantillas,
             'plantillas_reporte_datos': plantillas_datos,
             'edad_paciente': calcular_edad(estudio.paciente.fecha_nacimiento),
-            'puede_finalizar_reporte': (
-                membresia.rol == 'RADIOLOGIA' or request.user.is_superuser
-            ),
+            'puede_finalizar_reporte': puede_firmar_reporte,
             'puede_editar_reporte': reporte.estado != 'FINAL',
+            'puede_reabrir_reporte': (
+                reporte.estado == 'FINAL' and puede_firmar_reporte
+            ),
+            'reporte_esta_firmado': reporte_esta_firmado,
             'perfil_reporte': perfil_reporte,
             'contenido_reporte_html': ''.join(filter(None, [
                 reporte.hallazgos_html,
@@ -2028,10 +2048,63 @@ def guardar_reporte_radiologico(request, estudio_id):
 
     accion = request.POST.get('accion', 'borrador')
     finalizar = accion == 'finalizar'
-    if finalizar and not (
-        membresia.rol == 'RADIOLOGIA' or request.user.is_superuser
-    ):
+    perfil_firmante = PerfilMedico.objects.filter(
+        institucion=membresia.institucion,
+        usuario=request.user,
+        activo=True,
+    ).first()
+    puede_firmar = bool(
+        perfil_firmante
+        and perfil_firmante.cedula_profesional
+        and membresia.rol in ['MEDICO', 'RADIOLOGIA', 'ADMIN']
+    )
+    if finalizar and not puede_firmar:
         messages.error(request, 'Solo el médico radiólogo puede firmar el reporte final.')
+        return redirect(destino)
+
+    if accion == 'reabrir':
+        if not puede_firmar:
+            messages.error(
+                request,
+                'Se necesita un perfil médico activo con cédula profesional para editar un reporte final.',
+            )
+            return redirect(destino)
+        with transaction.atomic():
+            reporte = get_object_or_404(
+                ReporteRadiologico.objects.select_for_update(),
+                institucion=membresia.institucion,
+                estudio=estudio,
+            )
+            RevisionReporteRadiologico.objects.get_or_create(
+                reporte=reporte,
+                version=reporte.version,
+                defaults={
+                    'estado': reporte.estado,
+                    'hallazgos_html': reporte.hallazgos_html,
+                    'impresion_html': reporte.impresion_html,
+                    'modificado_por': request.user,
+                    'datos_snapshot': reporte.datos_snapshot,
+                },
+            )
+            reporte.version += 1
+            reporte.estado = 'BORRADOR'
+            reporte.finalizado_por = None
+            reporte.finalizado_el = None
+            reporte.save(update_fields=[
+                'version', 'estado', 'finalizado_por',
+                'finalizado_el', 'actualizado_el',
+            ])
+            estudio.estado_reporte = 'PRE_REPORTE'
+            estudio.reporte_final_por = None
+            estudio.fecha_reporte_final = None
+            estudio.save(update_fields=[
+                'estado_reporte', 'reporte_final_por',
+                'fecha_reporte_final',
+            ])
+        messages.success(
+            request,
+            'El reporte quedó abierto para revisión médica. Deberá firmarse nuevamente.',
+        )
         return redirect(destino)
 
     contenido = request.POST.get('contenido_html')
@@ -2188,6 +2261,12 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
     perfil = PerfilMedico.objects.filter(
         institucion=institucion, usuario=firmante, activo=True,
     ).first() if firmante else None
+    documento_firmado = bool(
+        reporte.estado == 'FINAL'
+        and firmante
+        and perfil
+        and perfil.cedula_profesional
+    )
 
     buffer = BytesIO()
     documento = SimpleDocTemplate(
@@ -2220,9 +2299,8 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         if not campo:
             return None
         try:
-            campo.open('rb')
-            datos = campo.read()
-            campo.close()
+            with campo.storage.open(campo.name, 'rb') as archivo_imagen:
+                datos = archivo_imagen.read()
             return Image(BytesIO(datos), width=ancho, height=alto, kind='proportional')
         except Exception:
             return None
@@ -2242,7 +2320,7 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         imagen_campo(institucion.logo, 2.1 * cm, 1.55 * cm) or '',
         datos_institucion,
         horarios,
-    ]], colWidths=[2.5 * cm, 10.2 * cm, 6.1 * cm])
+    ]], colWidths=[2.4 * cm, 9.8 * cm, 6.1 * cm])
     encabezado.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LINEBELOW', (0, 0), (-1, -1), 1.1, colors.HexColor('#17365d')),
@@ -2284,24 +2362,27 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
             Paragraph(_html_para_reportlab(reporte.impresion_html), normal),
             Spacer(1, .25 * cm),
         ])
-    firma = imagen_campo(perfil.firma, 3.4 * cm, 1.05 * cm) if perfil else None
-    firma_bloque = [firma or Spacer(1, .75 * cm)]
-    firma_bloque.extend([
-        Paragraph('_______________________________', centrado),
-        Paragraph(f'<b>{escape(obtener_nombre_usuario(firmante) if firmante else "No especificado")}</b>', centrado),
-    ])
-    datos_firma = []
-    if perfil and perfil.especialidad:
-        datos_firma.append(escape(perfil.especialidad))
-    if perfil and perfil.cedula_profesional:
+    if documento_firmado:
+        firma = imagen_campo(perfil.firma, 3.4 * cm, 1.05 * cm)
+        firma_bloque = [firma or Spacer(1, .75 * cm)]
+        firma_bloque.extend([
+            Paragraph('_______________________________', centrado),
+            Paragraph(f'<b>{escape(obtener_nombre_usuario(firmante))}</b>', centrado),
+        ])
+        datos_firma = []
+        if perfil.especialidad:
+            datos_firma.append(escape(perfil.especialidad))
         datos_firma.append('Céd. Prof. ' + escape(perfil.cedula_profesional))
-    if datos_firma:
         firma_bloque.append(Paragraph(' | '.join(datos_firma), centrado))
-    tabla_firma = Table([['', firma_bloque, '']], colWidths=[5.3 * cm, 8.2 * cm, 5.3 * cm])
-    tabla_firma.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'CENTER')]))
-    historia.append(KeepTogether([tabla_firma]))
-    if reporte.estado != 'FINAL':
-        historia.append(Paragraph('BORRADOR · Documento no firmado', centrado))
+        tabla_firma = Table([['', firma_bloque, '']], colWidths=[5.1 * cm, 8.1 * cm, 5.1 * cm])
+        tabla_firma.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'CENTER')]))
+        historia.append(KeepTogether([tabla_firma]))
+    else:
+        elaborador = obtener_nombre_usuario(reporte.elaborado_por) if reporte.elaborado_por else 'No especificado'
+        historia.extend([
+            Paragraph(f'Pre-reporte elaborado por: {escape(elaborador)}', centrado),
+            Paragraph('PRE-REPORTE · Documento no firmado por médico radiólogo', centrado),
+        ])
     try:
         documento.build(historia)
     except Exception as exc:
@@ -2325,7 +2406,7 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
             texto_plano_reporte(reporte.impresion_html),
         ])) or 'Sin contenido.'
         historia_respaldo = [
-            Paragraph(escape(nombre_institucion), titulo),
+            encabezado,
             Paragraph('REPORTE RADIOLÓGICO', subtitulo),
             Paragraph(
                 '<b>Paciente:</b> '
@@ -2342,6 +2423,10 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
                 normal,
             ),
         ]
+        if not documento_firmado:
+            historia_respaldo.append(
+                Paragraph('PRE-REPORTE · Documento no firmado por médico radiólogo', centrado)
+            )
         documento.build(historia_respaldo)
 
     respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
@@ -2386,6 +2471,17 @@ def reporte_radiologico_pdf(request, estudio_id):
     paciente = estudio.paciente
     institucion = reporte.institucion
     firmante = reporte.finalizado_por or reporte.elaborado_por
+    perfil = PerfilMedico.objects.filter(
+        institucion=institucion,
+        usuario=firmante,
+        activo=True,
+    ).first() if firmante else None
+    documento_firmado = bool(
+        reporte.estado == 'FINAL'
+        and firmante
+        and perfil
+        and perfil.cedula_profesional
+    )
     buffer = BytesIO()
     lienzo = pdf_canvas.Canvas(buffer, pagesize=letter)
     ancho_pagina, alto_pagina = letter
@@ -2414,7 +2510,32 @@ def reporte_radiologico_pdf(request, estudio_id):
         y -= espacio
 
     nombre_institucion = institucion.nombre_comercial or institucion.nombre
+    if institucion.logo:
+        try:
+            with institucion.logo.storage.open(institucion.logo.name, 'rb') as archivo_logo:
+                logo = ImageReader(BytesIO(archivo_logo.read()))
+            lienzo.drawImage(
+                logo,
+                margen,
+                y - 1.25 * cm,
+                width=1.8 * cm,
+                height=1.25 * cm,
+                preserveAspectRatio=True,
+                mask='auto',
+            )
+            y -= 1.35 * cm
+        except Exception:
+            logger.warning('No fue posible incluir el logo en el PDF de respaldo.')
     escribir(nombre_institucion, 14, True, 2)
+    for dato in [
+        institucion.direccion,
+        'Tel. ' + institucion.telefono if institucion.telefono else '',
+        institucion.email,
+        institucion.horarios_servicio,
+        'RFC: ' + institucion.rfc if institucion.rfc else '',
+    ]:
+        if dato:
+            escribir(dato, 8, False, 1)
     escribir('REPORTE RADIOLÓGICO', 12, True, 10)
     escribir(f'Paciente: {paciente.nombre} {paciente.apellido}', 9, True)
     escribir(f'Registro: {paciente.identificacion}')
@@ -2426,14 +2547,18 @@ def reporte_radiologico_pdf(request, estudio_id):
         texto_plano_reporte(reporte.impresion_html),
     ])) or 'Sin contenido.'
     escribir(contenido, 9, False, 16)
-    escribir('________________________________________', 9, False, 2)
-    escribir(
-        obtener_nombre_usuario(firmante) if firmante else 'No especificado',
-        9,
-        True,
-    )
-    if reporte.estado != 'FINAL':
-        escribir('BORRADOR · Documento no firmado', 8, True)
+    if documento_firmado:
+        escribir('________________________________________', 9, False, 2)
+        escribir(obtener_nombre_usuario(firmante), 9, True)
+        escribir('Céd. Prof. ' + perfil.cedula_profesional, 8, False)
+    else:
+        elaborador = reporte.elaborado_por or firmante
+        escribir(
+            'Pre-reporte elaborado por: '
+            + (obtener_nombre_usuario(elaborador) if elaborador else 'No especificado'),
+            8,
+        )
+        escribir('PRE-REPORTE · Documento no firmado por médico radiólogo', 8, True)
     lienzo.save()
     respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'
@@ -2499,7 +2624,7 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
         salida = BytesIO()
         imagen.save(salida, format='PNG', optimize=True)
         respuesta = HttpResponse(salida.getvalue(), content_type='image/png')
-        respuesta['Cache-Control'] = 'private, max-age=300'
+        respuesta['Cache-Control'] = 'private, max-age=900'
         respuesta['X-DICOM-Window-Center'] = f'{centro:g}'
         respuesta['X-DICOM-Window-Width'] = f'{ancho:g}'
         return respuesta
