@@ -2273,7 +2273,10 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         buffer, pagesize=letter, rightMargin=1.4 * cm, leftMargin=1.4 * cm,
         topMargin=1.0 * cm, bottomMargin=1.0 * cm,
         title='Reporte radiológico',
-        author=obtener_nombre_usuario(firmante) if firmante else 'Loreto One',
+        author=(
+            obtener_nombre_usuario(firmante)
+            if documento_firmado else 'Loreto One'
+        ),
     )
     estilos = getSampleStyleSheet()
     titulo = ParagraphStyle(
@@ -2378,11 +2381,9 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         tabla_firma.setStyle(TableStyle([('ALIGN', (1, 0), (1, 0), 'CENTER')]))
         historia.append(KeepTogether([tabla_firma]))
     else:
-        elaborador = obtener_nombre_usuario(reporte.elaborado_por) if reporte.elaborado_por else 'No especificado'
-        historia.extend([
-            Paragraph(f'Pre-reporte elaborado por: {escape(elaborador)}', centrado),
-            Paragraph('PRE-REPORTE · Documento no firmado por médico radiólogo', centrado),
-        ])
+        historia.append(
+            Paragraph('DOCUMENTO PENDIENTE DE FIRMA MÉDICA', centrado)
+        )
     try:
         documento.build(historia)
     except Exception as exc:
@@ -2425,7 +2426,7 @@ def _reporte_radiologico_pdf_enriquecido(request, estudio_id):
         ]
         if not documento_firmado:
             historia_respaldo.append(
-                Paragraph('PRE-REPORTE · Documento no firmado por médico radiólogo', centrado)
+                Paragraph('DOCUMENTO PENDIENTE DE FIRMA MÉDICA', centrado)
             )
         documento.build(historia_respaldo)
 
@@ -2548,17 +2549,27 @@ def reporte_radiologico_pdf(request, estudio_id):
     ])) or 'Sin contenido.'
     escribir(contenido, 9, False, 16)
     if documento_firmado:
+        if perfil.firma:
+            try:
+                with perfil.firma.storage.open(perfil.firma.name, 'rb') as archivo_firma:
+                    firma = ImageReader(BytesIO(archivo_firma.read()))
+                lienzo.drawImage(
+                    firma,
+                    margen,
+                    y - 1.0 * cm,
+                    width=3.4 * cm,
+                    height=1.0 * cm,
+                    preserveAspectRatio=True,
+                    mask='auto',
+                )
+                y -= 1.1 * cm
+            except Exception:
+                logger.warning('No fue posible incluir la firma en el PDF de respaldo.')
         escribir('________________________________________', 9, False, 2)
         escribir(obtener_nombre_usuario(firmante), 9, True)
         escribir('Céd. Prof. ' + perfil.cedula_profesional, 8, False)
     else:
-        elaborador = reporte.elaborado_por or firmante
-        escribir(
-            'Pre-reporte elaborado por: '
-            + (obtener_nombre_usuario(elaborador) if elaborador else 'No especificado'),
-            8,
-        )
-        escribir('PRE-REPORTE · Documento no firmado por médico radiólogo', 8, True)
+        escribir('DOCUMENTO PENDIENTE DE FIRMA MÉDICA', 8, True)
     lienzo.save()
     respuesta = HttpResponse(buffer.getvalue(), content_type='application/pdf')
     disposicion = 'attachment' if request.GET.get('descargar') == '1' else 'inline'

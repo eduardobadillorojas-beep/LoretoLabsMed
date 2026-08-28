@@ -320,19 +320,11 @@
         const preload=new Image();preload.decoding='async';preload.src=url;imageCache.set(url,preload);
     }
     function preloadAround(index){
-        for(let offset=-8;offset<=8;offset+=1){
+        for(let offset=-2;offset<=2;offset+=1){
             const position=index+offset;
             if(position<0||position>=instances.length)continue;
             preloadUrl(instances[position].imagen_url);
         }
-    }
-    function preloadSeriesInBackground(){
-        let position=0;
-        function batch(){
-            for(let count=0;count<4&&position<instances.length;count+=1,position+=1)preloadUrl(instances[position].imagen_url);
-            if(position<instances.length)setTimeout(batch,120);
-        }
-        setTimeout(batch,250);
     }
     function loadInstance(index, wrap=false){
         if(!instances.length)return;
@@ -434,7 +426,7 @@
     });
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { stage.innerHTML = '<div class="text-danger p-4 text-center">No fue posible decodificar los píxeles de este DICOM. Revisa el registro del servidor.</div>'; });
-    image.addEventListener('load',()=>{if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);preloadSeriesInBackground();resizeCanvas();draw();
+    image.addEventListener('load',()=>{if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
 })();
 </script>
 {% endblock %}
