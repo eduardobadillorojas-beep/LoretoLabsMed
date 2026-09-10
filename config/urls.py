@@ -117,6 +117,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/repeticiones/',
+        views.analisis_repeticiones_radiologia,
+        name='analisis_repeticiones_radiologia'
+    ),
+
+    path(
+        'radiologia/repeticiones/pdf/',
+        views.analisis_repeticiones_radiologia_pdf,
+        name='analisis_repeticiones_radiologia_pdf'
+    ),
+
+    path(
         'radiologia/paciente/registrar/',
         views.registrar_paciente_radiologia,
         name='registrar_paciente_radiologia'

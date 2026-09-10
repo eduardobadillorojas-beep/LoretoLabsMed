@@ -17,7 +17,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Prefetch, Q, Sum
+from django.db.models.functions import TruncMonth
 from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -28,7 +29,7 @@ from django.views.decorators.http import require_POST
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.lib.utils import ImageReader
@@ -4011,6 +4012,240 @@ def bitacora_radiologica_pdf(request):
                 lienzo.setFont('Helvetica-Bold' if indice == 0 else 'Helvetica', 7)
                 lienzo.drawString(46 if indice == 0 else 54, y, linea); y -= 9
         lienzo.line(42, y, ancho - 42, y); y -= 10
+    lienzo.save()
+    return respuesta
+
+
+def _fecha_filtro(valor, predeterminada):
+    try:
+        return date.fromisoformat((valor or '').strip())
+    except (TypeError, ValueError):
+        return predeterminada
+
+
+def _tasa_repeticion(repeticiones, exposiciones):
+    if not exposiciones:
+        return None
+    return round((repeticiones or 0) * 100 / exposiciones, 2)
+
+
+def _filas_repeticiones(consulta, campos, etiqueta):
+    filas = list(
+        consulta.values(*campos).annotate(
+            estudios=Count('id'),
+            exposiciones=Sum('numero_exposiciones'),
+            repeticiones=Sum('numero_repeticiones'),
+        ).order_by('-repeticiones', '-estudios')[:12]
+    )
+    maximo = max([fila['repeticiones'] or 0 for fila in filas] or [1])
+    for fila in filas:
+        fila['nombre'] = fila.get(etiqueta) or 'Sin especificar'
+        fila['tasa'] = _tasa_repeticion(fila['repeticiones'], fila['exposiciones'])
+        fila['barra'] = round((fila['repeticiones'] or 0) * 100 / maximo) if maximo else 0
+    return filas
+
+
+def _datos_analisis_repeticiones(request, institucion):
+    hoy = timezone.localdate()
+    inicio_mes = hoy.replace(day=1)
+    desde = _fecha_filtro(request.GET.get('desde'), inicio_mes)
+    hasta = _fecha_filtro(request.GET.get('hasta'), hoy)
+    if desde > hasta:
+        desde, hasta = hasta, desde
+
+    equipo = (request.GET.get('equipo') or '').strip()
+    tecnico = (request.GET.get('tecnico') or '').strip()
+    modalidad = (request.GET.get('modalidad') or '').strip()
+    tipo_estudio = (request.GET.get('tipo_estudio') or '').strip()
+
+    consulta = BitacoraRadiologica.objects.filter(
+        estudio__paciente__institucion=institucion,
+        fecha_realizacion__date__range=(desde, hasta),
+    )
+    if equipo.isdigit():
+        consulta = consulta.filter(equipo_id=equipo)
+    if tecnico.isdigit():
+        consulta = consulta.filter(tecnico_id=tecnico)
+    if modalidad in dict(BitacoraRadiologica.MODALIDAD_CHOICES):
+        consulta = consulta.filter(modalidad=modalidad)
+    if tipo_estudio.isdigit():
+        consulta = consulta.filter(estudio__tipo_estudio_id=tipo_estudio)
+
+    totales = consulta.aggregate(
+        total_estudios=Count('id'),
+        total_exposiciones=Sum('numero_exposiciones'),
+        total_repeticiones=Sum('numero_repeticiones'),
+    )
+    total_estudios = totales['total_estudios'] or 0
+    total_exposiciones = totales['total_exposiciones'] or 0
+    total_repeticiones = totales['total_repeticiones'] or 0
+    afectados = consulta.filter(numero_repeticiones__gt=0).count()
+    tasa = _tasa_repeticion(total_repeticiones, total_exposiciones)
+    porcentaje_afectados = round(afectados * 100 / total_estudios, 2) if total_estudios else 0
+
+    if tasa is None:
+        estado = 'SIN_DATOS'
+        estado_texto = 'Faltan exposiciones para calcular la tasa'
+    elif total_exposiciones < 20:
+        estado = 'MUESTRA_CORTA'
+        estado_texto = 'Muestra pequeña: interpretar con precaución'
+    elif tasa > 10:
+        estado = 'ALTO'
+        estado_texto = 'Tasa elevada: requiere revisión interna'
+    elif tasa > 5:
+        estado = 'ATENCION'
+        estado_texto = 'Tasa por encima del objetivo interno'
+    else:
+        estado = 'CONTROLADO'
+        estado_texto = 'Dentro del objetivo interno del 5 %'
+
+    por_equipo = _filas_repeticiones(consulta, ['equipo_id', 'equipo_nombre'], 'equipo_nombre')
+    por_tecnico = _filas_repeticiones(consulta, ['tecnico_id', 'tecnico_nombre'], 'tecnico_nombre')
+    por_estudio = _filas_repeticiones(consulta, ['estudio__tipo_estudio_id', 'estudio_nombre'], 'estudio_nombre')
+
+    motivos = list(
+        consulta.filter(numero_repeticiones__gt=0)
+        .exclude(motivo_repeticion__isnull=True)
+        .exclude(motivo_repeticion='')
+        .values('motivo_repeticion')
+        .annotate(casos=Count('id'), repeticiones=Sum('numero_repeticiones'))
+        .order_by('-repeticiones', '-casos')[:10]
+    )
+    tendencia = list(
+        consulta.annotate(mes=TruncMonth('fecha_realizacion'))
+        .values('mes')
+        .annotate(
+            estudios=Count('id'),
+            exposiciones=Sum('numero_exposiciones'),
+            repeticiones=Sum('numero_repeticiones'),
+        ).order_by('mes')
+    )
+    for fila in tendencia:
+        fila['tasa'] = _tasa_repeticion(fila['repeticiones'], fila['exposiciones'])
+
+    tecnicos = (
+        BitacoraRadiologica.objects.filter(estudio__paciente__institucion=institucion)
+        .exclude(tecnico__isnull=True).values('tecnico_id', 'tecnico_nombre').distinct()
+        .order_by('tecnico_nombre')
+    )
+    return {
+        'consulta': consulta,
+        'desde': desde.isoformat(),
+        'hasta': hasta.isoformat(),
+        'equipo_filtro': equipo,
+        'tecnico_filtro': tecnico,
+        'modalidad_filtro': modalidad,
+        'tipo_estudio_filtro': tipo_estudio,
+        'total_estudios': total_estudios,
+        'total_exposiciones': total_exposiciones,
+        'total_repeticiones': total_repeticiones,
+        'estudios_afectados': afectados,
+        'tasa_repeticion': tasa,
+        'porcentaje_afectados': porcentaje_afectados,
+        'estado': estado,
+        'estado_texto': estado_texto,
+        'por_equipo': por_equipo,
+        'por_tecnico': por_tecnico,
+        'por_estudio': por_estudio,
+        'motivos': motivos,
+        'tendencia': tendencia,
+        'equipos': EquipoRadiologico.objects.filter(
+            Q(institucion=institucion) | Q(institucion__isnull=True)
+        ).order_by('nombre'),
+        'tecnicos': tecnicos,
+        'tipos_estudio': TipoEstudio.objects.filter(activo=True).order_by('modalidad', 'nombre'),
+        'modalidades': BitacoraRadiologica.MODALIDAD_CHOICES,
+    }
+
+
+@login_required
+def analisis_repeticiones_radiologia(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para consultar este análisis.', status=403)
+    datos = _datos_analisis_repeticiones(request, membresia.institucion)
+    datos.pop('consulta', None)
+    return render(request, 'core/analisis_repeticiones_radiologia.html', datos)
+
+
+@login_required
+def analisis_repeticiones_radiologia_pdf(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para consultar este análisis.', status=403)
+    institucion = membresia.institucion
+    datos = _datos_analisis_repeticiones(request, institucion)
+    respuesta = HttpResponse(content_type='application/pdf')
+    respuesta['Content-Disposition'] = 'inline; filename="analisis_repeticiones_radiologia.pdf"'
+    lienzo = pdf_canvas.Canvas(respuesta, pagesize=landscape(letter))
+    ancho, alto = landscape(letter)
+
+    def cabecera():
+        y = alto - 35
+        if institucion.logo:
+            try:
+                with institucion.logo.storage.open(institucion.logo.name, 'rb') as archivo_logo:
+                    lienzo.drawImage(ImageReader(BytesIO(archivo_logo.read())), 35, alto - 66, 45, 32, preserveAspectRatio=True, mask='auto')
+            except Exception:
+                logger.exception('No fue posible cargar el logo en el análisis de repeticiones.')
+        lienzo.setFont('Helvetica-Bold', 13)
+        lienzo.drawString(88, y, institucion.nombre_comercial or institucion.nombre)
+        lienzo.setFont('Helvetica-Bold', 11)
+        lienzo.drawString(35, alto - 84, 'ANÁLISIS DE REPETICIONES Y RECHAZOS RADIOGRÁFICOS')
+        lienzo.setFont('Helvetica', 7)
+        lienzo.drawRightString(ancho - 35, alto - 84, f"Periodo: {datos['desde']} a {datos['hasta']} · Generado: {timezone.localtime():%d/%m/%Y %H:%M}")
+        lienzo.line(35, alto - 91, ancho - 35, alto - 91)
+        return alto - 110
+
+    y = cabecera()
+    tasa_texto = f"{datos['tasa_repeticion']:.2f} %" if datos['tasa_repeticion'] is not None else 'No calculable'
+    resumen = [
+        f"Estudios: {datos['total_estudios']}",
+        f"Exposiciones registradas: {datos['total_exposiciones']}",
+        f"Repeticiones: {datos['total_repeticiones']}",
+        f"Estudios afectados: {datos['estudios_afectados']} ({datos['porcentaje_afectados']:.2f} %)",
+        f"Tasa de repetición: {tasa_texto}",
+    ]
+    lienzo.setFont('Helvetica-Bold', 9)
+    lienzo.drawString(35, y, ' | '.join(resumen)); y -= 14
+    lienzo.setFont('Helvetica', 8)
+    lienzo.drawString(35, y, datos['estado_texto'] + '. El 5 % es un objetivo interno de seguimiento, no un límite regulatorio.'); y -= 22
+
+    def tabla(titulo, filas):
+        nonlocal y
+        if y < 115:
+            lienzo.showPage(); y = cabecera()
+        lienzo.setFont('Helvetica-Bold', 9); lienzo.drawString(35, y, titulo); y -= 13
+        lienzo.setFont('Helvetica-Bold', 7)
+        lienzo.drawString(42, y, 'Elemento'); lienzo.drawString(430, y, 'Estudios')
+        lienzo.drawString(500, y, 'Exposiciones'); lienzo.drawString(580, y, 'Repeticiones'); lienzo.drawString(665, y, 'Tasa')
+        y -= 10
+        for fila in filas:
+            if y < 45:
+                lienzo.showPage(); y = cabecera()
+            lienzo.setFont('Helvetica', 7)
+            lienzo.drawString(42, y, str(fila['nombre'])[:65])
+            lienzo.drawRightString(470, y, str(fila['estudios'] or 0))
+            lienzo.drawRightString(555, y, str(fila['exposiciones'] or 0))
+            lienzo.drawRightString(640, y, str(fila['repeticiones'] or 0))
+            lienzo.drawRightString(715, y, f"{fila['tasa']:.2f} %" if fila['tasa'] is not None else '—')
+            y -= 10
+        y -= 9
+
+    tabla('Resultados por equipo', datos['por_equipo'])
+    tabla('Resultados por técnico', datos['por_tecnico'])
+    tabla('Resultados por tipo de estudio', datos['por_estudio'])
+    if datos['motivos']:
+        if y < 100:
+            lienzo.showPage(); y = cabecera()
+        lienzo.setFont('Helvetica-Bold', 9); lienzo.drawString(35, y, 'Motivos registrados'); y -= 13
+        for motivo in datos['motivos']:
+            lienzo.setFont('Helvetica', 7)
+            texto = f"{motivo['repeticiones'] or 0} repetición(es) · {motivo['casos']} caso(s) · {motivo['motivo_repeticion']}"
+            for linea in textwrap.wrap(texto, 120):
+                if y < 40:
+                    lienzo.showPage(); y = cabecera()
+                lienzo.drawString(42, y, linea); y -= 9
     lienzo.save()
     return respuesta
 
