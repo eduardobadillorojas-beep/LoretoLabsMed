@@ -18,6 +18,8 @@ from .models import (
     InstanciaDicom,
     MovimientoCaja,
     MantenimientoEquipoRadiologico,
+    ReporteFallaEquipo,
+    SeguimientoFallaEquipo,
     Paciente,
     PagoCobro,
     PlantillaReporteRadiologico,
@@ -158,6 +160,20 @@ class MantenimientoEquipoRadiologicoAdmin(admin.ModelAdmin):
     list_display = ('equipo', 'tipo', 'fecha_servicio', 'proximo_mantenimiento', 'proveedor_ingeniero')
     list_filter = ('tipo', 'fecha_servicio', 'proximo_mantenimiento')
     search_fields = ('equipo__nombre', 'equipo__numero_serie', 'proveedor_ingeniero', 'informe_servicio')
+
+
+class SeguimientoFallaEquipoInline(admin.TabularInline):
+    model = SeguimientoFallaEquipo
+    extra = 0
+    readonly_fields = ('creado_el',)
+
+
+@admin.register(ReporteFallaEquipo)
+class ReporteFallaEquipoAdmin(admin.ModelAdmin):
+    list_display = ('equipo', 'titulo', 'prioridad', 'estado', 'reportada_por', 'reportada_el')
+    list_filter = ('institucion', 'prioridad', 'estado', 'reportada_el')
+    search_fields = ('equipo__nombre', 'titulo', 'descripcion')
+    inlines = (SeguimientoFallaEquipoInline,)
 
 
 class PagoCobroInline(admin.TabularInline):

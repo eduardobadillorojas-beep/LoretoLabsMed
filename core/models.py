@@ -115,6 +115,7 @@ class MembresiaInstitucion(models.Model):
         ('RADIOLOGIA', 'Radiología'),
         ('TECNICO', 'Técnico'),
         ('ENFERMERIA', 'Enfermería'),
+        ('MANTENIMIENTO', 'Ingeniería y mantenimiento'),
         ('OTRO', 'Otro'),
     ]
 
@@ -458,6 +459,45 @@ class MantenimientoEquipoRadiologico(models.Model):
 
     def __str__(self):
         return f'{self.equipo} - {self.get_tipo_display()} - {self.fecha_servicio}'
+
+
+class ReporteFallaEquipo(models.Model):
+    PRIORIDAD_CHOICES = [
+        ('BAJA', 'Baja'), ('MEDIA', 'Media'), ('ALTA', 'Alta'), ('CRITICA', 'Crítica'),
+    ]
+    ESTADO_CHOICES = [
+        ('REPORTADA', 'Reportada'), ('RECIBIDA', 'Recibida'),
+        ('EN_REVISION', 'En revisión'), ('FUERA_SERVICIO', 'Fuera de servicio'),
+        ('RESUELTA', 'Resuelta'), ('CERRADA', 'Cerrada'),
+    ]
+    institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='fallas_equipos')
+    equipo = models.ForeignKey(EquipoRadiologico, on_delete=models.PROTECT, related_name='fallas')
+    titulo = models.CharField(max_length=180)
+    descripcion = models.TextField()
+    prioridad = models.CharField(max_length=10, choices=PRIORIDAD_CHOICES, default='MEDIA')
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='REPORTADA')
+    reportada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='fallas_reportadas', blank=True, null=True)
+    asignada_a = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='fallas_asignadas', blank=True, null=True)
+    reportada_el = models.DateTimeField(auto_now_add=True)
+    actualizada_el = models.DateTimeField(auto_now=True)
+    cerrada_el = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-reportada_el']
+
+    def __str__(self):
+        return f'{self.equipo} - {self.titulo}'
+
+
+class SeguimientoFallaEquipo(models.Model):
+    falla = models.ForeignKey(ReporteFallaEquipo, on_delete=models.CASCADE, related_name='seguimientos')
+    estado = models.CharField(max_length=20, choices=ReporteFallaEquipo.ESTADO_CHOICES)
+    nota = models.TextField()
+    registrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='seguimientos_fallas', blank=True, null=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-creado_el']
 
 
 class Consulta(models.Model):

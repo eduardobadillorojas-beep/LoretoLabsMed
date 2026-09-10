@@ -80,6 +80,8 @@ from .models import (
     MedicamentoReceta,
     MembresiaInstitucion,
     MantenimientoEquipoRadiologico,
+    ReporteFallaEquipo,
+    SeguimientoFallaEquipo,
     MovimientoCaja,
     Paciente,
     PagoCobro,
@@ -655,6 +657,9 @@ def login_view(request):
                 return redirect(
                     'panel_radiologo'
                 )
+
+            if membresia.rol == 'MANTENIMIENTO':
+                return redirect('mantenimiento_equipos_radiologia')
 
             if membresia.rol == 'ADMIN':
                 return redirect(
@@ -1273,6 +1278,9 @@ def panel_radiologo(request):
         'pacientes_historial':
             pacientes_historial,
         'tipos_estudio': TipoEstudio.objects.filter(activo=True).order_by('modalidad', 'nombre'),
+        'fallas_abiertas': ReporteFallaEquipo.objects.filter(
+            institucion=institucion
+        ).exclude(estado='CERRADA').count(),
     }
 
     return render(
@@ -1353,7 +1361,7 @@ def registrar_paciente_radiologia(request):
 @login_required
 def mantenimiento_equipos_radiologia(request):
     membresia = obtener_membresia_usuario(request)
-    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN', 'MANTENIMIENTO']:
         return redirect('panel_config')
 
     institucion = membresia.institucion
@@ -1405,6 +1413,39 @@ def mantenimiento_equipos_radiologia(request):
                 registrado_por=request.user,
             )
             messages.success(request, 'Mantenimiento agregado a la bitácora del equipo.')
+        elif accion == 'falla':
+            equipo = get_object_or_404(equipos, pk=request.POST.get('equipo'))
+            titulo = request.POST.get('titulo', '').strip()
+            descripcion = request.POST.get('descripcion_falla', '').strip()
+            prioridad = request.POST.get('prioridad', 'MEDIA')
+            if not titulo or not descripcion or prioridad not in dict(ReporteFallaEquipo.PRIORIDAD_CHOICES):
+                messages.error(request, 'Completa el título, descripción y prioridad de la falla.')
+                return redirect('mantenimiento_equipos_radiologia')
+            falla = ReporteFallaEquipo.objects.create(
+                institucion=institucion, equipo=equipo, titulo=titulo,
+                descripcion=descripcion, prioridad=prioridad, reportada_por=request.user,
+            )
+            SeguimientoFallaEquipo.objects.create(
+                falla=falla, estado='REPORTADA', nota='Falla reportada y notificada al área de mantenimiento.', registrado_por=request.user,
+            )
+            messages.success(request, 'Falla reportada. El aviso quedó registrado con fecha y hora.')
+        elif accion == 'seguimiento':
+            if membresia.rol not in ['ADMIN', 'MANTENIMIENTO']:
+                return HttpResponse('Solo Mantenimiento o Administración puede actualizar la atención.', status=403)
+            falla = get_object_or_404(ReporteFallaEquipo, pk=request.POST.get('falla'), institucion=institucion)
+            estado = request.POST.get('estado_falla', '')
+            nota = request.POST.get('nota_seguimiento', '').strip()
+            if estado not in dict(ReporteFallaEquipo.ESTADO_CHOICES) or not nota:
+                messages.error(request, 'Selecciona el estado y escribe una nota de seguimiento.')
+                return redirect('mantenimiento_equipos_radiologia')
+            falla.estado = estado
+            falla.asignada_a = request.user
+            falla.cerrada_el = timezone.now() if estado == 'CERRADA' else None
+            falla.save(update_fields=['estado', 'asignada_a', 'cerrada_el', 'actualizada_el'])
+            SeguimientoFallaEquipo.objects.create(
+                falla=falla, estado=estado, nota=nota, registrado_por=request.user,
+            )
+            messages.success(request, 'Seguimiento guardado en el historial de la falla.')
         return redirect('mantenimiento_equipos_radiologia')
 
     return render(request, 'core/mantenimiento_equipos_radiologia.html', {
@@ -1412,6 +1453,12 @@ def mantenimiento_equipos_radiologia(request):
         'equipos': equipos,
         'tipos_equipo': EquipoRadiologico.TIPO_CHOICES,
         'tipos_mantenimiento': MantenimientoEquipoRadiologico.TIPO_CHOICES,
+        'fallas': ReporteFallaEquipo.objects.filter(institucion=institucion).select_related(
+            'equipo', 'reportada_por', 'asignada_a'
+        ).prefetch_related('seguimientos')[:100],
+        'estados_falla': ReporteFallaEquipo.ESTADO_CHOICES,
+        'prioridades_falla': ReporteFallaEquipo.PRIORIDAD_CHOICES,
+        'puede_gestionar_fallas': membresia.rol in ['ADMIN', 'MANTENIMIENTO'],
     })
 
 # =========================================================
