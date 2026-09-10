@@ -346,6 +346,17 @@ class TipoEstudio(models.Model):
         verbose_name='Tiempo estimado en minutos'
     )
 
+    numero_exposiciones_sugerido = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        verbose_name='Exposiciones sugeridas para bitácora'
+    )
+    proyecciones_sugeridas = models.CharField(
+        max_length=250,
+        blank=True,
+        verbose_name='Proyecciones sugeridas para bitácora'
+    )
+
     def __str__(self):
         return (
             f'{self.codigo} - '
@@ -1608,6 +1619,24 @@ class BitacoraRadiologica(models.Model):
     )
     proteccion_radiologica = models.TextField(blank=True, null=True)
     incidencias = models.TextField(blank=True, null=True)
+    parametros_dicom = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Valores técnicos originales extraídos de los encabezados DICOM.'
+    )
+    ORIGEN_PARAMETROS_CHOICES = [
+        ('PENDIENTE', 'Pendiente'),
+        ('DICOM', 'DICOM automático'),
+        ('PLANTILLA', 'Plantilla del estudio'),
+        ('MANUAL', 'Captura manual'),
+        ('MIXTO', 'Origen combinado'),
+    ]
+    origen_parametros = models.CharField(
+        max_length=12,
+        choices=ORIGEN_PARAMETROS_CHOICES,
+        default='PENDIENTE'
+    )
+    parametros_extraidos_el = models.DateTimeField(blank=True, null=True)
     actualizado_el = models.DateTimeField(auto_now=True)
     actualizado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,

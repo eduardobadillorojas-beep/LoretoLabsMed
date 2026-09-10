@@ -174,10 +174,27 @@ Estudio | Loreto One
         margin-top: 12px;
     }
 
+    .quick-log {
+        display: grid;
+        grid-template-columns: 1fr 1fr 2fr;
+        gap: 9px;
+        margin: 12px 0;
+    }
+
+    .auto-summary {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: .72rem;
+        line-height: 1.55;
+    }
+
     @media (max-width: 850px) {
         .study-grid {
             grid-template-columns: 1fr;
         }
+        .quick-log { grid-template-columns: 1fr; }
     }
 </style>
 
@@ -549,12 +566,47 @@ Estudio | Loreto One
                             al usuario actual.
                         </p>
 
+                        <div class="auto-summary">
+                            <strong>Resumen automático de bitácora</strong><br>
+                            {% if bitacora_operativa and bitacora_operativa.parametros_dicom %}
+                                {{ bitacora_operativa.parametros_dicom.instancias_analizadas }} imagen(es) analizadas
+                                · kVp {{ bitacora_operativa.kvp|default:"pendiente" }}
+                                · mAs {{ bitacora_operativa.mas|default:"pendiente" }}
+                                · exposiciones {{ bitacora_operativa.numero_exposiciones|default:"pendiente" }}
+                                · CTDIvol {{ bitacora_operativa.ctdi_vol|default:"pendiente" }}
+                                · DLP {{ bitacora_operativa.dlp|default:"pendiente" }}
+                                {% if bitacora_operativa.proyecciones %}<br>Proyecciones/protocolo: {{ bitacora_operativa.proyecciones }}{% endif %}
+                            {% else %}
+                                El equipo no proporcionó parámetros DICOM todavía. Puedes finalizar y completar después únicamente los datos faltantes.
+                            {% endif %}
+                        </div>
+
                         <form
                             method="post"
                             action="{% url 'iniciar_estudio_radiologia' estudio.id %}"
                         >
 
                             {% csrf_token %}
+
+                            <div class="quick-log">
+                                <div>
+                                    <label class="small-muted">Repeticiones</label>
+                                    <input type="number" min="0" name="numero_repeticiones_rapido" value="0" class="form-control form-control-sm">
+                                </div>
+                                <div>
+                                    <label class="small-muted">Entrega</label>
+                                    <select name="medio_entrega_rapido" class="form-select form-select-sm">
+                                        <option value="PENDIENTE">Pendiente</option>
+                                        <option value="DIGITAL">Digital</option>
+                                        <option value="IMPRESO">Impreso</option>
+                                        <option value="AMBOS">Impreso y digital</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="small-muted">Incidencia (solo si ocurrió)</label>
+                                    <input name="incidencias_rapidas" class="form-control form-control-sm" placeholder="Déjalo vacío si no hubo incidencia">
+                                </div>
+                            </div>
 
                             <button
                                 type="submit"
@@ -1023,8 +1075,19 @@ Estudio | Loreto One
             <div class="box">
                 <div class="box-header">Bitácora radiológica operativa</div>
                 <div class="box-body">
+                    {% if bitacora_operativa %}
+                        <div class="auto-summary mb-2">
+                            <strong>{{ bitacora_operativa.get_origen_parametros_display }}</strong>
+                            {% if bitacora_operativa.parametros_extraidos_el %}
+                                · última lectura {{ bitacora_operativa.parametros_extraidos_el|date:"d/m/Y H:i" }}
+                            {% endif %}<br>
+                            kVp {{ bitacora_operativa.kvp|default:"—" }} · mAs {{ bitacora_operativa.mas|default:"—" }}
+                            · exposiciones {{ bitacora_operativa.numero_exposiciones|default:"—" }}
+                            · CTDIvol {{ bitacora_operativa.ctdi_vol|default:"—" }} · DLP {{ bitacora_operativa.dlp|default:"—" }}
+                        </div>
+                    {% endif %}
                     <details>
-                        <summary class="btn btn-outline-info btn-sm">Capturar o actualizar parámetros</summary>
+                        <summary class="btn btn-outline-info btn-sm">Completar únicamente datos faltantes</summary>
                         <form method="post" action="{% url 'guardar_bitacora_operativa_radiologia' estudio.id %}" class="mt-3">
                             {% csrf_token %}
                             <div class="row g-2">
@@ -1037,7 +1100,7 @@ Estudio | Loreto One
                                 <div class="col-md-3"><label class="small-muted">DLP</label><input type="number" step="0.001" min="0" name="dlp" value="{{ bitacora_operativa.dlp|default_if_none:'' }}" class="form-control form-control-sm"></div>
                                 <div class="col-md-3"><label class="small-muted">Repeticiones</label><input type="number" min="0" name="numero_repeticiones" value="{{ bitacora_operativa.numero_repeticiones|default:0 }}" class="form-control form-control-sm"></div>
                                 <div class="col-md-9"><label class="small-muted">Motivo de repetición</label><input name="motivo_repeticion" value="{{ bitacora_operativa.motivo_repeticion|default_if_none:'' }}" class="form-control form-control-sm"></div>
-                                <div class="col-md-3"><label class="small-muted">¿Usó contraste?</label><select name="uso_contraste" class="form-select form-select-sm"><option value="NO">No</option><option value="SI" {% if bitacora_operativa.uso_contraste %}selected{% endif %}>Sí</option></select></div>
+                                <div class="col-md-3"><label class="small-muted">¿Usó contraste?</label><select name="uso_contraste" class="form-select form-select-sm"><option value="">Sin confirmar</option><option value="NO" {% if bitacora_operativa.uso_contraste == False %}selected{% endif %}>No</option><option value="SI" {% if bitacora_operativa.uso_contraste %}selected{% endif %}>Sí</option></select></div>
                                 <div class="col-md-3"><label class="small-muted">Contraste</label><input name="contraste_nombre" value="{{ bitacora_operativa.contraste_nombre|default_if_none:'' }}" class="form-control form-control-sm"></div>
                                 <div class="col-md-2"><label class="small-muted">Lote</label><input name="contraste_lote" value="{{ bitacora_operativa.contraste_lote|default_if_none:'' }}" class="form-control form-control-sm"></div>
                                 <div class="col-md-2"><label class="small-muted">Volumen ml</label><input type="number" step="0.01" min="0" name="contraste_volumen_ml" value="{{ bitacora_operativa.contraste_volumen_ml|default_if_none:'' }}" class="form-control form-control-sm"></div>

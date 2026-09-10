@@ -28,13 +28,21 @@ from .models import (
     RevisionReporteRadiologico,
     Servicio,
     SerieDicom,
+    TipoEstudio,
 )
+
+
+@admin.register(TipoEstudio)
+class TipoEstudioAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nombre', 'modalidad', 'numero_exposiciones_sugerido', 'proyecciones_sugeridas', 'activo')
+    list_filter = ('modalidad', 'activo')
+    search_fields = ('codigo', 'nombre')
 
 
 @admin.register(BitacoraRadiologica)
 class BitacoraRadiologicaAdmin(admin.ModelAdmin):
-    list_display = ('fecha_realizacion', 'paciente_nombre', 'modalidad', 'estudio_nombre', 'tecnico_nombre', 'equipo_nombre', 'medio_entrega')
-    list_filter = ('modalidad', 'medio_entrega', 'fecha_realizacion')
+    list_display = ('fecha_realizacion', 'paciente_nombre', 'modalidad', 'estudio_nombre', 'tecnico_nombre', 'equipo_nombre', 'origen_parametros', 'medio_entrega')
+    list_filter = ('modalidad', 'origen_parametros', 'medio_entrega', 'fecha_realizacion')
     search_fields = ('paciente_nombre', 'paciente_registro', 'estudio_nombre', 'medico_solicitante', 'tecnico_nombre', 'equipo_nombre')
     readonly_fields = ('creado_el', 'actualizado_el')
 

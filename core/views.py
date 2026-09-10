@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -370,6 +371,19 @@ def entero_dicom(dataset, nombre):
         return None
 
 
+def decimal_dicom(dataset, nombre):
+    """Convierte un valor numérico DICOM sin fallar con MultiValue o texto."""
+    valor = getattr(dataset, nombre, None)
+    if valor in (None, ''):
+        return None
+    if isinstance(valor, (list, tuple)):
+        valor = valor[0] if valor else None
+    try:
+        return float(str(valor).split('\\')[0].strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def fecha_dicom(valor):
     try:
         return date.fromisoformat(f'{valor[0:4]}-{valor[4:6]}-{valor[6:8]}')
@@ -428,6 +442,19 @@ def analizar_archivo_dicom(archivo):
         'station_name': valor_dicom(dataset, 'StationName'),
         'body_part_examined': valor_dicom(dataset, 'BodyPartExamined'),
         'protocol_name': valor_dicom(dataset, 'ProtocolName'),
+        'kvp': decimal_dicom(dataset, 'KVP'),
+        'exposure_mas': decimal_dicom(dataset, 'Exposure'),
+        'exposure_uas': decimal_dicom(dataset, 'ExposureInuAs'),
+        'exposure_time_ms': decimal_dicom(dataset, 'ExposureTime'),
+        'xray_tube_current_ma': decimal_dicom(dataset, 'XRayTubeCurrent'),
+        'view_position': valor_dicom(dataset, 'ViewPosition'),
+        'ctdi_vol': decimal_dicom(dataset, 'CTDIvol'),
+        # Algunos equipos/RDSR exponen DLP mediante este keyword; si no existe,
+        # queda vacío y se solicita únicamente al finalizar.
+        'dlp': decimal_dicom(dataset, 'DoseLengthProduct'),
+        'contrast_agent': valor_dicom(dataset, 'ContrastBolusAgent'),
+        'contrast_route': valor_dicom(dataset, 'ContrastBolusRoute'),
+        'contrast_volume_ml': decimal_dicom(dataset, 'ContrastBolusVolume'),
         'accession_number': valor_dicom(dataset, 'AccessionNumber'),
         'referring_physician': valor_dicom(dataset, 'ReferringPhysicianName'),
         'sop_class_uid': valor_dicom(dataset, 'SOPClassUID'),
@@ -435,6 +462,138 @@ def analizar_archivo_dicom(archivo):
     }
     archivo.seek(0)
     return {'dataset': dataset, 'hash_sha256': digest.hexdigest(), 'tamano_bytes': tamano, 'metadatos': metadatos, **requeridos}
+
+
+def _numero_metadato(valor):
+    try:
+        return float(valor) if valor not in (None, '') else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _representativo(valores):
+    """Devuelve el valor más frecuente, sin inventar promedios clínicos."""
+    limpios = [round(valor, 3) for valor in valores if valor is not None]
+    return Counter(limpios).most_common(1)[0][0] if limpios else None
+
+
+def sincronizar_bitacora_desde_dicom(estudio):
+    """Completa campos vacíos usando solo encabezados ya guardados, nunca píxeles."""
+    consulta_metadatos = InstanciaDicom.objects.filter(
+        serie__estudio_dicom__estudio=estudio
+    ).values_list('metadatos', flat=True)
+    if not consulta_metadatos.exists():
+        bitacora = crear_bitacora_radiologica(estudio)
+        if bitacora is None:
+            return None
+        aplicados = []
+        if not bitacora.numero_exposiciones and estudio.tipo_estudio.numero_exposiciones_sugerido:
+            bitacora.numero_exposiciones = estudio.tipo_estudio.numero_exposiciones_sugerido
+            aplicados.append('numero_exposiciones')
+        if not bitacora.proyecciones and estudio.tipo_estudio.proyecciones_sugeridas:
+            bitacora.proyecciones = estudio.tipo_estudio.proyecciones_sugeridas
+            aplicados.append('proyecciones')
+        if aplicados:
+            bitacora.origen_parametros = 'PLANTILLA'
+            bitacora.parametros_dicom = {
+                'instancias_analizadas': 0,
+                'plantilla_tipo_estudio': estudio.tipo_estudio.nombre,
+                'campos_aplicados': aplicados,
+            }
+            bitacora.parametros_extraidos_el = timezone.now()
+            bitacora.save()
+        return bitacora
+
+    bitacora = crear_bitacora_radiologica(estudio)
+    if bitacora is None:
+        return None
+
+    kvps = [_numero_metadato(item.get('kvp')) for item in metadatos]
+    mas = []
+    ctdis = []
+    dlps = []
+    proyecciones = []
+    agentes = []
+    vias = []
+    volumenes = []
+    modalidades = []
+    cantidad_instancias = 0
+
+    for item in consulta_metadatos.iterator(chunk_size=250):
+        cantidad_instancias += 1
+        valor_mas = _numero_metadato(item.get('exposure_mas'))
+        if valor_mas is None:
+            uas = _numero_metadato(item.get('exposure_uas'))
+            valor_mas = uas / 1000 if uas is not None else None
+        if valor_mas is None:
+            tiempo = _numero_metadato(item.get('exposure_time_ms'))
+            corriente = _numero_metadato(item.get('xray_tube_current_ma'))
+            if tiempo is not None and corriente is not None:
+                valor_mas = tiempo * corriente / 1000
+        mas.append(valor_mas)
+        ctdis.append(_numero_metadato(item.get('ctdi_vol')))
+        dlps.append(_numero_metadato(item.get('dlp')))
+        modalidades.append((item.get('modality') or '').upper())
+        for candidato in (item.get('view_position'), item.get('series_description')):
+            texto = (candidato or '').strip()
+            if texto and texto not in proyecciones:
+                proyecciones.append(texto)
+        for destino, clave in ((agentes, 'contrast_agent'), (vias, 'contrast_route')):
+            texto = (item.get(clave) or '').strip()
+            if texto and texto not in destino:
+                destino.append(texto)
+        volumenes.append(_numero_metadato(item.get('contrast_volume_ml')))
+
+    modalidad_rx = bitacora.modalidad in {'RX', 'MASTO', 'DXA'} or any(
+        valor in {'CR', 'DX', 'RX', 'MG'} for valor in modalidades
+    )
+    detectados = {
+        'kvp': _representativo(kvps),
+        'mas': _representativo(mas),
+        'numero_exposiciones': cantidad_instancias if modalidad_rx else None,
+        'proyecciones': ', '.join(proyecciones[:12]) or None,
+        'ctdi_vol': _representativo(ctdis),
+        'dlp': _representativo(dlps),
+        'contraste_nombre': ', '.join(agentes) or None,
+        'contraste_via': ', '.join(vias) or None,
+        'contraste_volumen_ml': _representativo(volumenes),
+    }
+    campos_plantilla = []
+    if detectados['numero_exposiciones'] is None:
+        detectados['numero_exposiciones'] = estudio.tipo_estudio.numero_exposiciones_sugerido
+        if detectados['numero_exposiciones'] is not None:
+            campos_plantilla.append('numero_exposiciones')
+    if detectados['proyecciones'] is None:
+        detectados['proyecciones'] = estudio.tipo_estudio.proyecciones_sugeridas or None
+        if detectados['proyecciones'] is not None:
+            campos_plantilla.append('proyecciones')
+    if agentes or any(valor is not None for valor in volumenes):
+        detectados['uso_contraste'] = True
+
+    actualizados = []
+    for campo, valor in detectados.items():
+        if valor is not None and getattr(bitacora, campo) in (None, ''):
+            setattr(bitacora, campo, valor)
+            actualizados.append(campo)
+
+    bitacora.parametros_dicom = {
+        'instancias_analizadas': cantidad_instancias,
+        'valores_kvp': sorted({valor for valor in kvps if valor is not None}),
+        'valores_mas': sorted({valor for valor in mas if valor is not None}),
+        'valores_ctdi_vol': sorted({valor for valor in ctdis if valor is not None}),
+        'valores_dlp': sorted({valor for valor in dlps if valor is not None}),
+        'proyecciones_detectadas': proyecciones,
+        'campos_desde_plantilla': campos_plantilla,
+        'campos_aplicados': actualizados,
+    }
+    bitacora.parametros_extraidos_el = timezone.now()
+    bitacora.origen_parametros = (
+        'MIXTO'
+        if campos_plantilla or bitacora.origen_parametros in {'MANUAL', 'MIXTO'}
+        else 'DICOM'
+    )
+    bitacora.save()
+    return bitacora
 
 
 def crear_bitacora_radiologica(estudio):
@@ -1986,6 +2145,7 @@ def cargar_archivos_estudio(
                 messages.error(request, f'No se pudo cargar {archivo.name}. Revisa el archivo.')
 
         if archivos_cargados:
+            sincronizar_bitacora_desde_dicom(estudio)
             messages.success(request, f'Se cargaron {archivos_cargados} archivo(s) correctamente.')
 
     return redirect(
@@ -3628,9 +3788,33 @@ def finalizar_estudio_radiologia(
             ]
         )
 
-        crear_bitacora_radiologica(
-            estudio
-        )
+        bitacora = sincronizar_bitacora_desde_dicom(estudio)
+        if bitacora:
+            bitacora.fecha_realizacion = momento_actual
+            repeticiones = multi_puesto(request, 'numero_repeticiones_rapido')
+            incidencias = request.POST.get('incidencias_rapidas', '').strip()
+            medio = request.POST.get('medio_entrega_rapido', 'PENDIENTE')
+            if medio not in dict(BitacoraRadiologica.MEDIO_ENTREGA_CHOICES):
+                medio = 'PENDIENTE'
+            bitacora.numero_repeticiones = repeticiones
+            bitacora.incidencias = incidencias or None
+            bitacora.medio_entrega = medio
+            if repeticiones or incidencias:
+                bitacora.origen_parametros = (
+                    'MIXTO' if bitacora.parametros_dicom else 'MANUAL'
+                )
+            bitacora.actualizado_por = request.user
+            bitacora.save()
+            if medio != 'PENDIENTE':
+                entrega = EntregaResultadoEstudio.objects.create(
+                    estudio=estudio,
+                    medio=medio,
+                    observaciones='Registrada al finalizar el estudio.',
+                    registrado_por=request.user,
+                )
+                bitacora.fecha_entrega = entrega.fecha_entrega
+                bitacora.entrega_registrada_por = request.user
+                bitacora.save(update_fields=['fecha_entrega', 'entrega_registrada_por'])
 
         return redirect(
             'panel_radiologo'
@@ -3715,7 +3899,7 @@ def guardar_bitacora_operativa_radiologia(request, estudio_id):
         messages.error(request, 'No fue posible crear la bitácora de este estudio.')
         return redirect('estudio_radiologia', estudio_id=estudio.id)
 
-    uso_contraste = request.POST.get('uso_contraste') == 'SI'
+    opcion_contraste = request.POST.get('uso_contraste', '')
     campos = {
         'kvp': _decimal_opcional(request.POST.get('kvp')),
         'mas': _decimal_opcional(request.POST.get('mas')),
@@ -3726,7 +3910,6 @@ def guardar_bitacora_operativa_radiologia(request, estudio_id):
         'motivo_repeticion': request.POST.get('motivo_repeticion', '').strip() or None,
         'ctdi_vol': _decimal_opcional(request.POST.get('ctdi_vol')),
         'dlp': _decimal_opcional(request.POST.get('dlp')),
-        'uso_contraste': uso_contraste,
         'contraste_nombre': request.POST.get('contraste_nombre', '').strip() or None,
         'contraste_lote': request.POST.get('contraste_lote', '').strip() or None,
         'contraste_volumen_ml': _decimal_opcional(request.POST.get('contraste_volumen_ml')),
@@ -3740,8 +3923,11 @@ def guardar_bitacora_operativa_radiologia(request, estudio_id):
     }
     if campos['verificacion_embarazo'] not in {'NO_APLICA', 'DESCARTADO', 'POSIBLE'}:
         campos['verificacion_embarazo'] = 'NO_APLICA'
+    if opcion_contraste in {'SI', 'NO'}:
+        campos['uso_contraste'] = opcion_contraste == 'SI'
     for nombre, valor in campos.items():
         setattr(bitacora, nombre, valor)
+    bitacora.origen_parametros = 'MIXTO' if bitacora.parametros_dicom else 'MANUAL'
     bitacora.save()
     messages.success(request, 'Bitácora operativa actualizada correctamente.')
     return redirect('estudio_radiologia', estudio_id=estudio.id)
