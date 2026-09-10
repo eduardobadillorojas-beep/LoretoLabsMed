@@ -220,6 +220,10 @@ Configuración | Loreto One
             Identidad institucional y datos que aparecerán en recetas,
             solicitudes e indicaciones.
         </div>
+
+        <a href="{% url 'equipos_incidencias_institucionales' %}" class="btn btn-outline-warning btn-sm mt-2">
+            ⚠ Equipos e incidencias{% if incidencias_equipos_abiertas %} · {{ incidencias_equipos_abiertas }} abiertas{% endif %}
+        </a>
     </header>
 
     {% if guardado %}

@@ -290,6 +290,10 @@ Recepción | Loreto One
 
         <div class="acciones-top">
 
+            <a href="{% url 'equipos_incidencias_institucionales' %}" class="btn btn-outline-warning btn-sm">
+                ⚠ Falla{% if incidencias_equipos_abiertas %} · {{ incidencias_equipos_abiertas }}{% endif %}
+            </a>
+
             <a
                 href="{% url 'caja_recepcion' %}"
                 class="btn btn-success btn-sm"

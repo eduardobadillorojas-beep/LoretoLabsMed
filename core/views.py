@@ -1157,6 +1157,9 @@ def panel_medico(request):
             pacientes_atendidos,
         'estudios_recientes':
             estudios_recientes,
+        'incidencias_equipos_abiertas': ReporteFallaEquipo.objects.filter(
+            institucion=institucion
+        ).exclude(estado__in=['RESUELTA', 'CERRADA']).count(),
     }
 
     return render(
@@ -4935,6 +4938,10 @@ def panel_recepcion(request):
 
         'citas_de_hoy':
             citas_de_hoy,
+
+        'incidencias_equipos_abiertas': ReporteFallaEquipo.objects.filter(
+            institucion=institucion
+        ).exclude(estado__in=['RESUELTA', 'CERRADA']).count(),
     }
 
     return render(
@@ -8935,6 +8942,9 @@ def panel_config(request):
         'membresia': membresia,
         'institucion': institucion,
         'guardado': guardado,
+        'incidencias_equipos_abiertas': ReporteFallaEquipo.objects.filter(
+            institucion=institucion
+        ).exclude(estado__in=['RESUELTA', 'CERRADA']).count() if institucion else 0,
     }
 
     return render(
