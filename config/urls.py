@@ -105,6 +105,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/paciente/registrar/',
+        views.registrar_paciente_radiologia,
+        name='registrar_paciente_radiologia'
+    ),
+
+    path(
+        'radiologia/equipos/mantenimiento/',
+        views.mantenimiento_equipos_radiologia,
+        name='mantenimiento_equipos_radiologia'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/',
         views.estudio_radiologia,
         name='estudio_radiologia'
@@ -234,6 +246,12 @@ urlpatterns = [
         'radiologia/estudio/<int:estudio_id>/finalizar/',
         views.finalizar_estudio_radiologia,
         name='finalizar_estudio_radiologia'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/entrega/registrar/',
+        views.registrar_entrega_resultado_radiologia,
+        name='registrar_entrega_resultado_radiologia'
     ),
 
     # =========================

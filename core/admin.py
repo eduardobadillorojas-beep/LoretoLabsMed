@@ -11,10 +11,13 @@ from .models import (
     EstudioDicom,
     EliminacionSerieDicom,
     EntregaDigitalEstudio,
+    EntregaResultadoEstudio,
+    EquipoRadiologico,
     Institucion,
     MembresiaInstitucion,
     InstanciaDicom,
     MovimientoCaja,
+    MantenimientoEquipoRadiologico,
     Paciente,
     PagoCobro,
     PlantillaReporteRadiologico,
@@ -133,6 +136,28 @@ class EntregaDigitalEstudioAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(EntregaResultadoEstudio)
+class EntregaResultadoEstudioAdmin(admin.ModelAdmin):
+    list_display = ('estudio', 'medio', 'entregado_a', 'registrado_por', 'fecha_entrega')
+    list_filter = ('medio', 'fecha_entrega')
+    search_fields = ('estudio__paciente__identificacion', 'estudio__paciente__nombre', 'entregado_a')
+    readonly_fields = ('fecha_entrega',)
+
+
+@admin.register(EquipoRadiologico)
+class EquipoRadiologicoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'tipo', 'marca', 'modelo', 'numero_serie', 'institucion', 'activo')
+    list_filter = ('institucion', 'tipo', 'activo')
+    search_fields = ('nombre', 'marca', 'modelo', 'numero_serie')
+
+
+@admin.register(MantenimientoEquipoRadiologico)
+class MantenimientoEquipoRadiologicoAdmin(admin.ModelAdmin):
+    list_display = ('equipo', 'tipo', 'fecha_servicio', 'proximo_mantenimiento', 'proveedor_ingeniero')
+    list_filter = ('tipo', 'fecha_servicio', 'proximo_mantenimiento')
+    search_fields = ('equipo__nombre', 'equipo__numero_serie', 'proveedor_ingeniero', 'informe_servicio')
 
 
 class PagoCobroInline(admin.TabularInline):

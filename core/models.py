@@ -269,6 +269,26 @@ class Paciente(models.Model):
         auto_now_add=True
     )
 
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='pacientes_registrados',
+        blank=True,
+        null=True,
+        verbose_name='Registrado por'
+    )
+
+    origen_registro = models.CharField(
+        max_length=20,
+        choices=[
+            ('RECEPCION', 'Recepción'),
+            ('RADIOLOGIA', 'Radiología'),
+            ('ADMIN', 'Administración'),
+        ],
+        default='RECEPCION',
+        verbose_name='Área de registro'
+    )
+
     def save(self, *args, **kwargs):
         nuevo_paciente = self.pk is None
 
@@ -342,6 +362,14 @@ class EquipoRadiologico(models.Model):
         ('OTRO', 'Otro'),
     ]
 
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='equipos_radiologicos',
+        blank=True,
+        null=True
+    )
+
     nombre = models.CharField(
         max_length=100,
         verbose_name='Nombre del equipo'
@@ -387,6 +415,49 @@ class EquipoRadiologico(models.Model):
 
     def __str__(self):
         return self.nombre
+
+
+class MantenimientoEquipoRadiologico(models.Model):
+    TIPO_CHOICES = [
+        ('PREVENTIVO', 'Preventivo'),
+        ('CORRECTIVO', 'Correctivo'),
+        ('CALIBRACION', 'Calibración / control de calidad'),
+        ('OTRO', 'Otro'),
+    ]
+
+    equipo = models.ForeignKey(
+        EquipoRadiologico,
+        on_delete=models.PROTECT,
+        related_name='mantenimientos'
+    )
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    fecha_servicio = models.DateField(verbose_name='Fecha del servicio')
+    proveedor_ingeniero = models.CharField(
+        max_length=180,
+        verbose_name='Proveedor o ingeniero'
+    )
+    informe_servicio = models.TextField(verbose_name='Informe del servicio')
+    proximo_mantenimiento = models.DateField(blank=True, null=True)
+    documento = models.FileField(
+        upload_to='equipos/mantenimientos/',
+        blank=True,
+        null=True,
+        verbose_name='Informe adjunto'
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='mantenimientos_radiologicos_registrados',
+        blank=True,
+        null=True
+    )
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_servicio', '-creado_el']
+
+    def __str__(self):
+        return f'{self.equipo} - {self.get_tipo_display()} - {self.fecha_servicio}'
 
 
 class Consulta(models.Model):
@@ -1467,6 +1538,27 @@ class BitacoraRadiologica(models.Model):
         null=True
     )
 
+    MEDIO_ENTREGA_CHOICES = [
+        ('PENDIENTE', 'Pendiente de entrega'),
+        ('IMPRESO', 'Impreso'),
+        ('DIGITAL', 'Digital'),
+        ('AMBOS', 'Impreso y digital'),
+    ]
+
+    medio_entrega = models.CharField(
+        max_length=15,
+        choices=MEDIO_ENTREGA_CHOICES,
+        default='PENDIENTE'
+    )
+    fecha_entrega = models.DateTimeField(blank=True, null=True)
+    entrega_registrada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='entregas_radiologicas_registradas',
+        blank=True,
+        null=True
+    )
+
     creado_el = models.DateTimeField(
         auto_now_add=True
     )
@@ -1497,6 +1589,37 @@ class BitacoraRadiologica(models.Model):
             f'{self.paciente_nombre} - '
             f'{self.estudio_nombre}'
         )
+
+
+class EntregaResultadoEstudio(models.Model):
+    MEDIO_CHOICES = [
+        ('IMPRESO', 'Impreso'),
+        ('DIGITAL', 'Digital'),
+        ('AMBOS', 'Impreso y digital'),
+    ]
+
+    estudio = models.ForeignKey(
+        Estudio,
+        on_delete=models.PROTECT,
+        related_name='entregas_resultado'
+    )
+    medio = models.CharField(max_length=15, choices=MEDIO_CHOICES)
+    entregado_a = models.CharField(max_length=180, blank=True)
+    observaciones = models.TextField(blank=True)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='entregas_resultados_registradas',
+        blank=True,
+        null=True
+    )
+    fecha_entrega = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_entrega']
+
+    def __str__(self):
+        return f'{self.estudio} - {self.get_medio_display()}'
 
 
 class Cita(models.Model):

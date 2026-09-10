@@ -71,12 +71,15 @@ from .models import (
     Estudio,
     EstudioDicom,
     EntregaDigitalEstudio,
+    EntregaResultadoEstudio,
     EliminacionSerieDicom,
     EstudioSolicitado,
+    EquipoRadiologico,
     IndicacionMedica,
     InstanciaDicom,
     MedicamentoReceta,
     MembresiaInstitucion,
+    MantenimientoEquipoRadiologico,
     MovimientoCaja,
     Paciente,
     PagoCobro,
@@ -1269,6 +1272,7 @@ def panel_radiologo(request):
             busqueda_paciente,
         'pacientes_historial':
             pacientes_historial,
+        'tipos_estudio': TipoEstudio.objects.filter(activo=True).order_by('modalidad', 'nombre'),
     }
 
     return render(
@@ -1276,6 +1280,139 @@ def panel_radiologo(request):
         'core/panel_radiologo.html',
         context
     )
+
+
+@login_required
+@require_POST
+def registrar_paciente_radiologia(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para registrar pacientes desde Radiología.', status=403)
+
+    nombre = request.POST.get('nombre', '').strip().upper()
+    apellido = request.POST.get('apellido', '').strip().upper()
+    nacimiento_texto = request.POST.get('fecha_nacimiento', '').strip()
+    genero = request.POST.get('genero', '').strip()
+    telefono = request.POST.get('telefono', '').strip()
+    medico = request.POST.get('medico_solicitante', '').strip()
+    descripcion = request.POST.get('descripcion', '').strip()
+
+    try:
+        fecha_nacimiento = date.fromisoformat(nacimiento_texto)
+    except ValueError:
+        messages.error(request, 'Revisa la fecha de nacimiento.')
+        return redirect('panel_radiologo')
+
+    tipo_estudio = get_object_or_404(
+        TipoEstudio,
+        pk=request.POST.get('tipo_estudio'),
+        activo=True,
+    )
+    if not nombre or not apellido or genero not in {'M', 'F', 'O'}:
+        messages.error(request, 'Completa nombre, apellidos y género.')
+        return redirect('panel_radiologo')
+
+    coincidencias = Paciente.objects.filter(
+        institucion=membresia.institucion,
+        nombre__iexact=nombre,
+        apellido__iexact=apellido,
+        fecha_nacimiento=fecha_nacimiento,
+    )
+    if coincidencias.exists() and request.POST.get('confirmar_duplicado') != '1':
+        registros = ', '.join(coincidencias.values_list('identificacion', flat=True)[:5])
+        messages.warning(
+            request,
+            f'Posible duplicado: ya existe este nombre y fecha (registro {registros}). '
+            'Búscalo primero o marca “crear aunque exista coincidencia”.'
+        )
+        return redirect(f"{reverse('panel_radiologo')}?q={quote(nombre)}")
+
+    with transaction.atomic():
+        paciente = Paciente.objects.create(
+            institucion=membresia.institucion,
+            nombre=nombre,
+            apellido=apellido,
+            fecha_nacimiento=fecha_nacimiento,
+            genero=genero,
+            telefono=telefono or None,
+            creado_por=request.user,
+            origen_registro='RADIOLOGIA',
+        )
+        estudio = Estudio.objects.create(
+            paciente=paciente,
+            tipo_estudio=tipo_estudio,
+            medico_solicitante=medico or None,
+            descripcion=descripcion or 'Paciente y estudio registrados desde Radiología.',
+            estado='PENDIENTE',
+        )
+
+    messages.success(request, f'Paciente {paciente.identificacion} registrado. El estudio quedó en espera.')
+    return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+
+@login_required
+def mantenimiento_equipos_radiologia(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return redirect('panel_config')
+
+    institucion = membresia.institucion
+    equipos = EquipoRadiologico.objects.filter(
+        Q(institucion=institucion) | Q(institucion__isnull=True)
+    ).prefetch_related('mantenimientos').order_by('nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'equipo':
+            nombre = request.POST.get('nombre', '').strip()
+            tipo = request.POST.get('tipo', '')
+            if not nombre or tipo not in dict(EquipoRadiologico.TIPO_CHOICES):
+                messages.error(request, 'Completa el nombre y tipo del equipo.')
+            else:
+                EquipoRadiologico.objects.create(
+                    institucion=institucion,
+                    nombre=nombre,
+                    tipo=tipo,
+                    marca=request.POST.get('marca', '').strip() or None,
+                    modelo=request.POST.get('modelo', '').strip() or None,
+                    numero_serie=request.POST.get('numero_serie', '').strip() or None,
+                    ubicacion=request.POST.get('ubicacion', '').strip() or None,
+                )
+                messages.success(request, 'Equipo registrado correctamente.')
+        elif accion == 'mantenimiento':
+            equipo = get_object_or_404(equipos, pk=request.POST.get('equipo'))
+            tipo_mantenimiento = request.POST.get('tipo_mantenimiento', '')
+            proveedor = request.POST.get('proveedor_ingeniero', '').strip()
+            informe = request.POST.get('informe_servicio', '').strip()
+            if tipo_mantenimiento not in dict(MantenimientoEquipoRadiologico.TIPO_CHOICES) or not proveedor or not informe:
+                messages.error(request, 'Completa tipo, proveedor o ingeniero e informe del servicio.')
+                return redirect('mantenimiento_equipos_radiologia')
+            try:
+                fecha_servicio = date.fromisoformat(request.POST.get('fecha_servicio', ''))
+                proximo_texto = request.POST.get('proximo_mantenimiento', '').strip()
+                proximo = date.fromisoformat(proximo_texto) if proximo_texto else None
+            except ValueError:
+                messages.error(request, 'Revisa las fechas del mantenimiento.')
+                return redirect('mantenimiento_equipos_radiologia')
+            MantenimientoEquipoRadiologico.objects.create(
+                equipo=equipo,
+                tipo=tipo_mantenimiento,
+                fecha_servicio=fecha_servicio,
+                proveedor_ingeniero=proveedor,
+                informe_servicio=informe,
+                proximo_mantenimiento=proximo,
+                documento=request.FILES.get('documento'),
+                registrado_por=request.user,
+            )
+            messages.success(request, 'Mantenimiento agregado a la bitácora del equipo.')
+        return redirect('mantenimiento_equipos_radiologia')
+
+    return render(request, 'core/mantenimiento_equipos_radiologia.html', {
+        'membresia': membresia,
+        'equipos': equipos,
+        'tipos_equipo': EquipoRadiologico.TIPO_CHOICES,
+        'tipos_mantenimiento': MantenimientoEquipoRadiologico.TIPO_CHOICES,
+    })
 
 # =========================================================
 # ESTACIÓN DE TRABAJO RADIOLOGÍA
@@ -1384,6 +1521,7 @@ def estudio_radiologia(
             puede_emitir_reporte_final,
         'estudio_adicional_form':
             estudio_adicional_form,
+        'entregas_resultado': estudio.entregas_resultado.select_related('registrado_por')[:10],
     }
 
     return render(
@@ -3322,6 +3460,45 @@ def finalizar_estudio_radiologia(
         'estudio_radiologia',
         estudio_id=estudio.id
     )
+
+
+@login_required
+@require_POST
+def registrar_entrega_resultado_radiologia(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para registrar entregas.', status=403)
+
+    estudio = get_object_or_404(
+        Estudio.objects.select_related('paciente', 'tipo_estudio'),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+        estado='COMPLETADO',
+    )
+    medio = request.POST.get('medio', '')
+    if medio not in dict(EntregaResultadoEstudio.MEDIO_CHOICES):
+        messages.error(request, 'Selecciona cómo se entregó el resultado.')
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+    with transaction.atomic():
+        entrega = EntregaResultadoEstudio.objects.create(
+            estudio=estudio,
+            medio=medio,
+            entregado_a=request.POST.get('entregado_a', '').strip(),
+            observaciones=request.POST.get('observaciones_entrega', '').strip(),
+            registrado_por=request.user,
+        )
+        bitacora = crear_bitacora_radiologica(estudio)
+        if bitacora:
+            bitacora.medio_entrega = medio
+            bitacora.fecha_entrega = entrega.fecha_entrega
+            bitacora.entrega_registrada_por = request.user
+            bitacora.save(update_fields=[
+                'medio_entrega', 'fecha_entrega', 'entrega_registrada_por'
+            ])
+
+    messages.success(request, 'Entrega registrada en la bitácora radiológica.')
+    return redirect('estudio_radiologia', estudio_id=estudio.id)
 
 # =========================================================
 # RECEPCIÓN

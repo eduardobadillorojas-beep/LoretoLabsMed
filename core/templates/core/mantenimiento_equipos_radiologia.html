@@ -1,0 +1,34 @@
+{% extends 'core/base.html' %}
+{% block title %}Equipos y mantenimiento | Loreto One{% endblock %}
+{% block content %}
+<style>
+.maint-wrap{max-width:1200px;margin:auto;padding:0 18px 30px}.maint-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.maint-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.maint-card{background:#172033;border:1px solid #334155;border-radius:12px;padding:16px}.maint-card h2{font-size:1rem;margin:0 0 12px}.maint-form{display:grid;grid-template-columns:1fr 1fr;gap:9px}.maint-form .full{grid-column:1/-1}.maint-form label{font-size:.7rem;color:#cbd5e1;display:block;margin-bottom:4px}.maint-form input,.maint-form select,.maint-form textarea{width:100%;background:#0f172a;color:#f8fafc;border:1px solid #475569;border-radius:8px;padding:9px}.equipment{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;margin-bottom:9px}.equipment-title{font-weight:700;color:#38bdf8}.equipment-meta{font-size:.7rem;color:#94a3b8}.event{border-top:1px solid #273449;margin-top:9px;padding-top:9px;font-size:.72rem}.event strong{color:#f8fafc}@media(max-width:850px){.maint-grid,.maint-form{grid-template-columns:1fr}.maint-form .full{grid-column:1}}
+</style>
+<div class="maint-wrap">
+ <div class="maint-head"><div><h1 style="font-size:1.5rem;margin:0">⚙ Equipos y mantenimiento</h1><div class="text-secondary small">Bitácora básica de servicios preventivos, correctivos y calibraciones.</div></div><a href="{% url 'panel_radiologo' %}" class="btn btn-outline-info">← Radiología</a></div>
+ <div class="maint-grid">
+  <div>
+   <div class="maint-card">
+    <h2>Registrar equipo</h2>
+    <form method="post" class="maint-form">{% csrf_token %}<input type="hidden" name="accion" value="equipo">
+     <div class="full"><label>Nombre del equipo *</label><input name="nombre" required></div>
+     <div><label>Tipo *</label><select name="tipo" required><option value="">Seleccionar…</option>{% for valor,etiqueta in tipos_equipo %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}</select></div>
+     <div><label>Marca</label><input name="marca"></div><div><label>Modelo</label><input name="modelo"></div><div><label>Número de serie</label><input name="numero_serie"></div>
+     <div class="full"><label>Ubicación</label><input name="ubicacion"></div><div class="full"><button class="btn btn-info" type="submit">Guardar equipo</button></div>
+    </form>
+   </div>
+   <div class="maint-card mt-3">
+    <h2>Agregar mantenimiento</h2>
+    <form method="post" enctype="multipart/form-data" class="maint-form">{% csrf_token %}<input type="hidden" name="accion" value="mantenimiento">
+     <div class="full"><label>Equipo *</label><select name="equipo" required><option value="">Seleccionar…</option>{% for equipo in equipos %}<option value="{{ equipo.id }}">{{ equipo.nombre }}{% if equipo.numero_serie %} · {{ equipo.numero_serie }}{% endif %}</option>{% endfor %}</select></div>
+     <div><label>Tipo *</label><select name="tipo_mantenimiento" required>{% for valor,etiqueta in tipos_mantenimiento %}<option value="{{ valor }}">{{ etiqueta }}</option>{% endfor %}</select></div><div><label>Fecha del servicio *</label><input type="date" name="fecha_servicio" required></div>
+     <div class="full"><label>Proveedor o ingeniero *</label><input name="proveedor_ingeniero" required></div><div class="full"><label>Informe del servicio *</label><textarea name="informe_servicio" rows="4" required></textarea></div>
+     <div><label>Próximo mantenimiento</label><input type="date" name="proximo_mantenimiento"></div><div><label>Informe adjunto</label><input type="file" name="documento"></div>
+     <div class="full"><button class="btn btn-success" type="submit">Agregar a bitácora</button></div>
+    </form>
+   </div>
+  </div>
+  <div class="maint-card"><h2>Historial por equipo</h2>{% for equipo in equipos %}<div class="equipment"><div class="equipment-title">{{ equipo.nombre }}</div><div class="equipment-meta">{{ equipo.get_tipo_display }} · {{ equipo.marca|default:"Sin marca" }} {{ equipo.modelo|default:"" }}{% if equipo.ubicacion %} · {{ equipo.ubicacion }}{% endif %}</div>{% for evento in equipo.mantenimientos.all %}<div class="event"><strong>{{ evento.fecha_servicio|date:"d/m/Y" }} · {{ evento.get_tipo_display }}</strong><br>{{ evento.proveedor_ingeniero }}<br>{{ evento.informe_servicio|linebreaksbr }}{% if evento.proximo_mantenimiento %}<br><span class="text-warning">Próximo: {{ evento.proximo_mantenimiento|date:"d/m/Y" }}</span>{% endif %}{% if evento.documento %}<br><a href="{{ evento.documento.url }}" target="_blank">Ver informe adjunto</a>{% endif %}</div>{% empty %}<div class="equipment-meta mt-2">Sin mantenimientos registrados.</div>{% endfor %}</div>{% empty %}<div class="text-secondary">Aún no hay equipos registrados.</div>{% endfor %}</div>
+ </div>
+</div>
+{% endblock %}

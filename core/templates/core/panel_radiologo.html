@@ -34,6 +34,18 @@ Radiología | Loreto One
         margin: 3px 0 0;
     }
 
+    .header-actions { display:flex; gap:8px; flex-wrap:wrap; }
+    .quick-register { background:#172033; border:1px solid #334155; border-radius:12px; margin-bottom:14px; overflow:hidden; }
+    .quick-register summary { cursor:pointer; padding:12px 14px; font-weight:700; color:#38bdf8; list-style:none; }
+    .quick-register summary::-webkit-details-marker { display:none; }
+    .quick-register-form { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:0 14px 14px; }
+    .quick-register-form label { color:#cbd5e1; font-size:.68rem; display:block; margin-bottom:4px; }
+    .quick-register-form input, .quick-register-form select, .quick-register-form textarea { width:100%; background:#0f172a; color:#f8fafc; border:1px solid #475569; border-radius:8px; padding:9px; }
+    .quick-register-form .wide { grid-column:span 2; }
+    .quick-register-form .full { grid-column:1/-1; }
+    .duplicate-check { display:flex; gap:8px; align-items:center; color:#fbbf24; font-size:.72rem; }
+    .duplicate-check input { width:auto; }
+
     .radio-status {
         display: flex;
         gap: 7px;
@@ -300,6 +312,9 @@ Radiología | Loreto One
             width: 100%;
         }
 
+        .quick-register-form { grid-template-columns:1fr; }
+        .quick-register-form .wide { grid-column:span 1; }
+
     }
 
 </style>
@@ -323,7 +338,28 @@ Radiología | Loreto One
 
         </div>
 
+        <div class="header-actions">
+            <a href="{% url 'mantenimiento_equipos_radiologia' %}" class="btn btn-outline-info btn-sm">⚙ Equipos</a>
+        </div>
+
     </div>
+
+    <details class="quick-register">
+        <summary>＋ Registrar paciente y estudio desde Radiología</summary>
+        <form method="post" action="{% url 'registrar_paciente_radiologia' %}" class="quick-register-form">
+            {% csrf_token %}
+            <div><label>Nombre(s) *</label><input name="nombre" required autocomplete="given-name"></div>
+            <div><label>Apellidos *</label><input name="apellido" required autocomplete="family-name"></div>
+            <div><label>Fecha de nacimiento *</label><input type="date" name="fecha_nacimiento" required></div>
+            <div><label>Género *</label><select name="genero" required><option value="">Seleccionar…</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="O">Otro</option></select></div>
+            <div><label>Teléfono</label><input name="telefono" inputmode="tel" autocomplete="tel"></div>
+            <div class="wide"><label>Estudio *</label><select name="tipo_estudio" required><option value="">Seleccionar estudio…</option>{% for tipo in tipos_estudio %}<option value="{{ tipo.id }}">{{ tipo.get_modalidad_display }} · {{ tipo.nombre }}</option>{% endfor %}</select></div>
+            <div><label>Médico solicitante</label><input name="medico_solicitante"></div>
+            <div class="full"><label>Indicaciones u observaciones</label><textarea name="descripcion" rows="2"></textarea></div>
+            <label class="duplicate-check full"><input type="checkbox" name="confirmar_duplicado" value="1"> Crear aunque el sistema encuentre el mismo nombre y fecha de nacimiento</label>
+            <div class="full"><button class="btn btn-info" type="submit">Guardar y abrir estudio</button></div>
+        </form>
+    </details>
 
 
     <!-- CONTADORES -->
