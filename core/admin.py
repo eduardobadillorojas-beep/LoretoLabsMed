@@ -22,6 +22,9 @@ from .models import (
     AccesoModuloMembresia,
     AreaInstitucional,
     ModuloSistema,
+    ProgramaLimpieza,
+    RegistroLimpieza,
+    EventoLimpieza,
     PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
     RegistroControlCalidadEquipo,
@@ -418,6 +421,32 @@ class AccesoModuloMembresiaAdmin(admin.ModelAdmin):
     list_display = ('membresia', 'modulo', 'puede_ver', 'puede_registrar', 'puede_editar', 'puede_administrar')
     list_filter = ('modulo', 'puede_ver', 'puede_administrar', 'membresia__institucion')
     search_fields = ('membresia__usuario__username', 'modulo__nombre')
+
+
+@admin.register(ProgramaLimpieza)
+class ProgramaLimpiezaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'area', 'frecuencia', 'turno', 'hora_programada', 'activa')
+    list_filter = ('institucion', 'area', 'frecuencia', 'turno', 'activa')
+    search_fields = ('nombre', 'area__nombre', 'instrucciones')
+
+
+class EventoLimpiezaInline(admin.TabularInline):
+    model = EventoLimpieza
+    extra = 0
+    readonly_fields = ('estado', 'nota', 'usuario', 'creado_el')
+    can_delete = False
+
+
+@admin.register(RegistroLimpieza)
+class RegistroLimpiezaAdmin(admin.ModelAdmin):
+    list_display = ('folio_admin', 'fecha_programada', 'area', 'actividad', 'turno', 'estado', 'realizada_por', 'validada_por')
+    list_filter = ('institucion', 'fecha_programada', 'area', 'turno', 'estado')
+    search_fields = ('actividad', 'area__nombre', 'productos_utilizados', 'observaciones', 'incidencia')
+    inlines = (EventoLimpiezaInline,)
+
+    @admin.display(description='Folio')
+    def folio_admin(self, obj):
+        return obj.folio
 
 
 @admin.register(Paciente)

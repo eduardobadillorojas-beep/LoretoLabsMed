@@ -88,6 +88,9 @@ from .models import (
     AccesoModuloMembresia,
     AreaInstitucional,
     ModuloSistema,
+    ProgramaLimpieza,
+    RegistroLimpieza,
+    EventoLimpieza,
     PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
     RegistroControlCalidadEquipo,
@@ -109,6 +112,207 @@ from .models import (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _puede_usar_limpieza(membresia):
+    if not membresia or not membresia.activa:
+        return False
+    return membresia.rol in ['ADMIN', 'LIMPIEZA'] or membresia.accesos_modulos.filter(
+        modulo__codigo='limpieza', modulo__disponible=True, puede_ver=True
+    ).exists()
+
+
+def _generar_limpiezas_del_dia(institucion, fecha):
+    programas = ProgramaLimpieza.objects.filter(institucion=institucion, activa=True).select_related('area')
+    nuevos = []
+    for programa in programas:
+        corresponde = programa.frecuencia == 'DIARIA'
+        if programa.frecuencia == 'SEMANAL':
+            dias = {int(x) for x in programa.dias_semana.split(',') if x.strip().isdigit()}
+            corresponde = fecha.weekday() in dias
+        elif programa.frecuencia == 'MENSUAL':
+            corresponde = programa.dia_mes == fecha.day
+        elif programa.frecuencia == 'DEMANDA':
+            corresponde = False
+        if corresponde:
+            nuevos.append(RegistroLimpieza(
+                institucion=institucion, programa=programa, area=programa.area,
+                actividad=programa.nombre, instrucciones=programa.instrucciones,
+                fecha_programada=fecha, turno=programa.turno,
+                hora_programada=programa.hora_programada,
+            ))
+    RegistroLimpieza.objects.bulk_create(nuevos, ignore_conflicts=True)
+
+
+@login_required
+def panel_limpieza(request):
+    membresia = obtener_membresia_usuario(request)
+    if not _puede_usar_limpieza(membresia):
+        return HttpResponse('No tienes acceso al módulo de Limpieza e Intendencia.', status=403)
+    institucion = membresia.institucion
+    puede_supervisar = request.user.is_superuser or membresia.rol == 'ADMIN'
+    hoy = timezone.localdate()
+    _generar_limpiezas_del_dia(institucion, hoy)
+    areas = AreaInstitucional.objects.filter(institucion=institucion, activa=True).order_by('orden', 'nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion', '')
+        if accion == 'programa':
+            if not puede_supervisar:
+                return HttpResponse('Solo Administración puede programar actividades.', status=403)
+            area = get_object_or_404(areas, pk=request.POST.get('area'))
+            nombre = request.POST.get('nombre', '').strip()
+            frecuencia = request.POST.get('frecuencia', 'DIARIA')
+            turno = request.POST.get('turno', 'MATUTINO')
+            if not nombre or frecuencia not in dict(ProgramaLimpieza.FRECUENCIA_CHOICES) or turno not in dict(ProgramaLimpieza.TURNO_CHOICES):
+                messages.error(request, 'Completa actividad, área, frecuencia y turno.')
+            else:
+                dia_mes_texto = request.POST.get('dia_mes', '').strip()
+                dia_mes = int(dia_mes_texto) if dia_mes_texto.isdigit() and 1 <= int(dia_mes_texto) <= 31 else None
+                hora_texto = request.POST.get('hora_programada', '').strip()
+                ProgramaLimpieza.objects.create(
+                    institucion=institucion, area=area, nombre=nombre,
+                    instrucciones=request.POST.get('instrucciones', '').strip(),
+                    frecuencia=frecuencia, dias_semana=','.join(request.POST.getlist('dias_semana')),
+                    dia_mes=dia_mes, turno=turno, hora_programada=hora_texto or None,
+                    creado_por=request.user,
+                )
+                _generar_limpiezas_del_dia(institucion, hoy)
+                messages.success(request, 'Actividad de limpieza programada.')
+            return redirect('panel_limpieza')
+
+        if accion == 'tarea_manual':
+            if not puede_supervisar:
+                return HttpResponse('Solo Administración puede crear tareas extraordinarias.', status=403)
+            area = get_object_or_404(areas, pk=request.POST.get('area'))
+            actividad = request.POST.get('actividad', '').strip()
+            fecha_texto = request.POST.get('fecha_programada', '')
+            try:
+                fecha = date.fromisoformat(fecha_texto)
+            except ValueError:
+                fecha = None
+            turno_manual = request.POST.get('turno', 'MATUTINO')
+            asignada_id = request.POST.get('asignada_a', '')
+            asignada = get_user_model().objects.filter(
+                pk=asignada_id,
+                membresias_institucion__institucion=institucion,
+                membresias_institucion__rol='LIMPIEZA',
+                membresias_institucion__activa=True,
+            ).first() if asignada_id else None
+            if not actividad or fecha is None or turno_manual not in dict(ProgramaLimpieza.TURNO_CHOICES):
+                messages.error(request, 'Indica actividad y fecha válidas.')
+            else:
+                RegistroLimpieza.objects.create(
+                    institucion=institucion, area=area, actividad=actividad,
+                    instrucciones=request.POST.get('instrucciones', '').strip(),
+                    fecha_programada=fecha, turno=turno_manual, asignada_a=asignada,
+                )
+                messages.success(request, 'Tarea extraordinaria registrada.')
+            return redirect('panel_limpieza')
+
+        registro = get_object_or_404(RegistroLimpieza, pk=request.POST.get('registro'), institucion=institucion)
+        if accion == 'iniciar':
+            if registro.asignada_a_id and registro.asignada_a_id != request.user.id and not puede_supervisar:
+                return HttpResponse('Esta actividad está asignada a otro usuario.', status=403)
+            if registro.estado != 'PENDIENTE':
+                messages.warning(request, 'Esta tarea ya fue iniciada o atendida.')
+            else:
+                registro.estado = 'EN_PROCESO'; registro.iniciada_el = timezone.now(); registro.realizada_por = request.user
+                registro.save(update_fields=['estado', 'iniciada_el', 'realizada_por'])
+                EventoLimpieza.objects.create(registro=registro, estado='EN_PROCESO', nota='Actividad iniciada.', usuario=request.user)
+            return redirect('panel_limpieza')
+        if accion == 'finalizar':
+            if registro.estado != 'EN_PROCESO':
+                messages.error(request, 'La actividad debe estar en proceso antes de finalizarla.')
+                return redirect('panel_limpieza')
+            if registro.realizada_por_id != request.user.id and not puede_supervisar:
+                return HttpResponse('Esta actividad fue iniciada por otro usuario.', status=403)
+            evidencia = request.FILES.get('evidencia')
+            if evidencia:
+                if evidencia.size > 10 * 1024 * 1024 or Path(evidencia.name).suffix.lower() not in {'.jpg','.jpeg','.png','.webp','.pdf'}:
+                    messages.error(request, 'La evidencia debe ser imagen o PDF de máximo 10 MB.')
+                    return redirect('panel_limpieza')
+            estado = request.POST.get('resultado', 'REALIZADA')
+            if estado not in ['REALIZADA', 'NO_REALIZADA']:
+                estado = 'REALIZADA'
+            registro.estado = estado; registro.finalizada_el = timezone.now(); registro.realizada_por = request.user
+            registro.productos_utilizados = request.POST.get('productos_utilizados', '').strip()
+            registro.observaciones = request.POST.get('observaciones', '').strip()
+            registro.incidencia = request.POST.get('incidencia', '').strip()
+            if evidencia: registro.evidencia = evidencia
+            registro.save()
+            EventoLimpieza.objects.create(registro=registro, estado=estado, nota=registro.observaciones or ('Actividad concluida.' if estado == 'REALIZADA' else 'Actividad no realizada.'), usuario=request.user)
+            messages.success(request, f'{registro.folio} guardado en la bitácora.')
+            return redirect('panel_limpieza')
+        if accion == 'validar':
+            if not puede_supervisar:
+                return HttpResponse('Solo Administración puede validar actividades.', status=403)
+            if registro.estado != 'REALIZADA':
+                messages.error(request, 'Solo se pueden validar actividades realizadas.')
+            else:
+                registro.estado = 'VALIDADA'; registro.validada_por = request.user; registro.validada_el = timezone.now()
+                registro.save(update_fields=['estado', 'validada_por', 'validada_el'])
+                EventoLimpieza.objects.create(registro=registro, estado='VALIDADA', nota=request.POST.get('nota_validacion', '').strip() or 'Actividad revisada y validada.', usuario=request.user)
+                messages.success(request, f'{registro.folio} validado.')
+            return redirect('panel_limpieza')
+
+    fecha_texto = request.GET.get('fecha', hoy.isoformat())
+    try: fecha_filtro = date.fromisoformat(fecha_texto)
+    except ValueError: fecha_filtro = hoy
+    tareas = RegistroLimpieza.objects.filter(institucion=institucion, fecha_programada=fecha_filtro)
+    area_filtro = request.GET.get('area', '')
+    estado_filtro = request.GET.get('estado', '')
+    if area_filtro.isdigit(): tareas = tareas.filter(area_id=area_filtro)
+    if estado_filtro in dict(RegistroLimpieza.ESTADO_CHOICES): tareas = tareas.filter(estado=estado_filtro)
+    usuarios_limpieza = get_user_model().objects.filter(
+        membresias_institucion__institucion=institucion,
+        membresias_institucion__rol='LIMPIEZA', membresias_institucion__activa=True,
+    ).distinct().order_by('first_name', 'username')
+    return render(request, 'core/panel_limpieza.html', {
+        'membresia':membresia, 'institucion':institucion, 'areas':areas,
+        'tareas':tareas.select_related('area','programa','asignada_a','realizada_por','validada_por').prefetch_related('eventos')[:250],
+        'programas':ProgramaLimpieza.objects.filter(institucion=institucion).select_related('area'),
+        'usuarios_limpieza':usuarios_limpieza, 'puede_supervisar':puede_supervisar,
+        'frecuencias':ProgramaLimpieza.FRECUENCIA_CHOICES, 'turnos':ProgramaLimpieza.TURNO_CHOICES,
+        'dias_semana':[(0,'Lun'),(1,'Mar'),(2,'Mié'),(3,'Jue'),(4,'Vie'),(5,'Sáb'),(6,'Dom')],
+        'estados':RegistroLimpieza.ESTADO_CHOICES, 'fecha_filtro':fecha_filtro,
+        'area_filtro':area_filtro, 'estado_filtro':estado_filtro,
+        'pendientes':tareas.filter(estado='PENDIENTE').count(),
+        'en_proceso':tareas.filter(estado='EN_PROCESO').count(),
+        'realizadas':tareas.filter(estado__in=['REALIZADA','VALIDADA']).count(),
+        'no_realizadas':tareas.filter(estado='NO_REALIZADA').count(),
+    })
+
+
+@login_required
+def bitacora_limpieza_pdf(request):
+    membresia = obtener_membresia_usuario(request)
+    if not _puede_usar_limpieza(membresia):
+        return HttpResponse('Sin acceso.', status=403)
+    institucion = membresia.institucion
+    desde_texto = request.GET.get('desde', timezone.localdate().replace(day=1).isoformat())
+    hasta_texto = request.GET.get('hasta', timezone.localdate().isoformat())
+    try: desde, hasta = date.fromisoformat(desde_texto), date.fromisoformat(hasta_texto)
+    except ValueError: desde = hasta = timezone.localdate()
+    registros = RegistroLimpieza.objects.filter(institucion=institucion, fecha_programada__range=(desde,hasta)).select_related('area','realizada_por','validada_por').order_by('fecha_programada','turno','area__nombre')
+    respuesta = HttpResponse(content_type='application/pdf')
+    respuesta['Content-Disposition'] = f'inline; filename="bitacora_limpieza_{desde}_{hasta}.pdf"'
+    lienzo = pdf_canvas.Canvas(respuesta, pagesize=landscape(letter)); ancho, alto = landscape(letter)
+    def cabecera():
+        lienzo.setFont('Helvetica-Bold', 15); lienzo.drawString(35, alto-35, institucion.nombre[:70])
+        lienzo.setFont('Helvetica-Bold', 12); lienzo.drawString(35, alto-53, 'BITÁCORA DE LIMPIEZA E INTENDENCIA')
+        lienzo.setFont('Helvetica', 8); lienzo.drawRightString(ancho-35, alto-52, f'Periodo: {desde:%d/%m/%Y} a {hasta:%d/%m/%Y}')
+        lienzo.line(35, alto-62, ancho-35, alto-62)
+        lienzo.setFont('Helvetica-Bold', 7); y=alto-76
+        for x,t in [(35,'Fecha/hora'),(105,'Área'),(210,'Actividad'),(395,'Turno/estado'),(490,'Responsable'),(600,'Productos / observaciones')]: lienzo.drawString(x,y,t)
+        return y-12
+    y=cabecera(); lienzo.setFont('Helvetica',7)
+    for r in registros:
+        if y < 45: lienzo.showPage(); y=cabecera(); lienzo.setFont('Helvetica',7)
+        hora=r.finalizada_el.astimezone().strftime('%H:%M') if r.finalizada_el else (r.hora_programada.strftime('%H:%M') if r.hora_programada else '—')
+        responsable=r.realizada_por.get_full_name() or r.realizada_por.username if r.realizada_por else '—'
+        lienzo.drawString(35,y,f'{r.fecha_programada:%d/%m/%Y} {hora}'); lienzo.drawString(105,y,r.area.nombre[:24]); lienzo.drawString(210,y,r.actividad[:38]); lienzo.drawString(395,y,f'{r.get_turno_display()} / {r.get_estado_display()}'); lienzo.drawString(490,y,responsable[:20]); lienzo.drawString(600,y,(r.productos_utilizados or r.observaciones or '—')[:42]); y-=12
+    lienzo.save(); return respuesta
 
 
 class _LimpiadorReporteHTML(HTMLParser):

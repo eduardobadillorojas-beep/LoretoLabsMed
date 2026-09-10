@@ -1,0 +1,19 @@
+LORETO ONE — MÓDULO DE LIMPIEZA E INTENDENCIA
+
+Incluye:
+- Programación diaria, semanal, mensual o bajo demanda.
+- Generación automática de las tareas correspondientes al día.
+- Organización por área, turno, hora y responsable.
+- Inicio y finalización con usuario, fecha y hora.
+- Registro de productos, observaciones, incidencias y evidencia.
+- Validación reservada a Administración.
+- Historial de eventos por actividad.
+- Indicadores diarios y filtros.
+- Bitácora institucional en PDF.
+- Activación automática del módulo para Administración y cuentas de Limpieza.
+
+Acceso: /limpieza/
+
+La bitácora apoya el control documental institucional. La institución debe
+configurar sus rutinas, frecuencias, productos y responsables conforme a sus
+manuales, riesgos, servicios y disposiciones sanitarias aplicables.

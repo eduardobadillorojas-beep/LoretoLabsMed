@@ -232,6 +232,85 @@ class AccesoModuloMembresia(models.Model):
         return f'{self.membresia} · {self.modulo}'
 
 
+class ProgramaLimpieza(models.Model):
+    FRECUENCIA_CHOICES = [
+        ('DIARIA', 'Diaria'), ('SEMANAL', 'Semanal'),
+        ('MENSUAL', 'Mensual'), ('DEMANDA', 'Cuando se requiera'),
+    ]
+    TURNO_CHOICES = [
+        ('MATUTINO', 'Matutino'), ('VESPERTINO', 'Vespertino'),
+        ('NOCTURNO', 'Nocturno'), ('MIXTO', 'Mixto'),
+    ]
+    institucion = models.ForeignKey(Institucion, on_delete=models.CASCADE, related_name='programas_limpieza')
+    area = models.ForeignKey(AreaInstitucional, on_delete=models.PROTECT, related_name='programas_limpieza')
+    nombre = models.CharField(max_length=160)
+    instrucciones = models.TextField(blank=True)
+    frecuencia = models.CharField(max_length=12, choices=FRECUENCIA_CHOICES, default='DIARIA')
+    dias_semana = models.CharField(max_length=20, blank=True, help_text='0=lunes a 6=domingo, separados por coma.')
+    dia_mes = models.PositiveSmallIntegerField(blank=True, null=True)
+    turno = models.CharField(max_length=12, choices=TURNO_CHOICES, default='MATUTINO')
+    hora_programada = models.TimeField(blank=True, null=True)
+    activa = models.BooleanField(default=True)
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='programas_limpieza_creados')
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['area__orden', 'turno', 'hora_programada', 'nombre']
+
+    def __str__(self):
+        return f'{self.area.nombre} · {self.nombre}'
+
+
+class RegistroLimpieza(models.Model):
+    ESTADO_CHOICES = [
+        ('PENDIENTE', 'Pendiente'), ('EN_PROCESO', 'En proceso'),
+        ('REALIZADA', 'Realizada'), ('NO_REALIZADA', 'No realizada'),
+        ('VALIDADA', 'Validada'),
+    ]
+    institucion = models.ForeignKey(Institucion, on_delete=models.CASCADE, related_name='registros_limpieza')
+    programa = models.ForeignKey(ProgramaLimpieza, on_delete=models.PROTECT, related_name='registros', blank=True, null=True)
+    area = models.ForeignKey(AreaInstitucional, on_delete=models.PROTECT, related_name='registros_limpieza')
+    actividad = models.CharField(max_length=160)
+    instrucciones = models.TextField(blank=True)
+    fecha_programada = models.DateField(db_index=True)
+    turno = models.CharField(max_length=12, choices=ProgramaLimpieza.TURNO_CHOICES)
+    hora_programada = models.TimeField(blank=True, null=True)
+    estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='PENDIENTE', db_index=True)
+    asignada_a = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='limpiezas_asignadas')
+    iniciada_el = models.DateTimeField(blank=True, null=True)
+    finalizada_el = models.DateTimeField(blank=True, null=True)
+    realizada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='limpiezas_realizadas')
+    productos_utilizados = models.TextField(blank=True)
+    observaciones = models.TextField(blank=True)
+    incidencia = models.TextField(blank=True)
+    evidencia = models.FileField(upload_to='limpieza/evidencias/%Y/%m/', blank=True, null=True)
+    validada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='limpiezas_validadas')
+    validada_el = models.DateTimeField(blank=True, null=True)
+    creada_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fecha_programada', 'turno', 'hora_programada', 'area__orden']
+        constraints = [models.UniqueConstraint(fields=['programa', 'fecha_programada'], name='limpieza_programa_fecha_unica')]
+
+    @property
+    def folio(self):
+        return f'LIM-{self.pk:06d}' if self.pk else 'LIM-PENDIENTE'
+
+    def __str__(self):
+        return f'{self.fecha_programada} · {self.area.nombre} · {self.actividad}'
+
+
+class EventoLimpieza(models.Model):
+    registro = models.ForeignKey(RegistroLimpieza, on_delete=models.CASCADE, related_name='eventos')
+    estado = models.CharField(max_length=15, choices=RegistroLimpieza.ESTADO_CHOICES)
+    nota = models.TextField(blank=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, blank=True, null=True, related_name='eventos_limpieza')
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['creado_el']
+
+
 class PerfilMedico(models.Model):
     institucion = models.ForeignKey(
         Institucion,

@@ -46,6 +46,9 @@ urlpatterns = [
         name='panel_area_institucional'
     ),
 
+    path('limpieza/', views.panel_limpieza, name='panel_limpieza'),
+    path('limpieza/bitacora.pdf', views.bitacora_limpieza_pdf, name='bitacora_limpieza_pdf'),
+
     path(
         'configuracion/accesos/',
         views.accesos_modulos_config,

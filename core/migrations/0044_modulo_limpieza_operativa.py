@@ -1,0 +1,29 @@
+from django.db import migrations, models
+import django.db.models.deletion
+from django.conf import settings
+
+
+def activar_modulo(apps, schema_editor):
+    Modulo = apps.get_model('core', 'ModuloSistema')
+    Membresia = apps.get_model('core', 'MembresiaInstitucion')
+    Acceso = apps.get_model('core', 'AccesoModuloMembresia')
+    modulo, _ = Modulo.objects.update_or_create(codigo='limpieza', defaults={
+        'nombre':'Limpieza e intendencia', 'descripcion':'Programación, ejecución y validación de limpieza por áreas.',
+        'icono':'🧹', 'ruta':'panel_limpieza', 'disponible':True, 'orden':150,
+    })
+    for membresia in Membresia.objects.filter(rol__in=['ADMIN', 'LIMPIEZA']):
+        Acceso.objects.update_or_create(membresia=membresia, modulo=modulo, defaults={
+            'puede_ver':True, 'puede_registrar':True,
+            'puede_editar':membresia.rol == 'ADMIN', 'puede_administrar':membresia.rol == 'ADMIN',
+        })
+
+
+class Migration(migrations.Migration):
+    dependencies = [('core', '0043_areas_roles_permisos_modulos')]
+    operations = [
+        migrations.CreateModel(name='ProgramaLimpieza', fields=[('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')), ('nombre', models.CharField(max_length=160)), ('instrucciones', models.TextField(blank=True)), ('frecuencia', models.CharField(choices=[('DIARIA','Diaria'),('SEMANAL','Semanal'),('MENSUAL','Mensual'),('DEMANDA','Cuando se requiera')], default='DIARIA', max_length=12)), ('dias_semana', models.CharField(blank=True, help_text='0=lunes a 6=domingo, separados por coma.', max_length=20)), ('dia_mes', models.PositiveSmallIntegerField(blank=True, null=True)), ('turno', models.CharField(choices=[('MATUTINO','Matutino'),('VESPERTINO','Vespertino'),('NOCTURNO','Nocturno'),('MIXTO','Mixto')], default='MATUTINO', max_length=12)), ('hora_programada', models.TimeField(blank=True, null=True)), ('activa', models.BooleanField(default=True)), ('creado_el', models.DateTimeField(auto_now_add=True)), ('area', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='programas_limpieza', to='core.areainstitucional')), ('creado_por', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='programas_limpieza_creados', to=settings.AUTH_USER_MODEL)), ('institucion', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='programas_limpieza', to='core.institucion'))], options={'ordering':['area__orden','turno','hora_programada','nombre']}),
+        migrations.CreateModel(name='RegistroLimpieza', fields=[('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')), ('actividad', models.CharField(max_length=160)), ('instrucciones', models.TextField(blank=True)), ('fecha_programada', models.DateField(db_index=True)), ('turno', models.CharField(choices=[('MATUTINO','Matutino'),('VESPERTINO','Vespertino'),('NOCTURNO','Nocturno'),('MIXTO','Mixto')], max_length=12)), ('hora_programada', models.TimeField(blank=True, null=True)), ('estado', models.CharField(choices=[('PENDIENTE','Pendiente'),('EN_PROCESO','En proceso'),('REALIZADA','Realizada'),('NO_REALIZADA','No realizada'),('VALIDADA','Validada')], db_index=True, default='PENDIENTE', max_length=15)), ('iniciada_el', models.DateTimeField(blank=True, null=True)), ('finalizada_el', models.DateTimeField(blank=True, null=True)), ('productos_utilizados', models.TextField(blank=True)), ('observaciones', models.TextField(blank=True)), ('incidencia', models.TextField(blank=True)), ('evidencia', models.FileField(blank=True, null=True, upload_to='limpieza/evidencias/%Y/%m/')), ('validada_el', models.DateTimeField(blank=True, null=True)), ('creada_el', models.DateTimeField(auto_now_add=True)), ('area', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='registros_limpieza', to='core.areainstitucional')), ('asignada_a', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='limpiezas_asignadas', to=settings.AUTH_USER_MODEL)), ('institucion', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='registros_limpieza', to='core.institucion')), ('programa', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='registros', to='core.programalimpieza')), ('realizada_por', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='limpiezas_realizadas', to=settings.AUTH_USER_MODEL)), ('validada_por', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='limpiezas_validadas', to=settings.AUTH_USER_MODEL))], options={'ordering':['fecha_programada','turno','hora_programada','area__orden']}),
+        migrations.CreateModel(name='EventoLimpieza', fields=[('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')), ('estado', models.CharField(choices=[('PENDIENTE','Pendiente'),('EN_PROCESO','En proceso'),('REALIZADA','Realizada'),('NO_REALIZADA','No realizada'),('VALIDADA','Validada')], max_length=15)), ('nota', models.TextField(blank=True)), ('creado_el', models.DateTimeField(auto_now_add=True)), ('registro', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='eventos', to='core.registrolimpieza')), ('usuario', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='eventos_limpieza', to=settings.AUTH_USER_MODEL))], options={'ordering':['creado_el']}),
+        migrations.AddConstraint(model_name='registrolimpieza', constraint=models.UniqueConstraint(fields=('programa','fecha_programada'), name='limpieza_programa_fecha_unica')),
+        migrations.RunPython(activar_modulo, migrations.RunPython.noop),
+    ]
