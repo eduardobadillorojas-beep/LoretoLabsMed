@@ -339,6 +339,7 @@ Radiología | Loreto One
         </div>
 
         <div class="header-actions">
+            <a href="{% url 'control_calidad_equipos_radiologia' %}" class="btn btn-outline-info btn-sm">✓ Control de calidad</a>
             <a href="{% url 'analisis_repeticiones_radiologia' %}" class="btn btn-outline-info btn-sm">↻ Repeticiones</a>
             <a href="{% url 'bitacora_radiologica_panel' %}" class="btn btn-outline-info btn-sm">▤ Bitácora</a>
             <a href="{% url 'mantenimiento_equipos_radiologia' %}" class="btn btn-outline-info btn-sm">⚙ Equipos{% if fallas_abiertas %} · {{ fallas_abiertas }} falla{{ fallas_abiertas|pluralize }}{% endif %}</a>

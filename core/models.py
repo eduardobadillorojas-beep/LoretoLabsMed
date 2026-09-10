@@ -523,6 +523,110 @@ class SeguimientoFallaEquipo(models.Model):
         ordering = ['-creado_el']
 
 
+class PruebaControlCalidadEquipo(models.Model):
+    PERIODICIDAD_CHOICES = [
+        ('DIARIA', 'Diaria'),
+        ('SEMANAL', 'Semanal'),
+        ('MENSUAL', 'Mensual'),
+        ('TRIMESTRAL', 'Trimestral'),
+        ('SEMESTRAL', 'Semestral'),
+        ('ANUAL', 'Anual'),
+    ]
+    institucion = models.ForeignKey(
+        Institucion,
+        on_delete=models.PROTECT,
+        related_name='pruebas_control_calidad'
+    )
+    equipo = models.ForeignKey(
+        EquipoRadiologico,
+        on_delete=models.PROTECT,
+        related_name='pruebas_control_calidad'
+    )
+    nombre = models.CharField(max_length=180)
+    descripcion = models.TextField(blank=True)
+    periodicidad = models.CharField(max_length=12, choices=PERIODICIDAD_CHOICES)
+    tolerancia = models.CharField(
+        max_length=250,
+        help_text='Criterio definido por el programa de garantía de calidad, fabricante o responsable.'
+    )
+    unidad = models.CharField(max_length=40, blank=True)
+    proxima_fecha = models.DateField()
+    activa = models.BooleanField(default=True)
+    creado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='pruebas_control_calidad_creadas',
+        blank=True,
+        null=True
+    )
+    creado_el = models.DateTimeField(auto_now_add=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['proxima_fecha', 'equipo__nombre', 'nombre']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['institucion', 'equipo', 'nombre'],
+                name='control_calidad_prueba_unica_equipo'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['institucion', 'proxima_fecha'], name='cc_prueba_inst_fecha_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.equipo} - {self.nombre}'
+
+
+class RegistroControlCalidadEquipo(models.Model):
+    RESULTADO_CHOICES = [
+        ('APROBADO', 'Aprobado'),
+        ('OBSERVACIONES', 'Aprobado con observaciones'),
+        ('FUERA_TOLERANCIA', 'Fuera de tolerancia'),
+    ]
+    prueba = models.ForeignKey(
+        PruebaControlCalidadEquipo,
+        on_delete=models.PROTECT,
+        related_name='registros'
+    )
+    realizado_el = models.DateTimeField(default=timezone.now)
+    valor_obtenido = models.CharField(max_length=180, blank=True)
+    unidad_aplicada = models.CharField(max_length=40, blank=True)
+    tolerancia_aplicada = models.CharField(max_length=250)
+    resultado = models.CharField(max_length=22, choices=RESULTADO_CHOICES)
+    observaciones = models.TextField(blank=True)
+    evidencia = models.FileField(
+        upload_to='equipos/control_calidad/%Y/%m/',
+        blank=True,
+        null=True
+    )
+    proxima_fecha_calculada = models.DateField()
+    realizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='controles_calidad_realizados',
+        blank=True,
+        null=True
+    )
+    falla_generada = models.OneToOneField(
+        ReporteFallaEquipo,
+        on_delete=models.PROTECT,
+        related_name='control_calidad_origen',
+        blank=True,
+        null=True
+    )
+    creado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-realizado_el', '-id']
+        indexes = [
+            models.Index(fields=['resultado', 'realizado_el'], name='cc_reg_result_fecha_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.prueba} - {self.get_resultado_display()} - {self.realizado_el:%d/%m/%Y}'
+
+
 class Consulta(models.Model):
     ESTADO_CHOICES = [
         ('EN_ESPERA', 'En espera'),

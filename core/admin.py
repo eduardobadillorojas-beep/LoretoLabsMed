@@ -19,7 +19,9 @@ from .models import (
     InstanciaDicom,
     MovimientoCaja,
     MantenimientoEquipoRadiologico,
+    PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
+    RegistroControlCalidadEquipo,
     SeguimientoFallaEquipo,
     Paciente,
     PagoCobro,
@@ -191,6 +193,30 @@ class ReporteFallaEquipoAdmin(admin.ModelAdmin):
     list_filter = ('institucion', 'prioridad', 'estado', 'reportada_el')
     search_fields = ('equipo__nombre', 'titulo', 'descripcion')
     inlines = (SeguimientoFallaEquipoInline,)
+
+
+@admin.register(PruebaControlCalidadEquipo)
+class PruebaControlCalidadEquipoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'equipo', 'periodicidad', 'tolerancia', 'proxima_fecha', 'activa')
+    list_filter = ('institucion', 'periodicidad', 'activa', 'proxima_fecha')
+    search_fields = ('nombre', 'equipo__nombre', 'tolerancia')
+
+
+@admin.register(RegistroControlCalidadEquipo)
+class RegistroControlCalidadEquipoAdmin(admin.ModelAdmin):
+    list_display = ('prueba', 'realizado_el', 'valor_obtenido', 'resultado', 'realizado_por', 'proxima_fecha_calculada')
+    list_filter = ('resultado', 'realizado_el', 'prueba__equipo')
+    search_fields = ('prueba__nombre', 'prueba__equipo__nombre', 'valor_obtenido', 'observaciones')
+    readonly_fields = tuple(field.name for field in RegistroControlCalidadEquipo._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class PagoCobroInline(admin.TabularInline):

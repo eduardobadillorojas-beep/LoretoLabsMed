@@ -1,5 +1,6 @@
 from collections import Counter
-from datetime import date, timedelta
+import calendar
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import Path
@@ -82,7 +83,9 @@ from .models import (
     MedicamentoReceta,
     MembresiaInstitucion,
     MantenimientoEquipoRadiologico,
+    PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
+    RegistroControlCalidadEquipo,
     SeguimientoFallaEquipo,
     MovimientoCaja,
     Paciente,
@@ -1657,6 +1660,21 @@ def mantenimiento_equipos_radiologia(request):
             elif dias <= 30:
                 alertas.append({'nivel': 'warning', 'texto': f'{equipo.nombre}: mantenimiento programado en {dias} día(s).'})
 
+    pruebas_por_vencer = PruebaControlCalidadEquipo.objects.filter(
+        institucion=institucion,
+        activa=True,
+        proxima_fecha__lte=hoy + timedelta(days=30),
+    ).select_related('equipo').order_by('proxima_fecha')[:20]
+    for prueba in pruebas_por_vencer:
+        dias = (prueba.proxima_fecha - hoy).days
+        if dias < 0:
+            texto = f'{prueba.equipo.nombre}: prueba “{prueba.nombre}” vencida hace {abs(dias)} día(s).'
+            nivel = 'danger'
+        else:
+            texto = f'{prueba.equipo.nombre}: prueba “{prueba.nombre}” programada en {dias} día(s).'
+            nivel = 'warning'
+        alertas.append({'nivel': nivel, 'texto': texto})
+
     return render(request, 'core/mantenimiento_equipos_radiologia.html', {
         'membresia': membresia,
         'equipos': equipos,
@@ -1744,6 +1762,275 @@ def bitacora_mantenimiento_pdf(request):
                 for linea in textwrap.wrap(detalle, 96):
                     lienzo.setFont('Helvetica', 7); lienzo.drawString(66, y, linea); y -= 9
         y -= 10
+    lienzo.save()
+    return respuesta
+
+
+def _sumar_meses(fecha_base, meses):
+    mes_indice = fecha_base.month - 1 + meses
+    anio = fecha_base.year + mes_indice // 12
+    mes = mes_indice % 12 + 1
+    dia = min(fecha_base.day, calendar.monthrange(anio, mes)[1])
+    return date(anio, mes, dia)
+
+
+def _proxima_fecha_control(fecha_base, periodicidad):
+    if periodicidad == 'DIARIA':
+        return fecha_base + timedelta(days=1)
+    if periodicidad == 'SEMANAL':
+        return fecha_base + timedelta(days=7)
+    meses = {'MENSUAL': 1, 'TRIMESTRAL': 3, 'SEMESTRAL': 6, 'ANUAL': 12}
+    return _sumar_meses(fecha_base, meses.get(periodicidad, 1))
+
+
+def _fecha_hora_local_control(valor):
+    try:
+        momento = datetime.fromisoformat((valor or '').strip())
+    except (TypeError, ValueError):
+        return timezone.now()
+    if timezone.is_naive(momento):
+        momento = timezone.make_aware(momento, timezone.get_current_timezone())
+    return momento
+
+
+@login_required
+def control_calidad_equipos_radiologia(request):
+    membresia = obtener_membresia_usuario(request)
+    roles = ['TECNICO', 'RADIOLOGIA', 'ADMIN', 'MANTENIMIENTO']
+    if membresia is None or membresia.rol not in roles:
+        return HttpResponse('No tienes permiso para consultar control de calidad.', status=403)
+    institucion = membresia.institucion
+    equipos = EquipoRadiologico.objects.filter(
+        Q(institucion=institucion) | Q(institucion__isnull=True), activo=True
+    ).order_by('nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'crear_prueba':
+            equipo = get_object_or_404(equipos, pk=request.POST.get('equipo'))
+            nombre = request.POST.get('nombre', '').strip()
+            periodicidad = request.POST.get('periodicidad', '')
+            tolerancia = request.POST.get('tolerancia', '').strip()
+            try:
+                proxima_fecha = date.fromisoformat(request.POST.get('proxima_fecha', ''))
+            except ValueError:
+                proxima_fecha = None
+            if not nombre or periodicidad not in dict(PruebaControlCalidadEquipo.PERIODICIDAD_CHOICES) or not tolerancia or not proxima_fecha:
+                messages.error(request, 'Completa equipo, prueba, periodicidad, tolerancia y primera fecha.')
+            elif PruebaControlCalidadEquipo.objects.filter(
+                institucion=institucion, equipo=equipo, nombre__iexact=nombre
+            ).exists():
+                messages.error(request, 'Ese equipo ya tiene una prueba con el mismo nombre.')
+            else:
+                PruebaControlCalidadEquipo.objects.create(
+                    institucion=institucion,
+                    equipo=equipo,
+                    nombre=nombre,
+                    descripcion=request.POST.get('descripcion', '').strip(),
+                    periodicidad=periodicidad,
+                    tolerancia=tolerancia,
+                    unidad=request.POST.get('unidad', '').strip(),
+                    proxima_fecha=proxima_fecha,
+                    creado_por=request.user,
+                )
+                messages.success(request, 'Prueba de control de calidad programada.')
+
+        elif accion == 'registrar_resultado':
+            prueba = get_object_or_404(
+                PruebaControlCalidadEquipo.objects.select_related('equipo'),
+                pk=request.POST.get('prueba'),
+                institucion=institucion,
+                activa=True,
+            )
+            resultado = request.POST.get('resultado', '')
+            observaciones = request.POST.get('observaciones', '').strip()
+            if resultado not in dict(RegistroControlCalidadEquipo.RESULTADO_CHOICES):
+                messages.error(request, 'Selecciona un resultado válido.')
+                return redirect('control_calidad_equipos_radiologia')
+            if resultado != 'APROBADO' and not observaciones:
+                messages.error(request, 'Describe las observaciones o la causa del resultado.')
+                return redirect('control_calidad_equipos_radiologia')
+            evidencia = request.FILES.get('evidencia')
+            if evidencia:
+                extension = Path(evidencia.name).suffix.lower()
+                permitidas = {'.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'}
+                if extension not in permitidas or evidencia.size > 10 * 1024 * 1024:
+                    messages.error(request, 'La evidencia debe ser PDF, imagen o Word y pesar máximo 10 MB.')
+                    return redirect('control_calidad_equipos_radiologia')
+            realizado_el = _fecha_hora_local_control(request.POST.get('realizado_el'))
+            proxima_fecha = _proxima_fecha_control(
+                timezone.localtime(realizado_el).date(), prueba.periodicidad
+            )
+            with transaction.atomic():
+                registro = RegistroControlCalidadEquipo.objects.create(
+                    prueba=prueba,
+                    realizado_el=realizado_el,
+                    valor_obtenido=request.POST.get('valor_obtenido', '').strip(),
+                    unidad_aplicada=prueba.unidad,
+                    tolerancia_aplicada=prueba.tolerancia,
+                    resultado=resultado,
+                    observaciones=observaciones,
+                    evidencia=evidencia,
+                    proxima_fecha_calculada=proxima_fecha,
+                    realizado_por=request.user,
+                )
+                prueba.proxima_fecha = proxima_fecha
+                prueba.save(update_fields=['proxima_fecha', 'actualizado_el'])
+                if resultado == 'FUERA_TOLERANCIA':
+                    falla = ReporteFallaEquipo.objects.create(
+                        institucion=institucion,
+                        equipo=prueba.equipo,
+                        titulo=f'Control de calidad fuera de tolerancia: {prueba.nombre}',
+                        descripcion=(
+                            f'Tolerancia aplicada: {prueba.tolerancia}. '
+                            f'Valor obtenido: {registro.valor_obtenido or "No especificado"} '
+                            f'{prueba.unidad or ""}. Observaciones: {observaciones}'
+                        ),
+                        prioridad='ALTA',
+                        reportada_por=request.user,
+                    )
+                    SeguimientoFallaEquipo.objects.create(
+                        falla=falla,
+                        estado='REPORTADA',
+                        nota='Incidencia generada automáticamente por control de calidad fuera de tolerancia.',
+                        registrado_por=request.user,
+                    )
+                    registro.falla_generada = falla
+                    registro.save(update_fields=['falla_generada'])
+                    if prueba.equipo.estado_operativo == 'OPERATIVO':
+                        prueba.equipo.estado_operativo = 'OBSERVACION'
+                        prueba.equipo.save(update_fields=['estado_operativo'])
+            messages.success(
+                request,
+                'Resultado registrado.' + (
+                    ' Se abrió una incidencia para Mantenimiento.'
+                    if resultado == 'FUERA_TOLERANCIA' else ''
+                )
+            )
+        return redirect('control_calidad_equipos_radiologia')
+
+    filtro_equipo = request.GET.get('equipo', '').strip()
+    filtro_estado = request.GET.get('estado', '').strip()
+    filtro_desde = request.GET.get('desde', '').strip()
+    filtro_hasta = request.GET.get('hasta', '').strip()
+    pruebas_qs = PruebaControlCalidadEquipo.objects.filter(
+        institucion=institucion, activa=True
+    ).select_related('equipo', 'creado_por').prefetch_related('registros__realizado_por')
+    if filtro_equipo.isdigit():
+        pruebas_qs = pruebas_qs.filter(equipo_id=filtro_equipo)
+
+    hoy = timezone.localdate()
+    pruebas = []
+    vencidas = proximas = vigentes = 0
+    for prueba in pruebas_qs:
+        dias = (prueba.proxima_fecha - hoy).days
+        ultimo = prueba.registros.all()[0] if prueba.registros.all() else None
+        if dias < 0:
+            estado_programacion, etiqueta = 'VENCIDA', f'Vencida hace {abs(dias)} día(s)'
+            vencidas += 1
+        elif dias <= 30:
+            estado_programacion, etiqueta = 'PROXIMA', 'Hoy' if dias == 0 else f'En {dias} día(s)'
+            proximas += 1
+        else:
+            estado_programacion, etiqueta = 'VIGENTE', f'En {dias} día(s)'
+            vigentes += 1
+        prueba.estado_programacion = estado_programacion
+        prueba.etiqueta_programacion = etiqueta
+        prueba.ultimo_registro = ultimo
+        if not filtro_estado or filtro_estado == estado_programacion:
+            pruebas.append(prueba)
+
+    registros = RegistroControlCalidadEquipo.objects.filter(
+        prueba__institucion=institucion
+    ).select_related('prueba', 'prueba__equipo', 'realizado_por', 'falla_generada')
+    if filtro_equipo.isdigit():
+        registros = registros.filter(prueba__equipo_id=filtro_equipo)
+    desde_fecha = _fecha_filtro(filtro_desde, None)
+    hasta_fecha = _fecha_filtro(filtro_hasta, None)
+    if desde_fecha:
+        registros = registros.filter(realizado_el__date__gte=desde_fecha)
+    if hasta_fecha:
+        registros = registros.filter(realizado_el__date__lte=hasta_fecha)
+
+    return render(request, 'core/control_calidad_equipos_radiologia.html', {
+        'membresia': membresia,
+        'equipos': equipos,
+        'pruebas': pruebas,
+        'registros': registros[:100],
+        'periodicidades': PruebaControlCalidadEquipo.PERIODICIDAD_CHOICES,
+        'resultados': RegistroControlCalidadEquipo.RESULTADO_CHOICES,
+        'filtro_equipo': filtro_equipo,
+        'filtro_estado': filtro_estado,
+        'filtro_desde': filtro_desde,
+        'filtro_hasta': filtro_hasta,
+        'vencidas': vencidas,
+        'proximas': proximas,
+        'vigentes': vigentes,
+        'hoy_local': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+    })
+
+
+@login_required
+def control_calidad_equipos_pdf(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN', 'MANTENIMIENTO']:
+        return HttpResponse('No tienes permiso para consultar este informe.', status=403)
+    institucion = membresia.institucion
+    equipo_filtro = request.GET.get('equipo', '').strip()
+    desde = request.GET.get('desde', '').strip()
+    hasta = request.GET.get('hasta', '').strip()
+    registros = RegistroControlCalidadEquipo.objects.filter(
+        prueba__institucion=institucion
+    ).select_related('prueba', 'prueba__equipo', 'realizado_por', 'falla_generada')
+    if equipo_filtro.isdigit():
+        registros = registros.filter(prueba__equipo_id=equipo_filtro)
+    desde_fecha = _fecha_filtro(desde, None)
+    hasta_fecha = _fecha_filtro(hasta, None)
+    if desde_fecha:
+        registros = registros.filter(realizado_el__date__gte=desde_fecha)
+    if hasta_fecha:
+        registros = registros.filter(realizado_el__date__lte=hasta_fecha)
+    respuesta = HttpResponse(content_type='application/pdf')
+    respuesta['Content-Disposition'] = 'inline; filename="control_calidad_equipos.pdf"'
+    lienzo = pdf_canvas.Canvas(respuesta, pagesize=landscape(letter))
+    ancho, alto = landscape(letter)
+
+    def encabezado():
+        y = alto - 35
+        if institucion.logo:
+            try:
+                with institucion.logo.storage.open(institucion.logo.name, 'rb') as archivo_logo:
+                    lienzo.drawImage(ImageReader(BytesIO(archivo_logo.read())), 35, alto - 67, 45, 34, preserveAspectRatio=True, mask='auto')
+            except Exception:
+                logger.exception('No fue posible cargar el logo en control de calidad.')
+        lienzo.setFont('Helvetica-Bold', 13)
+        lienzo.drawString(88, y, institucion.nombre_comercial or institucion.nombre)
+        lienzo.setFont('Helvetica', 7)
+        lienzo.drawString(88, y - 13, institucion.direccion or 'Dirección no especificada')
+        lienzo.setFont('Helvetica-Bold', 11)
+        lienzo.drawString(35, alto - 86, 'BITÁCORA DE CONTROL DE CALIDAD DE EQUIPOS')
+        lienzo.setFont('Helvetica', 7)
+        lienzo.drawRightString(ancho - 35, alto - 86, timezone.localtime().strftime('Generada: %d/%m/%Y %H:%M'))
+        lienzo.line(35, alto - 93, ancho - 35, alto - 93)
+        return alto - 111
+
+    y = encabezado()
+    for registro in registros[:1500]:
+        if y < 70:
+            lienzo.showPage(); y = encabezado()
+        usuario = obtener_nombre_usuario(registro.realizado_por) or 'Usuario no disponible'
+        lineas = [
+            f'{timezone.localtime(registro.realizado_el):%d/%m/%Y %H:%M} · {registro.prueba.equipo.nombre} · {registro.prueba.nombre} · {registro.get_resultado_display()}',
+            f'Valor: {registro.valor_obtenido or "—"} {registro.unidad_aplicada} | Tolerancia aplicada: {registro.tolerancia_aplicada} | Responsable: {usuario}',
+            f'Observaciones: {registro.observaciones or "Sin observaciones"} | Próxima fecha: {registro.proxima_fecha_calculada:%d/%m/%Y}' + (' | Incidencia generada' if registro.falla_generada_id else ''),
+        ]
+        for indice, texto in enumerate(lineas):
+            for linea in textwrap.wrap(texto, 125):
+                if y < 45:
+                    lienzo.showPage(); y = encabezado()
+                lienzo.setFont('Helvetica-Bold' if indice == 0 else 'Helvetica', 7)
+                lienzo.drawString(42 if indice == 0 else 50, y, linea); y -= 9
+        lienzo.line(35, y, ancho - 35, y); y -= 9
     lienzo.save()
     return respuesta
 

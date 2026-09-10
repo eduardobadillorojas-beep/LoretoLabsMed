@@ -147,6 +147,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/equipos/control-calidad/',
+        views.control_calidad_equipos_radiologia,
+        name='control_calidad_equipos_radiologia'
+    ),
+
+    path(
+        'radiologia/equipos/control-calidad/informe.pdf',
+        views.control_calidad_equipos_pdf,
+        name='control_calidad_equipos_pdf'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/',
         views.estudio_radiologia,
         name='estudio_radiologia'
