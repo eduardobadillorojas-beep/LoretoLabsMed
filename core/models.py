@@ -116,6 +116,12 @@ class MembresiaInstitucion(models.Model):
         ('TECNICO', 'Técnico'),
         ('ENFERMERIA', 'Enfermería'),
         ('MANTENIMIENTO', 'Ingeniería y mantenimiento'),
+        ('LIMPIEZA', 'Intendencia y limpieza'),
+        ('SEGURIDAD', 'Vigilancia y seguridad'),
+        ('LABORATORIO', 'Laboratorio'),
+        ('FARMACIA', 'Farmacia'),
+        ('FINANZAS', 'Caja y finanzas'),
+        ('SISTEMAS', 'Sistemas'),
         ('OTRO', 'Otro'),
     ]
 
@@ -137,6 +143,16 @@ class MembresiaInstitucion(models.Model):
         default='OTRO'
     )
 
+    area = models.ForeignKey(
+        'AreaInstitucional',
+        on_delete=models.SET_NULL,
+        related_name='membresias',
+        blank=True,
+        null=True,
+    )
+
+    puesto = models.CharField(max_length=120, blank=True)
+
     activa = models.BooleanField(
         default=True
     )
@@ -155,6 +171,65 @@ class MembresiaInstitucion(models.Model):
 
     def __str__(self):
         return f'{self.usuario.username} - {self.institucion.nombre}'
+
+
+class AreaInstitucional(models.Model):
+    institucion = models.ForeignKey(
+        Institucion, on_delete=models.CASCADE, related_name='areas_institucionales'
+    )
+    clave = models.SlugField(max_length=50)
+    nombre = models.CharField(max_length=120)
+    descripcion = models.CharField(max_length=250, blank=True)
+    activa = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=100)
+
+    class Meta:
+        ordering = ['orden', 'nombre']
+        constraints = [models.UniqueConstraint(
+            fields=['institucion', 'clave'], name='area_clave_unica_institucion'
+        )]
+
+    def __str__(self):
+        return f'{self.institucion} · {self.nombre}'
+
+
+class ModuloSistema(models.Model):
+    codigo = models.SlugField(max_length=50, unique=True)
+    nombre = models.CharField(max_length=120)
+    descripcion = models.CharField(max_length=300, blank=True)
+    icono = models.CharField(max_length=10, blank=True)
+    ruta = models.CharField(max_length=100, blank=True)
+    disponible = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=100)
+
+    class Meta:
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class AccesoModuloMembresia(models.Model):
+    membresia = models.ForeignKey(
+        MembresiaInstitucion, on_delete=models.CASCADE, related_name='accesos_modulos'
+    )
+    modulo = models.ForeignKey(
+        ModuloSistema, on_delete=models.CASCADE, related_name='accesos_membresias'
+    )
+    puede_ver = models.BooleanField(default=True)
+    puede_registrar = models.BooleanField(default=False)
+    puede_editar = models.BooleanField(default=False)
+    puede_administrar = models.BooleanField(default=False)
+    asignado_el = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['modulo__orden', 'modulo__nombre']
+        constraints = [models.UniqueConstraint(
+            fields=['membresia', 'modulo'], name='acceso_modulo_unico_membresia'
+        )]
+
+    def __str__(self):
+        return f'{self.membresia} · {self.modulo}'
 
 
 class PerfilMedico(models.Model):

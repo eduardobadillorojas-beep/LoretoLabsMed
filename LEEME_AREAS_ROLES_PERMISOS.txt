@@ -1,0 +1,25 @@
+LORETO ONE — ÁREAS, USUARIOS Y MÓDULOS
+
+Esta actualización agrega:
+- Catálogo institucional de áreas.
+- Catálogo general de módulos actuales y planeados.
+- Asignación de área, puesto, rol y módulos por usuario.
+- Creación de cuentas con contraseña temporal desde Administración.
+- Cambio seguro de contraseña temporal (la anterior nunca se muestra).
+- Activación y desactivación de cuentas institucionales.
+- Panel de entrada para Enfermería, Limpieza, Seguridad, Laboratorio,
+  Farmacia, Finanzas, Sistemas y otros perfiles.
+- Protección para evitar que el administrador se desactive o retire su propio rol.
+
+Las cuentas existentes se conservan. La migración les asigna automáticamente
+su área y los módulos compatibles con su rol actual.
+
+Acceso del administrador:
+  Configuración > Áreas, usuarios y módulos
+  /configuracion/accesos/
+
+IMPORTANTE
+- No escribas contraseñas definitivas en tablas, documentos o presentaciones.
+- Entrega únicamente una contraseña temporal por un medio privado.
+- Los módulos marcados “Próximamente” forman parte del catálogo, pero todavía
+  no pueden habilitarse hasta construir su panel operativo.

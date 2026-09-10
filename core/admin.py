@@ -19,6 +19,9 @@ from .models import (
     InstanciaDicom,
     MovimientoCaja,
     MantenimientoEquipoRadiologico,
+    AccesoModuloMembresia,
+    AreaInstitucional,
+    ModuloSistema,
     PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
     RegistroControlCalidadEquipo,
@@ -377,7 +380,7 @@ class MembresiaInstitucionAdmin(admin.ModelAdmin):
     list_display = (
         'usuario',
         'institucion',
-        'rol',
+        'rol', 'area', 'puesto',
         'activa',
         'creada_el',
     )
@@ -394,6 +397,27 @@ class MembresiaInstitucionAdmin(admin.ModelAdmin):
         'rol',
         'activa',
     )
+
+
+@admin.register(AreaInstitucional)
+class AreaInstitucionalAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'clave', 'institucion', 'activa', 'orden')
+    list_filter = ('institucion', 'activa')
+    search_fields = ('nombre', 'clave', 'institucion__nombre')
+
+
+@admin.register(ModuloSistema)
+class ModuloSistemaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'codigo', 'ruta', 'disponible', 'orden')
+    list_filter = ('disponible',)
+    search_fields = ('nombre', 'codigo', 'descripcion')
+
+
+@admin.register(AccesoModuloMembresia)
+class AccesoModuloMembresiaAdmin(admin.ModelAdmin):
+    list_display = ('membresia', 'modulo', 'puede_ver', 'puede_registrar', 'puede_editar', 'puede_administrar')
+    list_filter = ('modulo', 'puede_ver', 'puede_administrar', 'membresia__institucion')
+    search_fields = ('membresia__usuario__username', 'modulo__nombre')
 
 
 @admin.register(Paciente)

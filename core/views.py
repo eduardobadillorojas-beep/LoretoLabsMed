@@ -15,6 +15,7 @@ from xml.sax.saxutils import escape
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
@@ -26,6 +27,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from reportlab.lib import colors
@@ -83,6 +85,9 @@ from .models import (
     MedicamentoReceta,
     MembresiaInstitucion,
     MantenimientoEquipoRadiologico,
+    AccesoModuloMembresia,
+    AreaInstitucional,
+    ModuloSistema,
     PruebaControlCalidadEquipo,
     ReporteFallaEquipo,
     RegistroControlCalidadEquipo,
@@ -831,6 +836,9 @@ def login_view(request):
                 return redirect(
                     'panel_config'
                 )
+
+            if membresia.rol in ['ENFERMERIA', 'LIMPIEZA', 'SEGURIDAD', 'LABORATORIO', 'FARMACIA', 'FINANZAS', 'SISTEMAS', 'OTRO']:
+                return redirect('panel_area_institucional')
 
             return redirect(
                 'panel_config'
@@ -8788,6 +8796,142 @@ def nuevo_estudio_paciente(
 # =========================================================
 
 @login_required
+def panel_area_institucional(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or not membresia.activa:
+        return redirect('inicio')
+    accesos = membresia.accesos_modulos.select_related('modulo').filter(
+        puede_ver=True
+    ).order_by('modulo__orden')
+    return render(request, 'core/panel_area_institucional.html', {
+        'membresia': membresia,
+        'institucion': membresia.institucion,
+        'accesos': accesos,
+        'incidencias_abiertas': ReporteFallaEquipo.objects.filter(
+            institucion=membresia.institucion
+        ).exclude(estado__in=['RESUELTA', 'CERRADA']).count(),
+    })
+
+
+@login_required
+def accesos_modulos_config(request):
+    membresia_actual = obtener_membresia_usuario(request)
+    if membresia_actual is None or (membresia_actual.rol != 'ADMIN' and not request.user.is_superuser):
+        return HttpResponse('Solo Administración puede configurar usuarios y módulos.', status=403)
+    institucion = membresia_actual.institucion
+    areas = AreaInstitucional.objects.filter(
+        institucion=institucion
+    ).order_by('orden', 'nombre')
+    modulos = ModuloSistema.objects.all().order_by('orden', 'nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion', '')
+        if accion == 'crear_area':
+            nombre = request.POST.get('nombre_area', '').strip()
+            clave = slugify(request.POST.get('clave_area', '').strip())
+            if not nombre or not clave:
+                messages.error(request, 'Escribe el nombre y la clave del área.')
+            elif AreaInstitucional.objects.filter(institucion=institucion, clave=clave).exists():
+                messages.error(request, 'Ya existe un área con esa clave.')
+            else:
+                AreaInstitucional.objects.create(institucion=institucion, nombre=nombre, clave=clave)
+                messages.success(request, 'Área institucional creada.')
+            return redirect('accesos_modulos_config')
+
+        if accion == 'crear_usuario':
+            username = request.POST.get('username', '').strip()
+            password = request.POST.get('password_temporal', '')
+            rol = request.POST.get('rol', 'OTRO')
+            area = get_object_or_404(areas, pk=request.POST.get('area')) if request.POST.get('area') else None
+            User = get_user_model()
+            if not username or len(password) < 8 or rol not in dict(MembresiaInstitucion.ROL_CHOICES):
+                messages.error(request, 'Indica usuario, contraseña temporal de mínimo 8 caracteres y rol válido.')
+                return redirect('accesos_modulos_config')
+            if User.objects.filter(username__iexact=username).exists():
+                messages.error(request, 'Ese nombre de usuario ya existe.')
+                return redirect('accesos_modulos_config')
+            with transaction.atomic():
+                usuario = User.objects.create_user(
+                    username=username,
+                    password=password,
+                    first_name=request.POST.get('first_name', '').strip(),
+                    last_name=request.POST.get('last_name', '').strip(),
+                    email=request.POST.get('email', '').strip(),
+                )
+                nueva = MembresiaInstitucion.objects.create(
+                    institucion=institucion, usuario=usuario, rol=rol, area=area,
+                    puesto=request.POST.get('puesto', '').strip(), activa=True,
+                )
+                seleccionados = modulos.filter(pk__in=request.POST.getlist('modulos'))
+                AccesoModuloMembresia.objects.bulk_create([
+                    AccesoModuloMembresia(
+                        membresia=nueva, modulo=modulo, puede_ver=True,
+                        puede_registrar=True, puede_editar=rol in ['ADMIN', 'MANTENIMIENTO'],
+                        puede_administrar=rol == 'ADMIN',
+                    ) for modulo in seleccionados if modulo.disponible
+                ])
+            messages.success(request, f'Cuenta {username} creada. Entrega la contraseña temporal de forma privada.')
+            return redirect('accesos_modulos_config')
+
+        if accion == 'actualizar_usuario':
+            objetivo = get_object_or_404(
+                MembresiaInstitucion.objects.select_related('usuario'),
+                pk=request.POST.get('membresia'), institucion=institucion
+            )
+            rol = request.POST.get('rol', objetivo.rol)
+            area = get_object_or_404(areas, pk=request.POST.get('area')) if request.POST.get('area') else None
+            if rol not in dict(MembresiaInstitucion.ROL_CHOICES):
+                messages.error(request, 'El rol seleccionado no es válido.')
+                return redirect('accesos_modulos_config')
+            if objetivo.pk == membresia_actual.pk and (rol != 'ADMIN' or request.POST.get('activa') != '1'):
+                messages.error(request, 'No puedes retirar tu propio acceso administrativo ni desactivar tu cuenta.')
+                return redirect('accesos_modulos_config')
+            objetivo.rol = rol
+            objetivo.area = area
+            objetivo.puesto = request.POST.get('puesto', '').strip()
+            objetivo.activa = request.POST.get('activa') == '1'
+            objetivo.save(update_fields=['rol', 'area', 'puesto', 'activa'])
+            seleccionados = list(modulos.filter(pk__in=request.POST.getlist('modulos'), disponible=True))
+            with transaction.atomic():
+                objetivo.accesos_modulos.all().delete()
+                AccesoModuloMembresia.objects.bulk_create([
+                    AccesoModuloMembresia(
+                        membresia=objetivo, modulo=modulo, puede_ver=True,
+                        puede_registrar=True, puede_editar=rol in ['ADMIN', 'MANTENIMIENTO'],
+                        puede_administrar=rol == 'ADMIN',
+                    ) for modulo in seleccionados
+                ])
+            messages.success(request, f'Accesos de {objetivo.usuario.username} actualizados.')
+            return redirect('accesos_modulos_config')
+
+        if accion == 'cambiar_password':
+            objetivo = get_object_or_404(
+                MembresiaInstitucion.objects.select_related('usuario'),
+                pk=request.POST.get('membresia'), institucion=institucion
+            )
+            password = request.POST.get('password_temporal', '')
+            if len(password) < 8:
+                messages.error(request, 'La contraseña temporal debe tener al menos 8 caracteres.')
+            else:
+                objetivo.usuario.set_password(password)
+                objetivo.usuario.save(update_fields=['password'])
+                messages.success(request, f'Contraseña temporal de {objetivo.usuario.username} actualizada.')
+            return redirect('accesos_modulos_config')
+
+    membresias = MembresiaInstitucion.objects.filter(
+        institucion=institucion
+    ).select_related('usuario', 'area').prefetch_related('accesos_modulos__modulo').order_by('usuario__username')
+    for item in membresias:
+        item.modulos_asignados_ids = {
+            acceso.modulo_id for acceso in item.accesos_modulos.all() if acceso.puede_ver
+        }
+    return render(request, 'core/accesos_modulos_config.html', {
+        'institucion': institucion, 'areas': areas, 'modulos': modulos,
+        'membresias': membresias, 'roles': MembresiaInstitucion.ROL_CHOICES,
+    })
+
+
+@login_required
 def panel_config(request):
     membresia = obtener_membresia_usuario(request)
 
@@ -8814,9 +8958,7 @@ def panel_config(request):
             membresia.rol != 'ADMIN'
             and not request.user.is_superuser
         ):
-            return redirect(
-                'inicio'
-            )
+            return redirect('panel_area_institucional')
 
     elif not request.user.is_superuser:
         return redirect(

@@ -41,6 +41,18 @@ urlpatterns = [
     ),
 
     path(
+        'mi-area/',
+        views.panel_area_institucional,
+        name='panel_area_institucional'
+    ),
+
+    path(
+        'configuracion/accesos/',
+        views.accesos_modulos_config,
+        name='accesos_modulos_config'
+    ),
+
+    path(
         'medicos/perfil/',
         views.perfil_medico,
         name='perfil_medico'
