@@ -825,7 +825,7 @@ def login_view(request):
                 )
 
             if membresia.rol == 'MANTENIMIENTO':
-                return redirect('mantenimiento_equipos_radiologia')
+                return redirect('equipos_incidencias_institucionales')
 
             if membresia.rol == 'ADMIN':
                 return redirect(
@@ -1522,6 +1522,123 @@ def registrar_paciente_radiologia(request):
 
     messages.success(request, f'Paciente {paciente.identificacion} registrado. El estudio quedó en espera.')
     return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+
+@login_required
+def equipos_incidencias_institucionales(request):
+    """Ventanilla institucional para reportar y atender fallas de cualquier área."""
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or not membresia.activa:
+        return redirect('panel_config')
+
+    institucion = membresia.institucion
+    puede_gestionar = request.user.is_superuser or membresia.rol in ['ADMIN', 'MANTENIMIENTO']
+    equipos = EquipoRadiologico.objects.filter(
+        institucion=institucion, activo=True
+    ).order_by('area', 'nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion', '')
+        if accion == 'registrar_equipo':
+            if not puede_gestionar:
+                return HttpResponse('Solo Mantenimiento o Administración puede registrar equipos.', status=403)
+            nombre = request.POST.get('nombre', '').strip()
+            tipo = request.POST.get('tipo', '')
+            area = request.POST.get('area', '')
+            if not nombre or tipo not in dict(EquipoRadiologico.TIPO_CHOICES) or area not in dict(EquipoRadiologico.AREA_CHOICES):
+                messages.error(request, 'Completa nombre, tipo y área con valores válidos.')
+            else:
+                EquipoRadiologico.objects.create(
+                    institucion=institucion, nombre=nombre, tipo=tipo, area=area,
+                    marca=request.POST.get('marca', '').strip() or None,
+                    modelo=request.POST.get('modelo', '').strip() or None,
+                    numero_serie=request.POST.get('numero_serie', '').strip() or None,
+                    ubicacion=request.POST.get('ubicacion', '').strip() or None,
+                )
+                messages.success(request, 'Equipo institucional registrado.')
+            return redirect('equipos_incidencias_institucionales')
+
+        if accion == 'reportar':
+            equipo = get_object_or_404(equipos, pk=request.POST.get('equipo'))
+            titulo = request.POST.get('titulo', '').strip()
+            descripcion = request.POST.get('descripcion', '').strip()
+            prioridad = request.POST.get('prioridad', 'MEDIA')
+            area = request.POST.get('area_reportada', equipo.area)
+            evidencia = request.FILES.get('evidencia')
+            if evidencia:
+                extensiones = {'.jpg', '.jpeg', '.png', '.webp', '.pdf', '.doc', '.docx'}
+                if evidencia.size > 10 * 1024 * 1024 or Path(evidencia.name).suffix.lower() not in extensiones:
+                    messages.error(request, 'La evidencia debe ser imagen, PDF o Word y pesar máximo 10 MB.')
+                    return redirect('equipos_incidencias_institucionales')
+            if not titulo or not descripcion or prioridad not in dict(ReporteFallaEquipo.PRIORIDAD_CHOICES) or area not in dict(EquipoRadiologico.AREA_CHOICES):
+                messages.error(request, 'Completa equipo, área, título, descripción y prioridad.')
+                return redirect('equipos_incidencias_institucionales')
+            falla = ReporteFallaEquipo.objects.create(
+                institucion=institucion, equipo=equipo, area_reportada=area,
+                ubicacion_reportada=request.POST.get('ubicacion_reportada', '').strip(),
+                titulo=titulo, descripcion=descripcion, prioridad=prioridad,
+                evidencia=evidencia, reportada_por=request.user,
+            )
+            SeguimientoFallaEquipo.objects.create(
+                falla=falla, estado='REPORTADA',
+                nota='Incidencia reportada y notificada a Mantenimiento y Administración.',
+                registrado_por=request.user,
+            )
+            messages.success(request, f'Incidencia {falla.folio} registrada correctamente.')
+            return redirect('equipos_incidencias_institucionales')
+
+        if accion == 'seguimiento':
+            if not puede_gestionar:
+                return HttpResponse('Solo Mantenimiento o Administración puede gestionar incidencias.', status=403)
+            falla = get_object_or_404(ReporteFallaEquipo, pk=request.POST.get('falla'), institucion=institucion)
+            estado = request.POST.get('estado', '')
+            nota = request.POST.get('nota', '').strip()
+            if estado not in dict(ReporteFallaEquipo.ESTADO_CHOICES) or not nota:
+                messages.error(request, 'Selecciona el estado y escribe la acción realizada.')
+                return redirect('equipos_incidencias_institucionales')
+            falla.estado = estado
+            falla.asignada_a = request.user
+            falla.cerrada_el = timezone.now() if estado == 'CERRADA' else None
+            falla.save(update_fields=['estado', 'asignada_a', 'cerrada_el', 'actualizada_el'])
+            if estado == 'FUERA_SERVICIO':
+                falla.equipo.estado_operativo = 'FUERA_SERVICIO'
+            elif estado == 'EN_REVISION':
+                falla.equipo.estado_operativo = 'EN_REVISION'
+            elif estado in ['RESUELTA', 'CERRADA'] and not ReporteFallaEquipo.objects.filter(
+                equipo=falla.equipo
+            ).exclude(pk=falla.pk).exclude(estado__in=['RESUELTA', 'CERRADA']).exists():
+                falla.equipo.estado_operativo = 'OPERATIVO'
+            falla.equipo.save(update_fields=['estado_operativo'])
+            SeguimientoFallaEquipo.objects.create(
+                falla=falla, estado=estado, nota=nota, registrado_por=request.user
+            )
+            messages.success(request, f'Seguimiento de {falla.folio} guardado.')
+            return redirect('equipos_incidencias_institucionales')
+
+    incidencias = ReporteFallaEquipo.objects.filter(institucion=institucion)
+    area_filtro = request.GET.get('area', '').strip()
+    estado_filtro = request.GET.get('estado', '').strip()
+    prioridad_filtro = request.GET.get('prioridad', '').strip()
+    if area_filtro in dict(EquipoRadiologico.AREA_CHOICES):
+        incidencias = incidencias.filter(area_reportada=area_filtro)
+    if estado_filtro in dict(ReporteFallaEquipo.ESTADO_CHOICES):
+        incidencias = incidencias.filter(estado=estado_filtro)
+    if prioridad_filtro in dict(ReporteFallaEquipo.PRIORIDAD_CHOICES):
+        incidencias = incidencias.filter(prioridad=prioridad_filtro)
+
+    regreso = {'MEDICO': 'panel_medico', 'RECEPCION': 'panel_recepcion',
+               'RADIOLOGIA': 'panel_radiologo', 'TECNICO': 'panel_radiologo'}.get(membresia.rol, 'panel_config')
+    return render(request, 'core/equipos_incidencias_institucionales.html', {
+        'membresia': membresia, 'institucion': institucion, 'equipos': equipos,
+        'incidencias': incidencias.select_related('equipo', 'reportada_por', 'asignada_a').prefetch_related('seguimientos')[:150],
+        'areas': EquipoRadiologico.AREA_CHOICES, 'tipos_equipo': EquipoRadiologico.TIPO_CHOICES,
+        'prioridades': ReporteFallaEquipo.PRIORIDAD_CHOICES, 'estados': ReporteFallaEquipo.ESTADO_CHOICES,
+        'puede_gestionar': puede_gestionar, 'regreso': regreso,
+        'area_filtro': area_filtro, 'estado_filtro': estado_filtro, 'prioridad_filtro': prioridad_filtro,
+        'abiertas': ReporteFallaEquipo.objects.filter(institucion=institucion).exclude(estado__in=['RESUELTA', 'CERRADA']).count(),
+        'criticas': ReporteFallaEquipo.objects.filter(institucion=institucion, prioridad='CRITICA').exclude(estado__in=['RESUELTA', 'CERRADA']).count(),
+        'fuera_servicio': equipos.filter(estado_operativo='FUERA_SERVICIO').count(),
+    })
 
 
 @login_required

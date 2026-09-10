@@ -365,12 +365,40 @@ class TipoEstudio(models.Model):
 
 
 class EquipoRadiologico(models.Model):
+    AREA_CHOICES = [
+        ('RADIOLOGIA', 'Radiología e imagen'),
+        ('CONSULTA', 'Consulta externa'),
+        ('URGENCIAS', 'Urgencias'),
+        ('QUIROFANO', 'Quirófano'),
+        ('HOSPITALIZACION', 'Hospitalización'),
+        ('ENFERMERIA', 'Enfermería'),
+        ('LABORATORIO', 'Laboratorio'),
+        ('FARMACIA', 'Farmacia'),
+        ('RECEPCION', 'Recepción y admisión'),
+        ('ADMINISTRACION', 'Administración y caja'),
+        ('SISTEMAS', 'Sistemas y comunicaciones'),
+        ('LIMPIEZA', 'Intendencia y limpieza'),
+        ('SEGURIDAD', 'Vigilancia y seguridad'),
+        ('MANTENIMIENTO', 'Ingeniería y mantenimiento'),
+        ('GENERAL', 'Servicios generales'),
+        ('OTRA', 'Otra área'),
+    ]
     TIPO_CHOICES = [
         ('RX', 'Radiografía'),
         ('TAC', 'Tomografía'),
         ('FLUORO', 'Fluoroscopia'),
         ('MASTO', 'Mastografía'),
         ('PORTATIL', 'Rayos X portátil'),
+        ('MEDICO', 'Equipo médico general'),
+        ('MONITOREO', 'Monitoreo de pacientes'),
+        ('QUIRURGICO', 'Equipo quirúrgico'),
+        ('LABORATORIO', 'Equipo de laboratorio'),
+        ('COMPUTO', 'Cómputo y red'),
+        ('IMPRESION', 'Impresión'),
+        ('COMUNICACION', 'Comunicación'),
+        ('LIMPIEZA', 'Limpieza'),
+        ('SEGURIDAD', 'Seguridad'),
+        ('MOBILIARIO', 'Mobiliario'),
         ('OTRO', 'Otro'),
     ]
     ESTADO_OPERATIVO_CHOICES = [
@@ -391,6 +419,13 @@ class EquipoRadiologico(models.Model):
     nombre = models.CharField(
         max_length=100,
         verbose_name='Nombre del equipo'
+    )
+
+    area = models.CharField(
+        max_length=25,
+        choices=AREA_CHOICES,
+        default='RADIOLOGIA',
+        db_index=True,
     )
 
     tipo = models.CharField(
@@ -495,6 +530,14 @@ class ReporteFallaEquipo(models.Model):
     ]
     institucion = models.ForeignKey(Institucion, on_delete=models.PROTECT, related_name='fallas_equipos')
     equipo = models.ForeignKey(EquipoRadiologico, on_delete=models.PROTECT, related_name='fallas')
+    area_reportada = models.CharField(
+        max_length=25,
+        choices=EquipoRadiologico.AREA_CHOICES,
+        default='RADIOLOGIA',
+        db_index=True,
+    )
+    ubicacion_reportada = models.CharField(max_length=180, blank=True)
+    evidencia = models.FileField(upload_to='equipos/incidencias/%Y/%m/', blank=True, null=True)
     titulo = models.CharField(max_length=180)
     descripcion = models.TextField()
     prioridad = models.CharField(max_length=10, choices=PRIORIDAD_CHOICES, default='MEDIA')
@@ -510,6 +553,10 @@ class ReporteFallaEquipo(models.Model):
 
     def __str__(self):
         return f'{self.equipo} - {self.titulo}'
+
+    @property
+    def folio(self):
+        return f'INC-{self.pk:06d}' if self.pk else 'INC-PENDIENTE'
 
 
 class SeguimientoFallaEquipo(models.Model):

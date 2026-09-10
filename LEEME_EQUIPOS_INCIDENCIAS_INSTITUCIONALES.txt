@@ -1,0 +1,15 @@
+LORETO ONE — EQUIPOS E INCIDENCIAS INSTITUCIONALES
+
+Incluye:
+- Registro de equipos por área para Mantenimiento y Administración.
+- Reporte de fallas para cualquier usuario activo de la institución.
+- Folio automático INC-000000, prioridad, ubicación, evidencia y fecha/hora.
+- Seguimiento y cierre reservado a Mantenimiento y Administración.
+- Historial de acciones con usuario, fecha y hora.
+- Filtros por área, estado y prioridad.
+- Indicadores de incidencias abiertas, críticas y equipos fuera de servicio.
+
+Acceso directo: /equipos/incidencias/
+
+La migración conserva los equipos existentes y los clasifica inicialmente en
+Radiología e imagen. Después pueden registrarse los equipos de las demás áreas.

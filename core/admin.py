@@ -169,8 +169,8 @@ class EntregaResultadoEstudioAdmin(admin.ModelAdmin):
 
 @admin.register(EquipoRadiologico)
 class EquipoRadiologicoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tipo', 'marca', 'modelo', 'numero_serie', 'estado_operativo', 'institucion', 'activo')
-    list_filter = ('institucion', 'tipo', 'estado_operativo', 'activo')
+    list_display = ('nombre', 'area', 'tipo', 'marca', 'modelo', 'numero_serie', 'estado_operativo', 'institucion', 'activo')
+    list_filter = ('institucion', 'area', 'tipo', 'estado_operativo', 'activo')
     search_fields = ('nombre', 'marca', 'modelo', 'numero_serie')
 
 
@@ -189,10 +189,14 @@ class SeguimientoFallaEquipoInline(admin.TabularInline):
 
 @admin.register(ReporteFallaEquipo)
 class ReporteFallaEquipoAdmin(admin.ModelAdmin):
-    list_display = ('equipo', 'titulo', 'prioridad', 'estado', 'reportada_por', 'reportada_el')
-    list_filter = ('institucion', 'prioridad', 'estado', 'reportada_el')
+    list_display = ('folio_admin', 'equipo', 'area_reportada', 'titulo', 'prioridad', 'estado', 'reportada_por', 'reportada_el')
+    list_filter = ('institucion', 'area_reportada', 'prioridad', 'estado', 'reportada_el')
     search_fields = ('equipo__nombre', 'titulo', 'descripcion')
     inlines = (SeguimientoFallaEquipoInline,)
+
+    @admin.display(description='Folio')
+    def folio_admin(self, obj):
+        return obj.folio
 
 
 @admin.register(PruebaControlCalidadEquipo)
