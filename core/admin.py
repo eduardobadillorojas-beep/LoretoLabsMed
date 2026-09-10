@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    BitacoraRadiologica,
     CargoPaciente,
     CorteCaja,
     CreditoPaciente,
@@ -28,6 +29,14 @@ from .models import (
     Servicio,
     SerieDicom,
 )
+
+
+@admin.register(BitacoraRadiologica)
+class BitacoraRadiologicaAdmin(admin.ModelAdmin):
+    list_display = ('fecha_realizacion', 'paciente_nombre', 'modalidad', 'estudio_nombre', 'tecnico_nombre', 'equipo_nombre', 'medio_entrega')
+    list_filter = ('modalidad', 'medio_entrega', 'fecha_realizacion')
+    search_fields = ('paciente_nombre', 'paciente_registro', 'estudio_nombre', 'medico_solicitante', 'tecnico_nombre', 'equipo_nombre')
+    readonly_fields = ('creado_el', 'actualizado_el')
 
 
 class SoloLecturaDicomAdmin(admin.ModelAdmin):

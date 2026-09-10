@@ -339,6 +339,7 @@ Radiología | Loreto One
         </div>
 
         <div class="header-actions">
+            <a href="{% url 'bitacora_radiologica_panel' %}" class="btn btn-outline-info btn-sm">▤ Bitácora</a>
             <a href="{% url 'mantenimiento_equipos_radiologia' %}" class="btn btn-outline-info btn-sm">⚙ Equipos{% if fallas_abiertas %} · {{ fallas_abiertas }} falla{{ fallas_abiertas|pluralize }}{% endif %}</a>
         </div>
 

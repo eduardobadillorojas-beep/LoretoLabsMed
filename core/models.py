@@ -1442,6 +1442,9 @@ class BitacoraRadiologica(models.Model):
         ('TAC', 'Tomografía'),
         ('FLUORO', 'Fluoroscopia'),
         ('MASTO', 'Mastografía'),
+        ('USG', 'Ultrasonido'),
+        ('RM', 'Resonancia magnética'),
+        ('DXA', 'Densitometría'),
         ('OTRA', 'Otra'),
     ]
 
@@ -1555,6 +1558,10 @@ class BitacoraRadiologica(models.Model):
         null=True
     )
 
+    numero_imagenes_impresas = models.PositiveIntegerField(default=0)
+    numero_repeticiones = models.PositiveIntegerField(default=0)
+    motivo_repeticion = models.TextField(blank=True, null=True)
+
     # ==================================
     # PARÁMETROS DE TOMOGRAFÍA
     # ==================================
@@ -1580,12 +1587,32 @@ class BitacoraRadiologica(models.Model):
         null=True,
         verbose_name='Uso de medio de contraste'
     )
+    contraste_nombre = models.CharField(max_length=150, blank=True, null=True)
+    contraste_lote = models.CharField(max_length=100, blank=True, null=True)
+    contraste_volumen_ml = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+    contraste_via = models.CharField(max_length=80, blank=True, null=True)
+    reaccion_contraste = models.TextField(blank=True, null=True)
 
     # ==================================
     # INFORMACIÓN GENERAL
     # ==================================
 
     observaciones = models.TextField(
+        blank=True,
+        null=True
+    )
+    verificacion_embarazo = models.CharField(
+        max_length=20,
+        choices=[('NO_APLICA', 'No aplica'), ('DESCARTADO', 'Descartado'), ('POSIBLE', 'Posible embarazo')],
+        default='NO_APLICA'
+    )
+    proteccion_radiologica = models.TextField(blank=True, null=True)
+    incidencias = models.TextField(blank=True, null=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+    actualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='bitacoras_radiologicas_actualizadas',
         blank=True,
         null=True
     )

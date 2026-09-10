@@ -447,6 +447,9 @@ def crear_bitacora_radiologica(estudio):
         'TAC': 'TAC',
         'FLUORO': 'FLUORO',
         'MASTO': 'MASTO',
+        'USG': 'USG',
+        'RM': 'RM',
+        'DXA': 'DXA',
     }
 
     if (
@@ -1692,6 +1695,7 @@ def estudio_radiologia(
         'estudio_adicional_form':
             estudio_adicional_form,
         'entregas_resultado': estudio.entregas_resultado.select_related('registrado_por')[:10],
+        'bitacora_operativa': BitacoraRadiologica.objects.filter(estudio=estudio).first(),
     }
 
     return render(
@@ -3675,6 +3679,154 @@ def registrar_entrega_resultado_radiologia(request, estudio_id):
 
     messages.success(request, 'Entrega registrada en la bitácora radiológica.')
     return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+
+def _decimal_opcional(valor):
+    texto = (valor or '').strip().replace(',', '.')
+    if not texto:
+        return None
+    try:
+        numero = Decimal(texto)
+        return numero if numero >= 0 else None
+    except InvalidOperation:
+        return None
+
+
+def multi_puesto(request, nombre):
+    try:
+        return max(0, int(request.POST.get(nombre, 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+@login_required
+@require_POST
+def guardar_bitacora_operativa_radiologia(request, estudio_id):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para modificar esta bitácora.', status=403)
+    estudio = get_object_or_404(
+        Estudio.objects.select_related('paciente', 'tipo_estudio', 'tecnico', 'equipo'),
+        pk=estudio_id,
+        paciente__institucion=membresia.institucion,
+    )
+    bitacora = crear_bitacora_radiologica(estudio)
+    if bitacora is None:
+        messages.error(request, 'No fue posible crear la bitácora de este estudio.')
+        return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+    uso_contraste = request.POST.get('uso_contraste') == 'SI'
+    campos = {
+        'kvp': _decimal_opcional(request.POST.get('kvp')),
+        'mas': _decimal_opcional(request.POST.get('mas')),
+        'numero_exposiciones': multi_puesto(request, 'numero_exposiciones') or None,
+        'proyecciones': request.POST.get('proyecciones', '').strip() or None,
+        'numero_imagenes_impresas': multi_puesto(request, 'numero_imagenes_impresas'),
+        'numero_repeticiones': multi_puesto(request, 'numero_repeticiones'),
+        'motivo_repeticion': request.POST.get('motivo_repeticion', '').strip() or None,
+        'ctdi_vol': _decimal_opcional(request.POST.get('ctdi_vol')),
+        'dlp': _decimal_opcional(request.POST.get('dlp')),
+        'uso_contraste': uso_contraste,
+        'contraste_nombre': request.POST.get('contraste_nombre', '').strip() or None,
+        'contraste_lote': request.POST.get('contraste_lote', '').strip() or None,
+        'contraste_volumen_ml': _decimal_opcional(request.POST.get('contraste_volumen_ml')),
+        'contraste_via': request.POST.get('contraste_via', '').strip() or None,
+        'reaccion_contraste': request.POST.get('reaccion_contraste', '').strip() or None,
+        'verificacion_embarazo': request.POST.get('verificacion_embarazo', 'NO_APLICA'),
+        'proteccion_radiologica': request.POST.get('proteccion_radiologica', '').strip() or None,
+        'incidencias': request.POST.get('incidencias', '').strip() or None,
+        'observaciones': request.POST.get('observaciones_bitacora', '').strip() or None,
+        'actualizado_por': request.user,
+    }
+    if campos['verificacion_embarazo'] not in {'NO_APLICA', 'DESCARTADO', 'POSIBLE'}:
+        campos['verificacion_embarazo'] = 'NO_APLICA'
+    for nombre, valor in campos.items():
+        setattr(bitacora, nombre, valor)
+    bitacora.save()
+    messages.success(request, 'Bitácora operativa actualizada correctamente.')
+    return redirect('estudio_radiologia', estudio_id=estudio.id)
+
+
+def _bitacoras_filtradas(request, institucion):
+    qs = BitacoraRadiologica.objects.select_related(
+        'estudio', 'estudio__paciente', 'estudio__tipo_estudio', 'tecnico', 'equipo'
+    ).filter(estudio__paciente__institucion=institucion)
+    desde = request.GET.get('desde', '').strip()
+    hasta = request.GET.get('hasta', '').strip()
+    modalidad = request.GET.get('modalidad', '').strip()
+    equipo = request.GET.get('equipo', '').strip()
+    if desde:
+        qs = qs.filter(fecha_realizacion__date__gte=desde)
+    if hasta:
+        qs = qs.filter(fecha_realizacion__date__lte=hasta)
+    if modalidad in dict(BitacoraRadiologica.MODALIDAD_CHOICES):
+        qs = qs.filter(modalidad=modalidad)
+    if equipo.isdigit():
+        qs = qs.filter(equipo_id=equipo)
+    return qs, {'desde': desde, 'hasta': hasta, 'modalidad_filtro': modalidad, 'equipo_filtro': equipo}
+
+
+@login_required
+def bitacora_radiologica_panel(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para consultar esta bitácora.', status=403)
+    bitacoras, filtros = _bitacoras_filtradas(request, membresia.institucion)
+    return render(request, 'core/bitacora_radiologica_panel.html', {
+        'bitacoras': bitacoras[:300],
+        'equipos': EquipoRadiologico.objects.filter(Q(institucion=membresia.institucion) | Q(institucion__isnull=True)).order_by('nombre'),
+        'modalidades': BitacoraRadiologica.MODALIDAD_CHOICES,
+        **filtros,
+    })
+
+
+@login_required
+def bitacora_radiologica_pdf(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN']:
+        return HttpResponse('No tienes permiso para consultar esta bitácora.', status=403)
+    institucion = membresia.institucion
+    bitacoras, _ = _bitacoras_filtradas(request, institucion)
+    respuesta = HttpResponse(content_type='application/pdf')
+    respuesta['Content-Disposition'] = 'inline; filename="bitacora_radiologica.pdf"'
+    lienzo = pdf_canvas.Canvas(respuesta, pagesize=letter)
+    ancho, alto = letter
+
+    def cabecera():
+        y = alto - 42
+        if institucion.logo:
+            try:
+                with institucion.logo.storage.open(institucion.logo.name, 'rb') as archivo_logo:
+                    lienzo.drawImage(ImageReader(BytesIO(archivo_logo.read())), 42, alto - 80, 54, 40, preserveAspectRatio=True, mask='auto')
+            except Exception:
+                logger.exception('No fue posible cargar el logo en la bitácora radiológica.')
+        lienzo.setFont('Helvetica-Bold', 14); lienzo.drawString(88, y, institucion.nombre_comercial or institucion.nombre)
+        lienzo.setFont('Helvetica', 8); lienzo.drawString(88, y - 13, institucion.direccion or 'Dirección no especificada')
+        lienzo.drawString(88, y - 25, f'Teléfono: {institucion.telefono or "No especificado"}')
+        lienzo.line(42, alto - 88, ancho - 42, alto - 88)
+        lienzo.setFont('Helvetica-Bold', 12); lienzo.drawString(42, alto - 108, 'BITÁCORA RADIOLÓGICA OPERATIVA')
+        lienzo.setFont('Helvetica', 7); lienzo.drawRightString(ancho - 42, alto - 108, timezone.localtime().strftime('%d/%m/%Y %H:%M'))
+        return alto - 130
+
+    y = cabecera()
+    for item in bitacoras[:1000]:
+        lineas = [
+            f'{timezone.localtime(item.fecha_realizacion):%d/%m/%Y %H:%M} · {item.modalidad} · {item.paciente_nombre} · Reg. {item.paciente_registro or "—"}',
+            f'Estudio: {item.estudio_nombre} | Médico: {item.medico_solicitante or "—"} | Técnico: {item.tecnico_nombre or "—"} | Equipo: {item.equipo_nombre or "—"}',
+            f'Parámetros: kVp {item.kvp or "—"}; mAs {item.mas or "—"}; exposiciones {item.numero_exposiciones or "—"}; CTDIvol {item.ctdi_vol or "—"}; DLP {item.dlp or "—"}; repeticiones {item.numero_repeticiones}.',
+            f'Contraste: {"Sí" if item.uso_contraste else "No"}; {item.contraste_nombre or "—"}; lote {item.contraste_lote or "—"}; volumen {item.contraste_volumen_ml or "—"} ml. Entrega: {item.get_medio_entrega_display()}.',
+        ]
+        if item.incidencias:
+            lineas.append(f'Incidencias: {item.incidencias}')
+        for indice, texto in enumerate(lineas):
+            for linea in textwrap.wrap(texto, 112):
+                if y < 55:
+                    lienzo.showPage(); y = cabecera()
+                lienzo.setFont('Helvetica-Bold' if indice == 0 else 'Helvetica', 7)
+                lienzo.drawString(46 if indice == 0 else 54, y, linea); y -= 9
+        lienzo.line(42, y, ancho - 42, y); y -= 10
+    lienzo.save()
+    return respuesta
 
 # =========================================================
 # RECEPCIÓN

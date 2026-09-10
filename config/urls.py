@@ -105,6 +105,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/bitacora/',
+        views.bitacora_radiologica_panel,
+        name='bitacora_radiologica_panel'
+    ),
+
+    path(
+        'radiologia/bitacora/pdf/',
+        views.bitacora_radiologica_pdf,
+        name='bitacora_radiologica_pdf'
+    ),
+
+    path(
         'radiologia/paciente/registrar/',
         views.registrar_paciente_radiologia,
         name='registrar_paciente_radiologia'
@@ -258,6 +270,12 @@ urlpatterns = [
         'radiologia/estudio/<int:estudio_id>/entrega/registrar/',
         views.registrar_entrega_resultado_radiologia,
         name='registrar_entrega_resultado_radiologia'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/bitacora/guardar/',
+        views.guardar_bitacora_operativa_radiologia,
+        name='guardar_bitacora_operativa_radiologia'
     ),
 
     # =========================

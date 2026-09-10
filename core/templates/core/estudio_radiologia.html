@@ -1020,6 +1020,40 @@ Estudio | Loreto One
                 </div>
             {% endif %}
 
+            <div class="box">
+                <div class="box-header">Bitácora radiológica operativa</div>
+                <div class="box-body">
+                    <details>
+                        <summary class="btn btn-outline-info btn-sm">Capturar o actualizar parámetros</summary>
+                        <form method="post" action="{% url 'guardar_bitacora_operativa_radiologia' estudio.id %}" class="mt-3">
+                            {% csrf_token %}
+                            <div class="row g-2">
+                                <div class="col-md-3"><label class="small-muted">kVp</label><input type="number" step="0.01" min="0" name="kvp" value="{{ bitacora_operativa.kvp|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">mAs</label><input type="number" step="0.01" min="0" name="mas" value="{{ bitacora_operativa.mas|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">Exposiciones</label><input type="number" min="0" name="numero_exposiciones" value="{{ bitacora_operativa.numero_exposiciones|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">Imágenes impresas</label><input type="number" min="0" name="numero_imagenes_impresas" value="{{ bitacora_operativa.numero_imagenes_impresas|default:0 }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-6"><label class="small-muted">Proyecciones / protocolo</label><input name="proyecciones" value="{{ bitacora_operativa.proyecciones|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">CTDIvol</label><input type="number" step="0.001" min="0" name="ctdi_vol" value="{{ bitacora_operativa.ctdi_vol|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">DLP</label><input type="number" step="0.001" min="0" name="dlp" value="{{ bitacora_operativa.dlp|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">Repeticiones</label><input type="number" min="0" name="numero_repeticiones" value="{{ bitacora_operativa.numero_repeticiones|default:0 }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-9"><label class="small-muted">Motivo de repetición</label><input name="motivo_repeticion" value="{{ bitacora_operativa.motivo_repeticion|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">¿Usó contraste?</label><select name="uso_contraste" class="form-select form-select-sm"><option value="NO">No</option><option value="SI" {% if bitacora_operativa.uso_contraste %}selected{% endif %}>Sí</option></select></div>
+                                <div class="col-md-3"><label class="small-muted">Contraste</label><input name="contraste_nombre" value="{{ bitacora_operativa.contraste_nombre|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-2"><label class="small-muted">Lote</label><input name="contraste_lote" value="{{ bitacora_operativa.contraste_lote|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-2"><label class="small-muted">Volumen ml</label><input type="number" step="0.01" min="0" name="contraste_volumen_ml" value="{{ bitacora_operativa.contraste_volumen_ml|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-2"><label class="small-muted">Vía</label><input name="contraste_via" value="{{ bitacora_operativa.contraste_via|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-6"><label class="small-muted">Reacción al contraste</label><input name="reaccion_contraste" value="{{ bitacora_operativa.reaccion_contraste|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-3"><label class="small-muted">Verificación de embarazo</label><select name="verificacion_embarazo" class="form-select form-select-sm"><option value="NO_APLICA">No aplica</option><option value="DESCARTADO" {% if bitacora_operativa.verificacion_embarazo == 'DESCARTADO' %}selected{% endif %}>Descartado</option><option value="POSIBLE" {% if bitacora_operativa.verificacion_embarazo == 'POSIBLE' %}selected{% endif %}>Posible embarazo</option></select></div>
+                                <div class="col-md-9"><label class="small-muted">Protección radiológica utilizada</label><input name="proteccion_radiologica" value="{{ bitacora_operativa.proteccion_radiologica|default_if_none:'' }}" class="form-control form-control-sm"></div>
+                                <div class="col-md-6"><label class="small-muted">Incidencias</label><textarea name="incidencias" rows="2" class="form-control form-control-sm">{{ bitacora_operativa.incidencias|default_if_none:'' }}</textarea></div>
+                                <div class="col-md-6"><label class="small-muted">Observaciones</label><textarea name="observaciones_bitacora" rows="2" class="form-control form-control-sm">{{ bitacora_operativa.observaciones|default_if_none:'' }}</textarea></div>
+                                <div class="col-12"><button type="submit" class="btn btn-info">Guardar bitácora</button></div>
+                            </div>
+                        </form>
+                    </details>
+                </div>
+            </div>
+
 
         </div>
 
