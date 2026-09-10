@@ -117,6 +117,12 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/equipos/mantenimiento/bitacora.pdf',
+        views.bitacora_mantenimiento_pdf,
+        name='bitacora_mantenimiento_pdf'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/',
         views.estudio_radiologia,
         name='estudio_radiologia'

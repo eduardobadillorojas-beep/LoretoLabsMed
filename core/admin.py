@@ -150,8 +150,8 @@ class EntregaResultadoEstudioAdmin(admin.ModelAdmin):
 
 @admin.register(EquipoRadiologico)
 class EquipoRadiologicoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'tipo', 'marca', 'modelo', 'numero_serie', 'institucion', 'activo')
-    list_filter = ('institucion', 'tipo', 'activo')
+    list_display = ('nombre', 'tipo', 'marca', 'modelo', 'numero_serie', 'estado_operativo', 'institucion', 'activo')
+    list_filter = ('institucion', 'tipo', 'estado_operativo', 'activo')
     search_fields = ('nombre', 'marca', 'modelo', 'numero_serie')
 
 

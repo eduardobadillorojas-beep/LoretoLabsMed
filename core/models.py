@@ -362,6 +362,12 @@ class EquipoRadiologico(models.Model):
         ('PORTATIL', 'Rayos X portátil'),
         ('OTRO', 'Otro'),
     ]
+    ESTADO_OPERATIVO_CHOICES = [
+        ('OPERATIVO', 'Operativo'),
+        ('OBSERVACION', 'Operativo con observaciones'),
+        ('EN_REVISION', 'En revisión'),
+        ('FUERA_SERVICIO', 'Fuera de servicio'),
+    ]
 
     institucion = models.ForeignKey(
         Institucion,
@@ -408,6 +414,12 @@ class EquipoRadiologico(models.Model):
 
     activo = models.BooleanField(
         default=True
+    )
+
+    estado_operativo = models.CharField(
+        max_length=20,
+        choices=ESTADO_OPERATIVO_CHOICES,
+        default='OPERATIVO'
     )
 
     creado_el = models.DateTimeField(

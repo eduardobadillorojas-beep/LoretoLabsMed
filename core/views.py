@@ -1367,7 +1367,7 @@ def mantenimiento_equipos_radiologia(request):
     institucion = membresia.institucion
     equipos = EquipoRadiologico.objects.filter(
         Q(institucion=institucion) | Q(institucion__isnull=True)
-    ).prefetch_related('mantenimientos').order_by('nombre')
+    ).prefetch_related('mantenimientos', 'fallas').order_by('nombre')
 
     if request.method == 'POST':
         accion = request.POST.get('accion')
@@ -1442,24 +1442,147 @@ def mantenimiento_equipos_radiologia(request):
             falla.asignada_a = request.user
             falla.cerrada_el = timezone.now() if estado == 'CERRADA' else None
             falla.save(update_fields=['estado', 'asignada_a', 'cerrada_el', 'actualizada_el'])
+            if estado == 'FUERA_SERVICIO':
+                falla.equipo.estado_operativo = 'FUERA_SERVICIO'
+            elif estado == 'EN_REVISION':
+                falla.equipo.estado_operativo = 'EN_REVISION'
+            elif estado in ['RESUELTA', 'CERRADA']:
+                hay_otras_activas = ReporteFallaEquipo.objects.filter(
+                    equipo=falla.equipo
+                ).exclude(pk=falla.pk).exclude(estado__in=['RESUELTA', 'CERRADA']).exists()
+                if not hay_otras_activas:
+                    falla.equipo.estado_operativo = 'OPERATIVO'
+            falla.equipo.save(update_fields=['estado_operativo'])
             SeguimientoFallaEquipo.objects.create(
                 falla=falla, estado=estado, nota=nota, registrado_por=request.user,
             )
             messages.success(request, 'Seguimiento guardado en el historial de la falla.')
+        elif accion == 'estado_equipo':
+            if membresia.rol not in ['ADMIN', 'MANTENIMIENTO']:
+                return HttpResponse('Solo Mantenimiento o Administración puede cambiar el estado del equipo.', status=403)
+            equipo = get_object_or_404(equipos, pk=request.POST.get('equipo'))
+            estado_equipo = request.POST.get('estado_operativo', '')
+            if estado_equipo not in dict(EquipoRadiologico.ESTADO_OPERATIVO_CHOICES):
+                messages.error(request, 'Selecciona un estado operativo válido.')
+                return redirect('mantenimiento_equipos_radiologia')
+            equipo.estado_operativo = estado_equipo
+            equipo.save(update_fields=['estado_operativo'])
+            messages.success(request, f'Estado de {equipo.nombre} actualizado.')
         return redirect('mantenimiento_equipos_radiologia')
+
+    fallas = ReporteFallaEquipo.objects.filter(institucion=institucion)
+    filtro_equipo = request.GET.get('equipo', '').strip()
+    filtro_estado = request.GET.get('estado', '').strip()
+    filtro_prioridad = request.GET.get('prioridad', '').strip()
+    if filtro_equipo.isdigit():
+        fallas = fallas.filter(equipo_id=filtro_equipo)
+    if filtro_estado in dict(ReporteFallaEquipo.ESTADO_CHOICES):
+        fallas = fallas.filter(estado=filtro_estado)
+    if filtro_prioridad in dict(ReporteFallaEquipo.PRIORIDAD_CHOICES):
+        fallas = fallas.filter(prioridad=filtro_prioridad)
+
+    hoy = timezone.localdate()
+    alertas = []
+    for equipo in equipos:
+        if equipo.estado_operativo != 'OPERATIVO':
+            alertas.append({'nivel': 'danger' if equipo.estado_operativo == 'FUERA_SERVICIO' else 'warning', 'texto': f'{equipo.nombre}: {equipo.get_estado_operativo_display()}.'})
+        ultimo = equipo.mantenimientos.all()[0] if equipo.mantenimientos.all() else None
+        if ultimo and ultimo.proximo_mantenimiento:
+            dias = (ultimo.proximo_mantenimiento - hoy).days
+            if dias < 0:
+                alertas.append({'nivel': 'danger', 'texto': f'{equipo.nombre}: mantenimiento vencido hace {abs(dias)} día(s).'})
+            elif dias <= 30:
+                alertas.append({'nivel': 'warning', 'texto': f'{equipo.nombre}: mantenimiento programado en {dias} día(s).'})
 
     return render(request, 'core/mantenimiento_equipos_radiologia.html', {
         'membresia': membresia,
         'equipos': equipos,
         'tipos_equipo': EquipoRadiologico.TIPO_CHOICES,
         'tipos_mantenimiento': MantenimientoEquipoRadiologico.TIPO_CHOICES,
-        'fallas': ReporteFallaEquipo.objects.filter(institucion=institucion).select_related(
+        'fallas': fallas.select_related(
             'equipo', 'reportada_por', 'asignada_a'
         ).prefetch_related('seguimientos')[:100],
         'estados_falla': ReporteFallaEquipo.ESTADO_CHOICES,
         'prioridades_falla': ReporteFallaEquipo.PRIORIDAD_CHOICES,
         'puede_gestionar_fallas': membresia.rol in ['ADMIN', 'MANTENIMIENTO'],
+        'estados_operativos': EquipoRadiologico.ESTADO_OPERATIVO_CHOICES,
+        'alertas': alertas,
+        'filtro_equipo': filtro_equipo,
+        'filtro_estado': filtro_estado,
+        'filtro_prioridad': filtro_prioridad,
     })
+
+
+@login_required
+def bitacora_mantenimiento_pdf(request):
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in ['TECNICO', 'RADIOLOGIA', 'ADMIN', 'MANTENIMIENTO']:
+        return HttpResponse('No tienes permiso para consultar esta bitácora.', status=403)
+
+    institucion = membresia.institucion
+    equipos = EquipoRadiologico.objects.filter(
+        Q(institucion=institucion) | Q(institucion__isnull=True)
+    ).prefetch_related('mantenimientos', 'fallas__seguimientos').order_by('nombre')
+    respuesta = HttpResponse(content_type='application/pdf')
+    respuesta['Content-Disposition'] = 'inline; filename="bitacora_equipos_mantenimiento.pdf"'
+    lienzo = pdf_canvas.Canvas(respuesta, pagesize=letter)
+    ancho, alto = letter
+
+    def encabezado():
+        y = alto - 45
+        if institucion.logo:
+            try:
+                with institucion.logo.storage.open(institucion.logo.name, 'rb') as archivo_logo:
+                    logo = ImageReader(BytesIO(archivo_logo.read()))
+                lienzo.drawImage(logo, 42, alto - 82, width=55, height=42, preserveAspectRatio=True, mask='auto')
+            except Exception:
+                logger.exception('No fue posible cargar el logo en la bitácora de mantenimiento.')
+        lienzo.setFont('Helvetica-Bold', 15)
+        lienzo.drawString(110, y, institucion.nombre_comercial or institucion.nombre)
+        lienzo.setFont('Helvetica', 8)
+        lienzo.drawString(110, y - 14, institucion.direccion or 'Dirección no especificada')
+        lienzo.drawString(110, y - 26, f'Teléfono: {institucion.telefono or "No especificado"}')
+        lienzo.line(42, alto - 92, ancho - 42, alto - 92)
+        lienzo.setFont('Helvetica-Bold', 13)
+        lienzo.drawString(42, alto - 115, 'BITÁCORA DE EQUIPOS, MANTENIMIENTO E INCIDENCIAS')
+        lienzo.setFont('Helvetica', 8)
+        lienzo.drawRightString(ancho - 42, alto - 115, timezone.localtime().strftime('Generada: %d/%m/%Y %H:%M'))
+        return alto - 138
+
+    y = encabezado()
+    for equipo in equipos:
+        if y < 120:
+            lienzo.showPage(); y = encabezado()
+        lienzo.setFont('Helvetica-Bold', 11)
+        lienzo.drawString(42, y, f'{equipo.nombre} — {equipo.get_estado_operativo_display()}')
+        y -= 13
+        lienzo.setFont('Helvetica', 8)
+        datos = f'{equipo.get_tipo_display()} | Marca: {equipo.marca or "—"} | Modelo: {equipo.modelo or "—"} | Serie: {equipo.numero_serie or "—"} | Ubicación: {equipo.ubicacion or "—"}'
+        for linea in textwrap.wrap(datos, 105):
+            lienzo.drawString(50, y, linea); y -= 10
+        for mantenimiento in equipo.mantenimientos.all():
+            texto = f'MANTENIMIENTO {mantenimiento.fecha_servicio:%d/%m/%Y} · {mantenimiento.get_tipo_display()} · {mantenimiento.proveedor_ingeniero}. {mantenimiento.informe_servicio}'
+            if mantenimiento.proximo_mantenimiento:
+                texto += f' Próximo: {mantenimiento.proximo_mantenimiento:%d/%m/%Y}.'
+            for indice, linea in enumerate(textwrap.wrap(texto, 100)):
+                if y < 55:
+                    lienzo.showPage(); y = encabezado()
+                lienzo.setFont('Helvetica-Bold' if indice == 0 else 'Helvetica', 8)
+                lienzo.drawString(58, y, linea); y -= 10
+        for falla in equipo.fallas.all():
+            texto = f'INCIDENCIA {timezone.localtime(falla.reportada_el):%d/%m/%Y %H:%M} · {falla.get_prioridad_display()} · {falla.get_estado_display()} · {falla.titulo}. {falla.descripcion}'
+            for indice, linea in enumerate(textwrap.wrap(texto, 100)):
+                if y < 55:
+                    lienzo.showPage(); y = encabezado()
+                lienzo.setFont('Helvetica-Bold' if indice == 0 else 'Helvetica', 8)
+                lienzo.drawString(58, y, linea); y -= 10
+            for paso in falla.seguimientos.all():
+                detalle = f'  {timezone.localtime(paso.creado_el):%d/%m/%Y %H:%M} · {paso.get_estado_display()}: {paso.nota}'
+                for linea in textwrap.wrap(detalle, 96):
+                    lienzo.setFont('Helvetica', 7); lienzo.drawString(66, y, linea); y -= 9
+        y -= 10
+    lienzo.save()
+    return respuesta
 
 # =========================================================
 # ESTACIÓN DE TRABAJO RADIOLOGÍA
@@ -1670,6 +1793,12 @@ def iniciar_estudio_radiologia(
 
     if request.method == 'POST':
         if estudio.estado == 'PENDIENTE':
+            if estudio.equipo and estudio.equipo.estado_operativo == 'FUERA_SERVICIO':
+                messages.error(
+                    request,
+                    f'No se puede iniciar el estudio: {estudio.equipo.nombre} está fuera de servicio.'
+                )
+                return redirect('estudio_radiologia', estudio_id=estudio.id)
             estudio.estado = 'EN_PROCESO'
             estudio.fecha_inicio = timezone.now()
             estudio.tecnico = request.user
