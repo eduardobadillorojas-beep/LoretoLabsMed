@@ -5,6 +5,7 @@ from datetime import datetime
 
 from django.db import transaction
 from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -119,6 +120,7 @@ def sync_estado(request):
 
 
 @require_POST
+@csrf_exempt
 def sync_push(request):
     error = _requiere_token(request)
     if error:
