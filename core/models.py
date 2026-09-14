@@ -399,6 +399,17 @@ class Paciente(models.Model):
         verbose_name='Registro interno'
     )
 
+    sync_id = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Identificador de sincronización'
+    )
+
+    actualizado_el = models.DateTimeField(
+        auto_now=True
+    )
+
     nombre = models.CharField(
         max_length=100
     )
@@ -1391,6 +1402,17 @@ class Estudio(models.Model):
 
     fecha_creacion = models.DateTimeField(
         auto_now_add=True
+    )
+
+    sync_id = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        verbose_name='Identificador de sincronización'
+    )
+
+    actualizado_el = models.DateTimeField(
+        auto_now=True
     )
 
     def __str__(self):

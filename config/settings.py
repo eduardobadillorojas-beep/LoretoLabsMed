@@ -109,9 +109,13 @@ INSTALLED_APPS = [
     # Almacenamiento de archivos en Cloudflare R2 / S3.
     'storages',
 
+    # Aplicaciones de Loreto One.
     'core',
     'pacientes',
     'recepcion',
+
+    # API de sincronización Desktop ↔ Web.
+    'api',
 ]
 
 

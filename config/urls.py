@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 from core import views
 
@@ -10,6 +10,15 @@ urlpatterns = [
     path(
         'admin/',
         admin.site.urls
+    ),
+
+    # =========================================================
+    # API DE SINCRONIZACIÓN
+    # =========================================================
+
+    path(
+        'api/v1/',
+        include('api.urls')
     ),
 
     path(
@@ -46,8 +55,17 @@ urlpatterns = [
         name='panel_area_institucional'
     ),
 
-    path('limpieza/', views.panel_limpieza, name='panel_limpieza'),
-    path('limpieza/bitacora.pdf', views.bitacora_limpieza_pdf, name='bitacora_limpieza_pdf'),
+    path(
+        'limpieza/',
+        views.panel_limpieza,
+        name='panel_limpieza'
+    ),
+
+    path(
+        'limpieza/bitacora.pdf',
+        views.bitacora_limpieza_pdf,
+        name='bitacora_limpieza_pdf'
+    ),
 
     path(
         'configuracion/accesos/',
@@ -339,11 +357,35 @@ urlpatterns = [
         name='caja_recepcion'
     ),
 
-    path('recepcion/caja/abrir/', views.abrir_caja_recepcion, name='abrir_caja_recepcion'),
-    path('recepcion/caja/<int:corte_id>/movimiento/', views.registrar_movimiento_caja, name='registrar_movimiento_caja'),
-    path('recepcion/caja/<int:corte_id>/cerrar/', views.cerrar_caja_recepcion, name='cerrar_caja_recepcion'),
-    path('recepcion/caja/<int:corte_id>/ticket/', views.ticket_corte_caja, name='ticket_corte_caja'),
-    path('configuracion/auditoria-cajas/', views.auditoria_cajas, name='auditoria_cajas'),
+    path(
+        'recepcion/caja/abrir/',
+        views.abrir_caja_recepcion,
+        name='abrir_caja_recepcion'
+    ),
+
+    path(
+        'recepcion/caja/<int:corte_id>/movimiento/',
+        views.registrar_movimiento_caja,
+        name='registrar_movimiento_caja'
+    ),
+
+    path(
+        'recepcion/caja/<int:corte_id>/cerrar/',
+        views.cerrar_caja_recepcion,
+        name='cerrar_caja_recepcion'
+    ),
+
+    path(
+        'recepcion/caja/<int:corte_id>/ticket/',
+        views.ticket_corte_caja,
+        name='ticket_corte_caja'
+    ),
+
+    path(
+        'configuracion/auditoria-cajas/',
+        views.auditoria_cajas,
+        name='auditoria_cajas'
+    ),
 
     path(
         'recepcion/registrar/',
@@ -464,6 +506,10 @@ urlpatterns = [
     ),
 ]
 
+
+# ============================================================
+# ARCHIVOS MEDIA EN DESARROLLO
+# ============================================================
 
 if settings.DEBUG:
     urlpatterns += static(
