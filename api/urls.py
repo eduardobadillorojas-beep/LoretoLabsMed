@@ -15,6 +15,11 @@ urlpatterns = [
         name='api_sync_estado',
     ),
     path(
+        'sync/usuarios/',
+        views.sync_usuarios,
+        name='api_sync_usuarios',
+    ),
+    path(
         'sync/push/',
         views.sync_push,
         name='api_sync_push',

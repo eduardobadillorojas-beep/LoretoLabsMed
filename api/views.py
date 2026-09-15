@@ -4,12 +4,12 @@ import uuid
 from datetime import datetime
 
 from django.db import transaction
+from django.contrib.auth import get_user_model
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from core.models import Institucion, Estudio, Paciente, TipoEstudio
+from core.models import Institucion, Estudio, Paciente, TipoEstudio, MembresiaInstitucion, AreaInstitucional, ModuloSistema, AccesoModuloMembresia
 
 from .models import SyncOutbox
 from .sync_context import importar_desde_servidor
@@ -120,7 +120,6 @@ def sync_estado(request):
 
 
 @require_POST
-@csrf_exempt
 def sync_push(request):
     error = _requiere_token(request)
     if error:
@@ -256,6 +255,59 @@ def sync_push(request):
         'server_time': timezone.now().isoformat(),
     }, status=200 if not errores else 207)
 
+
+
+@require_GET
+def sync_usuarios(request):
+    error = _requiere_token(request)
+    if error:
+        return error
+
+    institucion = _institucion_sync()
+    if institucion is None:
+        return JsonResponse({'ok': False, 'error': 'No existe institución activa para sincronización.'}, status=503)
+
+    User = get_user_model()
+    membresias = (
+        MembresiaInstitucion.objects
+        .filter(institucion=institucion, activa=True)
+        .select_related('usuario', 'area')
+        .prefetch_related('accesos_modulos__modulo')
+        .order_by('usuario__username')
+    )
+
+    usuarios = []
+    for membresia in membresias:
+        usuario = membresia.usuario
+        usuarios.append({
+            'username': usuario.username,
+            'password': usuario.password,
+            'first_name': usuario.first_name,
+            'last_name': usuario.last_name,
+            'email': usuario.email,
+            'is_active': usuario.is_active,
+            'is_staff': usuario.is_staff,
+            'is_superuser': usuario.is_superuser,
+            'rol': membresia.rol,
+            'puesto': membresia.puesto,
+            'area_clave': membresia.area.clave if membresia.area else None,
+            'accesos': [
+                {
+                    'codigo': acceso.modulo.codigo,
+                    'puede_ver': acceso.puede_ver,
+                    'puede_registrar': acceso.puede_registrar,
+                    'puede_editar': acceso.puede_editar,
+                    'puede_administrar': acceso.puede_administrar,
+                }
+                for acceso in membresia.accesos_modulos.all()
+            ],
+        })
+
+    return JsonResponse({
+        'ok': True,
+        'total': len(usuarios),
+        'usuarios': usuarios,
+    })
 
 @require_GET
 def sync_pull(request):
