@@ -8,10 +8,21 @@
         @page { size: 58mm auto; margin: 2mm; }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
-        body { width: 54mm; max-width: 54mm; margin: 0 auto; color: #000; background: #fff; font-family: "Courier New", monospace; font-size: 9px; line-height: 1.25; overflow-wrap: anywhere; }
+        body {
+            width: 54mm;
+            max-width: 54mm;
+            margin: 0 auto;
+            color: #000;
+            background: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 9px;
+            line-height: 1.3;
+            overflow-wrap: anywhere;
+        }
         .centrado { text-align: center; }
         .logo { display: block; max-width: 24mm; max-height: 14mm; object-fit: contain; margin: 0 auto 1.5mm; }
         .nombre { font-size: 12px; font-weight: 800; }
+        .titulo { font-size: 10px; font-weight: 800; }
         .separador { border-top: 1px dashed #000; margin: 2mm 0; }
         .fila { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 2mm; align-items: start; }
         .fila span:last-child { text-align: right; }
@@ -20,8 +31,10 @@
         .concepto-nombre { font-weight: 700; }
         .concepto-datos { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 2mm; }
         .concepto-datos strong { text-align: right; white-space: nowrap; }
+        .referencia { padding-left: 2mm; font-size: 8px; }
         .totales { font-size: 9px; }
-        .total { font-size: 12px; font-weight: 800; }
+        .total { font-size: 12px; font-weight: 800; margin-bottom: 1mm; }
+        .estado-cancelado { font-size: 10px; font-weight: 800; }
         .pie { margin-top: 3mm; font-size: 8px; text-align: center; }
         .no-imprimir { text-align: center; margin: 12px 0; }
         @media print {
@@ -46,8 +59,8 @@
     </header>
 
     <div class="separador"></div>
-    <div class="centrado">
-        <strong>{% if cobro.estado == 'CANCELADO' %}COMPROBANTE CANCELADO{% else %}COMPROBANTE DE CUENTA{% endif %}</strong>
+    <div class="centrado titulo">
+        {% if cobro.estado == 'CANCELADO' %}COMPROBANTE CANCELADO{% else %}COMPROBANTE DE CUENTA{% endif %}
     </div>
     <div class="fila folio"><span>Folio:</span><strong>{{ cobro.folio }}</strong></div>
     <div class="fila"><span>Fecha:</span><span>{{ cobro.creado_el|date:"d/m/Y H:i" }}</span></div>
@@ -64,21 +77,28 @@
                 <strong>${{ cargo.subtotal|floatformat:2 }}</strong>
             </div>
         </div>
+    {% empty %}
+        <div class="centrado">Sin conceptos registrados</div>
     {% endfor %}
 
     <div class="separador"></div>
     <div class="totales">
         <div class="fila total"><span>TOTAL</span><span>${{ cobro.total|floatformat:2 }}</span></div>
+
         {% if cobro.pagos.all %}
             {% for pago in cobro.pagos.all %}
                 <div class="fila">
                     <span>{{ pago.get_forma_pago_display }}</span>
                     <span>${{ pago.monto|floatformat:2 }}</span>
                 </div>
+                {% if pago.referencia %}
+                    <div class="referencia">Ref: {{ pago.referencia }}</div>
+                {% endif %}
             {% endfor %}
         {% else %}
             <div class="fila"><span>Forma de pago</span><span>{{ cobro.get_forma_pago_display }}</span></div>
         {% endif %}
+
         {% if cobro.monto_recibido != None %}
             <div class="fila"><span>Recibido</span><span>${{ cobro.monto_recibido|floatformat:2 }}</span></div>
             <div class="fila"><span>Cambio</span><span>${{ cobro.cambio|floatformat:2 }}</span></div>
@@ -88,17 +108,25 @@
     <footer class="pie">
         {% if cobro.estado == 'CANCELADO' %}
             <div class="separador"></div>
-            <div><strong>PAGO CANCELADO Y DEVUELTO</strong></div>
+            <div class="estado-cancelado">PAGO CANCELADO Y DEVUELTO</div>
             <div>Reembolso: ${{ cobro.monto_reembolsado|floatformat:2 }}</div>
             <div>Medio: {{ cobro.get_forma_reembolso_display }}</div>
-            <div>Motivo: {{ cobro.motivo_cancelacion }}</div>
-            <div>Fecha: {{ cobro.cancelado_el|date:"d/m/Y H:i" }}</div>
+            {% if cobro.motivo_cancelacion %}<div>Motivo: {{ cobro.motivo_cancelacion }}</div>{% endif %}
+            {% if cobro.cancelado_el %}<div>Fecha: {{ cobro.cancelado_el|date:"d/m/Y H:i" }}</div>{% endif %}
         {% endif %}
-        {% if cobro.institucion.pie_documentos %}<div>{{ cobro.institucion.pie_documentos }}</div>{% endif %}
+
+        {% if cobro.institucion.pie_documentos %}
+            <div class="separador"></div>
+            <div>{{ cobro.institucion.pie_documentos }}</div>
+        {% endif %}
         <div>Gracias por su preferencia.</div>
         <div>Comprobante interno. No sustituye un CFDI.</div>
     </footer>
 
-    <script>window.addEventListener('load', function () { window.print(); });</script>
+    <script>
+        window.addEventListener('load', function () {
+            window.print();
+        });
+    </script>
 </body>
 </html>

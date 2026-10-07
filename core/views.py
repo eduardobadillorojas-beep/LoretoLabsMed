@@ -5313,6 +5313,7 @@ def auditoria_cajas(request):
     membresia = obtener_membresia_usuario(request)
     if membresia is None or membresia.rol != 'ADMIN':
         return redirect('inicio')
+
     hoy = timezone.localdate()
     try:
         desde = date.fromisoformat(request.GET.get('desde', ''))
@@ -5324,6 +5325,7 @@ def auditoria_cajas(request):
         hasta = hoy
     if desde > hasta:
         desde, hasta = hasta, desde
+
     cortes = list(
         CorteCaja.objects.filter(
             institucion=membresia.institucion,
@@ -5335,27 +5337,105 @@ def auditoria_cajas(request):
         CorteCaja.objects.filter(
             institucion=membresia.institucion,
             estado='ABIERTA',
-        ).select_related('responsable').prefetch_related('movimientos__registrado_por').order_by('abierto_el')
+        ).select_related('responsable').prefetch_related(
+            'movimientos__registrado_por'
+        ).order_by('abierto_el')
     )
     for caja in cajas_abiertas:
         caja.resumen_actual = calcular_movimientos_corte(caja)
+
     servicios_frecuentes = list(
         CargoPaciente.objects.filter(
             institucion=membresia.institucion,
             estado='PAGADO',
             cobro__estado='PAGADO',
             cobro__creado_el__date__range=(desde, hasta),
-        ).values('descripcion').annotate(total=Count('id')).order_by('-total', 'descripcion')[:10]
+        ).values('descripcion').annotate(
+            total=Count('id')
+        ).order_by('-total', 'descripcion')[:10]
     )
+
     cero = Decimal('0.00')
+    total_cobros = sum((c.total_cobros for c in cortes), cero)
+    total_abonos = sum((c.total_abonos for c in cortes), cero)
+    total_reembolsos = sum((c.total_reembolsos for c in cortes), cero)
+    total_neto = sum((c.total_neto for c in cortes), cero)
+    total_efectivo = sum((c.total_efectivo for c in cortes), cero)
+    total_tarjeta = sum((c.total_tarjeta for c in cortes), cero)
+    total_transferencia = sum((c.total_transferencia for c in cortes), cero)
+    total_otro = sum((c.total_otro for c in cortes), cero)
+    total_entradas_efectivo = sum((c.total_entradas_efectivo for c in cortes), cero)
+    total_retiros_efectivo = sum((c.total_retiros_efectivo for c in cortes), cero)
+    total_reembolso_efectivo = sum((c.reembolso_efectivo for c in cortes), cero)
+    total_diferencias = sum((c.diferencia for c in cortes), cero)
+
+    numero_cobros = sum(c.numero_cobros for c in cortes)
+    numero_abonos = sum(c.numero_abonos for c in cortes)
+    numero_reembolsos = sum(c.numero_reembolsos for c in cortes)
+    numero_movimientos = sum(c.numero_movimientos for c in cortes)
+    total_operaciones = numero_cobros + numero_abonos + numero_reembolsos + numero_movimientos
+
+    responsables = {}
+    for corte in cortes:
+        usuario = corte.responsable
+        nombre = usuario.get_full_name().strip() or usuario.username
+        if usuario.id not in responsables:
+            responsables[usuario.id] = {
+                'nombre': nombre,
+                'numero_cortes': 0,
+                'numero_cobros': 0,
+                'numero_abonos': 0,
+                'numero_reembolsos': 0,
+                'total_neto': cero,
+                'total_efectivo': cero,
+                'total_tarjeta': cero,
+                'total_transferencia': cero,
+                'total_otro': cero,
+                'total_diferencias': cero,
+            }
+        resumen = responsables[usuario.id]
+        resumen['numero_cortes'] += 1
+        resumen['numero_cobros'] += corte.numero_cobros
+        resumen['numero_abonos'] += corte.numero_abonos
+        resumen['numero_reembolsos'] += corte.numero_reembolsos
+        resumen['total_neto'] += corte.total_neto
+        resumen['total_efectivo'] += corte.total_efectivo
+        resumen['total_tarjeta'] += corte.total_tarjeta
+        resumen['total_transferencia'] += corte.total_transferencia
+        resumen['total_otro'] += corte.total_otro
+        resumen['total_diferencias'] += corte.diferencia
+
+    resumen_responsables = sorted(
+        responsables.values(),
+        key=lambda item: item['total_neto'],
+        reverse=True,
+    )
+
     context = {
-        'membresia': membresia, 'cortes': cortes, 'cajas_abiertas': cajas_abiertas, 'desde': desde, 'hasta': hasta,
-        'total_neto': sum((c.total_neto for c in cortes), cero),
-        'total_efectivo': sum((c.total_efectivo for c in cortes), cero),
-        'total_tarjeta': sum((c.total_tarjeta for c in cortes), cero),
-        'total_transferencia': sum((c.total_transferencia for c in cortes), cero),
-        'total_reembolsos': sum((c.total_reembolsos for c in cortes), cero),
-        'total_diferencias': sum((c.diferencia for c in cortes), cero),
+        'membresia': membresia,
+        'cortes': cortes,
+        'cajas_abiertas': cajas_abiertas,
+        'desde': desde,
+        'hasta': hasta,
+        'total_cobros': total_cobros,
+        'total_abonos': total_abonos,
+        'total_reembolsos': total_reembolsos,
+        'total_neto': total_neto,
+        'total_efectivo': total_efectivo,
+        'total_tarjeta': total_tarjeta,
+        'total_transferencia': total_transferencia,
+        'total_otro': total_otro,
+        'total_entradas_efectivo': total_entradas_efectivo,
+        'total_retiros_efectivo': total_retiros_efectivo,
+        'total_reembolso_efectivo': total_reembolso_efectivo,
+        'total_diferencias': total_diferencias,
+        'numero_cortes': len(cortes),
+        'numero_cobros': numero_cobros,
+        'numero_abonos': numero_abonos,
+        'numero_reembolsos': numero_reembolsos,
+        'numero_movimientos': numero_movimientos,
+        'total_operaciones': total_operaciones,
+        'resumen_responsables': resumen_responsables,
         'servicios_frecuentes': servicios_frecuentes,
     }
     return render(request, 'core/auditoria_cajas.html', context)

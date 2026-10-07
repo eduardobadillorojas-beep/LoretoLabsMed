@@ -462,6 +462,9 @@ class Paciente(models.Model):
 
         if nuevo_paciente and not self.identificacion:
             numero_registro = self.pk + 99999
+            while Paciente.objects.filter(identificacion=str(numero_registro)).exclude(pk=self.pk).exists():
+                numero_registro += 1
+
             self.identificacion = str(numero_registro)
 
             Paciente.objects.filter(

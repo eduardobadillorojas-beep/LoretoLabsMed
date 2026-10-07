@@ -1,8 +1,541 @@
-{% extends 'core/base.html' %}{% block title %}Auditoría de cajas | Loreto One{% endblock %}{% block content %}
-<style>.wrap{max-width:1400px;margin:auto;padding:20px}.panel,.card{background:#1e293b;border:1px solid #334155;border-radius:9px}.filtros{padding:12px;display:grid;grid-template-columns:1fr 1fr auto;gap:9px;margin:12px 0}.campo{background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:7px;padding:8px}.resumen{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:12px}.card{padding:11px}.label{font-size:.62rem;color:#94a3b8;text-transform:uppercase}.valor{font-size:1.1rem;font-weight:800;color:#f8fafc}.tabla{font-size:.7rem;margin:0}.tabla th{font-size:.58rem;color:#94a3b8;text-transform:uppercase;white-space:nowrap}.ok{color:#86efac}.dif{color:#fca5a5}@media(max-width:900px){.resumen{grid-template-columns:repeat(2,1fr)}.filtros{grid-template-columns:1fr}}</style>
-<div class="wrap"><div style="display:flex;justify-content:space-between;gap:12px"><div><h1 style="font-size:1.55rem">Auditoría de cajas</h1><div style="color:#94a3b8;font-size:.72rem">Acceso exclusivo de Administración. Los cortes cerrados no pueden modificarse.</div></div><a href="{% url 'panel_config' %}" class="btn btn-outline-light btn-sm">Volver</a></div>
-<form method="get" class="panel filtros"><input class="campo" type="date" name="desde" value="{{ desde|date:'Y-m-d' }}"><input class="campo" type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}"><button class="btn btn-primary btn-sm">Consultar periodo</button></form>
-{% if cajas_abiertas %}<section class="panel" style="margin-bottom:12px;padding:14px"><h2 style="font-size:.95rem;color:#86efac">Cajas abiertas ahora</h2><div class="table-responsive"><table class="table table-dark table-hover tabla"><thead><tr><th>Folio</th><th>Responsable</th><th>Apertura</th><th>Fondo</th><th>Neto cobrado</th><th>Entradas</th><th>Retiros</th><th>Reembolsos efectivo</th><th>Efectivo esperado</th></tr></thead><tbody>{% for caja in cajas_abiertas %}<tr><td><strong>{{ caja.folio }}</strong></td><td>{{ caja.responsable.get_full_name|default:caja.responsable.username }}</td><td>{{ caja.abierto_el|date:"d/m/Y H:i" }}</td><td>${{ caja.fondo_inicial|floatformat:2 }}</td><td>${{ caja.resumen_actual.total_neto|floatformat:2 }}</td><td class="ok">+${{ caja.resumen_actual.total_entradas_efectivo|floatformat:2 }}</td><td class="dif">{% if caja.resumen_actual.total_retiros_efectivo %}-{% endif %}${{ caja.resumen_actual.total_retiros_efectivo|floatformat:2 }}</td><td class="dif">{% if caja.resumen_actual.reembolso_efectivo %}-{% endif %}${{ caja.resumen_actual.reembolso_efectivo|floatformat:2 }}</td><td class="ok"><strong>${{ caja.resumen_actual.efectivo_esperado|floatformat:2 }}</strong></td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
-<div class="resumen"><div class="card"><div class="label">Neto</div><div class="valor">${{ total_neto|floatformat:2 }}</div></div><div class="card"><div class="label">Efectivo</div><div class="valor">${{ total_efectivo|floatformat:2 }}</div></div><div class="card"><div class="label">Tarjeta</div><div class="valor">${{ total_tarjeta|floatformat:2 }}</div></div><div class="card"><div class="label">Transferencia</div><div class="valor">${{ total_transferencia|floatformat:2 }}</div></div><div class="card"><div class="label">Reembolsos</div><div class="valor">{% if total_reembolsos %}-{% endif %}${{ total_reembolsos|floatformat:2 }}</div></div><div class="card"><div class="label">Diferencias</div><div class="valor">${{ total_diferencias|floatformat:2 }}</div></div></div>
-<section class="panel table-responsive"><table class="table table-dark table-hover tabla"><thead><tr><th>Folio</th><th>Responsable</th><th>Apertura</th><th>Cierre</th><th>Fondo</th><th>Neto</th><th>Entradas</th><th>Retiros</th><th>Esperado</th><th>Contado</th><th>Diferencia</th><th>Observaciones</th><th>Ticket</th></tr></thead><tbody>{% for corte in cortes %}<tr><td><strong>{{ corte.folio }}</strong></td><td>{{ corte.responsable.get_full_name|default:corte.responsable.username }}</td><td>{{ corte.abierto_el|date:"d/m/Y H:i" }}</td><td>{{ corte.cerrado_el|date:"d/m/Y H:i" }}</td><td>${{ corte.fondo_inicial|floatformat:2 }}</td><td>${{ corte.total_neto|floatformat:2 }}</td><td class="ok">+${{ corte.total_entradas_efectivo|floatformat:2 }}</td><td class="dif">{% if corte.total_retiros_efectivo %}-{% endif %}${{ corte.total_retiros_efectivo|floatformat:2 }}</td><td>${{ corte.efectivo_esperado|floatformat:2 }}</td><td>${{ corte.efectivo_contado|floatformat:2 }}</td><td class="{% if corte.diferencia == 0 %}ok{% else %}dif{% endif %}">${{ corte.diferencia|floatformat:2 }}</td><td>{{ corte.observaciones_cierre|default:"—" }}</td><td><a target="_blank" href="{% url 'ticket_corte_caja' corte.id %}" class="btn btn-outline-info btn-sm">Abrir</a></td></tr>{% empty %}<tr><td colspan="13" style="text-align:center;padding:30px;color:#64748b">No hay cortes cerrados en este periodo.</td></tr>{% endfor %}</tbody></table></section>
-{% if servicios_frecuentes %}<section class="panel" style="margin-top:12px;padding:14px"><h2 style="font-size:.9rem">Servicios más realizados en el periodo</h2>{% for servicio in servicios_frecuentes %}<div style="display:flex;justify-content:space-between;border-bottom:1px solid #334155;padding:7px 0;font-size:.72rem"><span>{{ forloop.counter }}. {{ servicio.descripcion }}</span><strong>{{ servicio.total }}</strong></div>{% endfor %}</section>{% endif %}</div>{% endblock %}
+{% extends 'core/base.html' %}
+{% block title %}Auditoría de cajas | Loreto One{% endblock %}
+{% block content %}
+
+<style>
+.wrap{max-width:1500px;margin:auto;padding:20px}
+.panel,.card{background:#1e293b;border:1px solid #334155;border-radius:9px}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.sub{color:#94a3b8;font-size:.72rem}
+.filtros{padding:12px;display:grid;grid-template-columns:1fr 1fr auto auto;gap:9px;margin:12px 0}
+.campo{background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:7px;padding:8px}
+.resumen{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
+.card{padding:11px}
+.label{font-size:.62rem;color:#94a3b8;text-transform:uppercase}
+.valor{font-size:1.08rem;font-weight:800;color:#f8fafc}
+.tabla{font-size:.69rem;margin:0}
+.tabla th{font-size:.57rem;color:#94a3b8;text-transform:uppercase;white-space:nowrap}
+.ok{color:#86efac}
+.dif{color:#fca5a5}
+.section-title{font-size:.9rem;font-weight:800;margin:0}
+.print-only{display:none}
+
+@media(max-width:1000px){
+    .resumen{grid-template-columns:repeat(2,1fr)}
+    .filtros{grid-template-columns:1fr}
+    .top{flex-direction:column}
+}
+
+@media print{
+    .no-print{display:none!important}
+    .print-only{display:block}
+    .wrap{max-width:none;padding:0}
+    .panel,.card{background:#fff!important;color:#000!important;border:1px solid #bbb}
+    .tabla{color:#000!important}
+    .table-dark{
+        --bs-table-bg:#fff;
+        --bs-table-color:#000;
+        --bs-table-striped-color:#000;
+        --bs-table-hover-color:#000
+    }
+    .label,.sub,.tabla th{color:#444!important}
+    .valor,.ok,.dif{color:#000!important}
+}
+</style>
+
+<div class="wrap">
+
+<div class="top">
+    <div>
+        <h1 style="font-size:1.55rem;margin-bottom:3px">Auditoría de cajas</h1>
+        <div class="sub">
+            Acceso exclusivo de Administración. Los cortes cerrados no pueden modificarse.
+        </div>
+    </div>
+
+    <div class="no-print">
+        <button type="button"
+                class="btn btn-outline-info btn-sm"
+                onclick="window.print()">
+            Imprimir reporte
+        </button>
+
+        <a href="{% url 'panel_config' %}"
+           class="btn btn-outline-light btn-sm">
+            Volver
+        </a>
+    </div>
+</div>
+
+<div class="print-only" style="margin-bottom:10px">
+    <strong>REPORTE ADMINISTRATIVO DE CAJAS</strong><br>
+    Periodo: {{ desde|date:'d/m/Y' }} al {{ hasta|date:'d/m/Y' }}
+</div>
+
+<form method="get" class="panel filtros no-print">
+
+    <input class="campo"
+           type="date"
+           name="desde"
+           value="{{ desde|date:'Y-m-d' }}">
+
+    <input class="campo"
+           type="date"
+           name="hasta"
+           value="{{ hasta|date:'Y-m-d' }}">
+
+    <button class="btn btn-primary btn-sm">
+        Consultar periodo
+    </button>
+
+    <button type="button"
+            class="btn btn-outline-info btn-sm"
+            onclick="window.print()">
+        Imprimir
+    </button>
+
+</form>
+
+{% if cajas_abiertas %}
+<section class="panel" style="margin-bottom:12px;padding:14px">
+
+    <h2 class="section-title" style="color:#86efac">
+        Cajas abiertas ahora
+    </h2>
+
+    <div class="table-responsive">
+        <table class="table table-dark table-hover tabla">
+
+            <thead>
+                <tr>
+                    <th>Folio</th>
+                    <th>Responsable</th>
+                    <th>Apertura</th>
+                    <th>Fondo</th>
+                    <th>Neto</th>
+                    <th>Entradas</th>
+                    <th>Retiros</th>
+                    <th>Reemb. efectivo</th>
+                    <th>Efectivo esperado</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for caja in cajas_abiertas %}
+                <tr>
+
+                    <td>
+                        <strong>{{ caja.folio }}</strong>
+                    </td>
+
+                    <td>
+                        {{ caja.responsable.get_full_name|default:caja.responsable.username }}
+                    </td>
+
+                    <td>
+                        {{ caja.abierto_el|date:"d/m/Y H:i" }}
+                    </td>
+
+                    <td>
+                        ${{ caja.fondo_inicial|floatformat:2 }}
+                    </td>
+
+                    <td>
+                        ${{ caja.resumen_actual.total_neto|floatformat:2 }}
+                    </td>
+
+                    <td class="ok">
+                        +${{ caja.resumen_actual.total_entradas_efectivo|floatformat:2 }}
+                    </td>
+
+                    <td class="dif">
+                        {% if caja.resumen_actual.total_retiros_efectivo %}-{% endif %}
+                        ${{ caja.resumen_actual.total_retiros_efectivo|floatformat:2 }}
+                    </td>
+
+                    <td class="dif">
+                        {% if caja.resumen_actual.reembolso_efectivo %}-{% endif %}
+                        ${{ caja.resumen_actual.reembolso_efectivo|floatformat:2 }}
+                    </td>
+
+                    <td class="ok">
+                        <strong>
+                            ${{ caja.resumen_actual.efectivo_esperado|floatformat:2 }}
+                        </strong>
+                    </td>
+
+                </tr>
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+    </div>
+
+</section>
+{% endif %}
+
+
+<div class="resumen">
+
+    <div class="card">
+        <div class="label">Neto</div>
+        <div class="valor">${{ total_neto|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Cobros</div>
+        <div class="valor">${{ total_cobros|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Abonos</div>
+        <div class="valor">${{ total_abonos|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Reembolsos</div>
+        <div class="valor">
+            {% if total_reembolsos %}-{% endif %}
+            ${{ total_reembolsos|floatformat:2 }}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="label">Diferencias</div>
+        <div class="valor">${{ total_diferencias|floatformat:2 }}</div>
+    </div>
+
+
+    <div class="card">
+        <div class="label">Efectivo</div>
+        <div class="valor">${{ total_efectivo|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Tarjeta</div>
+        <div class="valor">${{ total_tarjeta|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Transferencia</div>
+        <div class="valor">${{ total_transferencia|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Otros métodos</div>
+        <div class="valor">${{ total_otro|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Reembolso efectivo</div>
+        <div class="valor">${{ total_reembolso_efectivo|floatformat:2 }}</div>
+    </div>
+
+
+    <div class="card">
+        <div class="label">Entradas extraordinarias</div>
+        <div class="valor">${{ total_entradas_efectivo|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Retiros de efectivo</div>
+        <div class="valor">${{ total_retiros_efectivo|floatformat:2 }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Cortes cerrados</div>
+        <div class="valor">{{ numero_cortes }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Operaciones registradas</div>
+        <div class="valor">{{ total_operaciones }}</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Movimientos de caja</div>
+        <div class="valor">{{ numero_movimientos }}</div>
+    </div>
+
+</div>
+
+
+<section class="panel" style="margin-bottom:12px">
+
+    <div style="padding:11px 13px;border-bottom:1px solid #334155">
+        <h2 class="section-title">
+            Actividad del periodo
+        </h2>
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-dark tabla">
+
+            <thead>
+                <tr>
+                    <th>Cobros</th>
+                    <th>Abonos</th>
+                    <th>Reembolsos</th>
+                    <th>Movimientos manuales</th>
+                    <th>Total operaciones</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                <tr>
+                    <td>{{ numero_cobros }}</td>
+                    <td>{{ numero_abonos }}</td>
+                    <td>{{ numero_reembolsos }}</td>
+                    <td>{{ numero_movimientos }}</td>
+                    <td>
+                        <strong>{{ total_operaciones }}</strong>
+                    </td>
+                </tr>
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+
+
+{% if resumen_responsables %}
+<section class="panel" style="margin-bottom:12px">
+
+    <div style="padding:11px 13px;border-bottom:1px solid #334155">
+        <h2 class="section-title">
+            Resumen por responsable de caja
+        </h2>
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-dark table-hover tabla">
+
+            <thead>
+                <tr>
+                    <th>Responsable</th>
+                    <th>Cortes</th>
+                    <th>Cobros</th>
+                    <th>Abonos</th>
+                    <th>Reemb.</th>
+                    <th>Neto</th>
+                    <th>Efectivo</th>
+                    <th>Tarjeta</th>
+                    <th>Transfer.</th>
+                    <th>Otros</th>
+                    <th>Diferencias</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+            {% for r in resumen_responsables %}
+                <tr>
+
+                    <td>
+                        <strong>{{ r.nombre }}</strong>
+                    </td>
+
+                    <td>{{ r.numero_cortes }}</td>
+                    <td>{{ r.numero_cobros }}</td>
+                    <td>{{ r.numero_abonos }}</td>
+                    <td>{{ r.numero_reembolsos }}</td>
+
+                    <td>
+                        <strong>${{ r.total_neto|floatformat:2 }}</strong>
+                    </td>
+
+                    <td>${{ r.total_efectivo|floatformat:2 }}</td>
+                    <td>${{ r.total_tarjeta|floatformat:2 }}</td>
+                    <td>${{ r.total_transferencia|floatformat:2 }}</td>
+                    <td>${{ r.total_otro|floatformat:2 }}</td>
+
+                    <td class="{% if r.total_diferencias == 0 %}ok{% else %}dif{% endif %}">
+                        ${{ r.total_diferencias|floatformat:2 }}
+                    </td>
+
+                </tr>
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>
+{% endif %}
+
+
+<section class="panel table-responsive">
+
+    <div style="padding:11px 13px;border-bottom:1px solid #334155">
+        <h2 class="section-title">
+            Cortes cerrados del periodo
+        </h2>
+    </div>
+
+    <table class="table table-dark table-hover tabla">
+
+        <thead>
+
+            <tr>
+                <th>Folio</th>
+                <th>Responsable</th>
+                <th>Apertura</th>
+                <th>Cierre</th>
+                <th>Fondo</th>
+                <th>Neto</th>
+                <th>Efectivo</th>
+                <th>Tarjeta</th>
+                <th>Transfer.</th>
+                <th>Otros</th>
+                <th>Entradas</th>
+                <th>Retiros</th>
+                <th>Esperado</th>
+                <th>Contado</th>
+                <th>Diferencia</th>
+                <th>Observaciones</th>
+                <th class="no-print">Ticket</th>
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+        {% for corte in cortes %}
+
+            <tr>
+
+                <td>
+                    <strong>{{ corte.folio }}</strong>
+                </td>
+
+                <td>
+                    {{ corte.responsable.get_full_name|default:corte.responsable.username }}
+                </td>
+
+                <td>
+                    {{ corte.abierto_el|date:"d/m/Y H:i" }}
+                </td>
+
+                <td>
+                    {{ corte.cerrado_el|date:"d/m/Y H:i" }}
+                </td>
+
+                <td>
+                    ${{ corte.fondo_inicial|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.total_neto|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.total_efectivo|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.total_tarjeta|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.total_transferencia|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.total_otro|floatformat:2 }}
+                </td>
+
+                <td class="ok">
+                    +${{ corte.total_entradas_efectivo|floatformat:2 }}
+                </td>
+
+                <td class="dif">
+                    {% if corte.total_retiros_efectivo %}-{% endif %}
+                    ${{ corte.total_retiros_efectivo|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.efectivo_esperado|floatformat:2 }}
+                </td>
+
+                <td>
+                    ${{ corte.efectivo_contado|floatformat:2 }}
+                </td>
+
+                <td class="{% if corte.diferencia == 0 %}ok{% else %}dif{% endif %}">
+                    ${{ corte.diferencia|floatformat:2 }}
+                </td>
+
+                <td>
+                    {{ corte.observaciones_cierre|default:"—" }}
+                </td>
+
+                <td class="no-print">
+                    <a target="_blank"
+                       href="{% url 'ticket_corte_caja' corte.id %}"
+                       class="btn btn-outline-info btn-sm">
+                        Abrir
+                    </a>
+                </td>
+
+            </tr>
+
+        {% empty %}
+
+            <tr>
+                <td colspan="17"
+                    style="text-align:center;padding:30px;color:#64748b">
+                    No hay cortes cerrados en este periodo.
+                </td>
+            </tr>
+
+        {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</section>
+
+
+{% if servicios_frecuentes %}
+<section class="panel" style="margin-top:12px;padding:14px">
+
+    <h2 class="section-title">
+        Servicios más realizados en el periodo
+    </h2>
+
+    {% for servicio in servicios_frecuentes %}
+
+        <div style="
+            display:flex;
+            justify-content:space-between;
+            border-bottom:1px solid #334155;
+            padding:7px 0;
+            font-size:.72rem">
+
+            <span>
+                {{ forloop.counter }}. {{ servicio.descripcion }}
+            </span>
+
+            <strong>
+                {{ servicio.total }}
+            </strong>
+
+        </div>
+
+    {% endfor %}
+
+</section>
+{% endif %}
+
+</div>
+
+{% endblock %}
