@@ -1,3 +1,4 @@
+
 """
 Django settings for config project.
 
@@ -62,7 +63,7 @@ if RENDER_EXTERNAL_HOSTNAME:
         RENDER_EXTERNAL_HOSTNAME
     )
 
-# Dejamos también explícito el dominio actual.
+# Dominio de producción.
 if 'loreto-pacs.onrender.com' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(
         'loreto-pacs.onrender.com'
@@ -77,12 +78,10 @@ CSRF_TRUSTED_ORIGINS = [
     'https://loreto-pacs.onrender.com',
 ]
 
-
 SECURE_PROXY_SSL_HEADER = (
     'HTTP_X_FORWARDED_PROTO',
     'https',
 )
-
 
 CSRF_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_SECURE = IS_PRODUCTION
@@ -106,7 +105,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Almacenamiento de archivos en Cloudflare R2 / S3.
+    # Almacenamiento en Cloudflare R2 / S3.
     'storages',
 
     # Aplicaciones de Loreto One.
@@ -153,9 +152,6 @@ ROOT_URLCONF = 'config.urls'
 # AUTENTICACIÓN
 # ============================================================
 
-# LoretoOne utiliza su propia vista de inicio de sesión en /login/.
-# Esto evita que @login_required intente enviar al usuario a la
-# ruta predeterminada de Django: /accounts/login/.
 LOGIN_URL = '/login/'
 
 
@@ -268,14 +264,13 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # ============================================================
 #
 # LOCAL:
-#   Los archivos continúan guardándose en el sistema de archivos
-#   de la computadora.
+#   Archivos guardados en el sistema local.
 #
-# PRODUCCIÓN / RENDER:
-#   Los archivos médicos se almacenan en Cloudflare R2.
+# PRODUCCIÓN:
+#   Archivos médicos almacenados en Cloudflare R2.
 #
-# Los archivos de estudios permanecen privados. Django genera
-# URLs firmadas temporales cuando necesita mostrarlos.
+# El bucket permanece privado y se generan URLs
+# temporales firmadas para acceder a los archivos.
 # ============================================================
 
 if IS_PRODUCTION:
@@ -313,18 +308,12 @@ if IS_PRODUCTION:
                     'virtual'
                 ),
 
-                # El bucket permanece privado.
-                # Las URLs generadas serán firmadas.
                 'querystring_auth': True,
 
-                # URL válida durante 15 minutos.
                 'querystring_expire': 900,
 
-                # Cloudflare R2 no utiliza ACL tradicionales.
                 'default_acl': None,
 
-                # Evita sobrescribir accidentalmente
-                # archivos con el mismo nombre.
                 'file_overwrite': False,
             },
         },
@@ -354,3 +343,34 @@ else:
             ),
         },
     }
+
+
+# ============================================================
+# REGISTRO DE ERRORES DE DJANGO / RENDER
+# ============================================================
+#
+# Registra errores HTTP 500 en la salida de consola.
+# No activa DEBUG en producción.
+# No modifica usuarios, pacientes ni base de datos.
+# ============================================================
+
+LOGGING = {
+    'version': 1,
+
+    'disable_existing_loggers': False,
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'level': 'ERROR',
+        },
+    },
+
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
+}
