@@ -4965,10 +4965,21 @@ def panel_recepcion(request):
             paciente.estado_atencion = 'Registrado'
             paciente.estado_atencion_clase = 'secondary'
             paciente.estado_atencion_area = ''
+            paciente.actividad_id = None
+            paciente.actividad_tipo = ''
+            paciente.actividad_detalle = ''
+
+            if actividad is not None:
+                paciente.actividad_id = actividad.id
+                paciente.actividad_tipo = tipo_actividad
 
             if tipo_actividad == 'CONSULTA':
                 paciente.estado_atencion_area = (
                     'Consulta médica'
+                )
+                paciente.actividad_detalle = (
+                    actividad.motivo_consulta
+                    or 'Consulta médica'
                 )
 
                 if actividad.estado == 'EN_ESPERA':
@@ -4998,6 +5009,11 @@ def panel_recepcion(request):
             elif tipo_actividad == 'ESTUDIO':
                 paciente.estado_atencion_area = (
                     'Radiología'
+                )
+                paciente.actividad_detalle = (
+                    actividad.tipo_estudio.nombre
+                    if actividad.tipo_estudio
+                    else 'Estudio radiológico'
                 )
 
                 if actividad.estado == 'PENDIENTE':
@@ -5080,9 +5096,14 @@ def panel_recepcion(request):
     pacientes_de_hoy_queryset = (
         Paciente.objects
         .filter(
-            institucion=institucion,
-            creado_el__date=hoy
+            institucion=institucion
         )
+        .filter(
+            Q(creado_el__date=hoy)
+            | Q(consultas__fecha_llegada__date=hoy)
+            | Q(estudios__fecha_creacion__date=hoy)
+        )
+        .distinct()
         .prefetch_related(
             Prefetch(
                 'consultas',
@@ -5111,6 +5132,7 @@ def panel_recepcion(request):
     citas_de_hoy = (
         Cita.objects
         .select_related(
+            'paciente',
             'tipo_estudio'
         )
         .filter(
@@ -5161,6 +5183,179 @@ def panel_recepcion(request):
         'core/panel_recepcion.html',
         context
     )
+
+
+@login_required
+@require_POST
+def registrar_llegada_cita(request, cita_id):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('panel_config')
+
+    cita = get_object_or_404(
+        Cita.objects.select_related('paciente', 'tipo_estudio'),
+        pk=cita_id,
+        institucion=membresia.institucion,
+    )
+
+    if cita.estado in ['CANCELADA', 'NO_ASISTIO', 'FINALIZADA']:
+        messages.error(request, 'Esta cita ya no puede registrar una llegada.')
+        return redirect('panel_recepcion')
+
+    if cita.estado in ['LLEGO', 'EN_ESPERA', 'EN_ATENCION']:
+        messages.info(request, 'La llegada de esta cita ya fue registrada.')
+        return redirect('panel_recepcion')
+
+    if cita.paciente is None:
+        messages.error(
+            request,
+            'La cita no está vinculada con un expediente. Primero vincula o registra al paciente.'
+        )
+        return redirect('panel_recepcion')
+
+    with transaction.atomic():
+        if cita.area == 'RADIOLOGIA':
+            if cita.tipo_estudio is None:
+                messages.error(request, 'La cita no tiene un estudio asignado.')
+                return redirect('panel_recepcion')
+
+            Estudio.objects.create(
+                paciente=cita.paciente,
+                tipo_estudio=cita.tipo_estudio,
+                medico_solicitante=cita.medico_nombre or None,
+                descripcion=cita.motivo or cita.observaciones or None,
+                estado='PENDIENTE',
+            )
+        else:
+            Consulta.objects.create(
+                paciente=cita.paciente,
+                motivo_consulta=cita.motivo or cita.get_area_display(),
+                estado='EN_ESPERA',
+            )
+
+        cita.estado = 'EN_ESPERA'
+        cita.save(update_fields=['estado'])
+
+    messages.success(
+        request,
+        f'Se registró la llegada de {cita.nombre_paciente}.'
+    )
+    return redirect('panel_recepcion')
+
+
+@login_required
+@require_POST
+def cambiar_estado_recepcion(request, tipo_actividad, actividad_id):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    if membresia.rol not in ['RECEPCION', 'ADMIN']:
+        return redirect('panel_config')
+
+    nuevo_estado = request.POST.get('estado', '').strip().upper()
+    institucion = membresia.institucion
+    hoy = timezone.localdate()
+
+    if tipo_actividad == 'CONSULTA':
+        actividad = get_object_or_404(
+            Consulta.objects.select_related('paciente'),
+            pk=actividad_id,
+            paciente__institucion=institucion,
+        )
+        estados_permitidos = {
+            'EN_ESPERA',
+            'EN_CONSULTA',
+            'FINALIZADA',
+        }
+        if nuevo_estado not in estados_permitidos:
+            messages.error(request, 'El estado seleccionado no es válido.')
+            return redirect('panel_recepcion')
+
+        actividad.estado = nuevo_estado
+        campos = ['estado']
+
+        if nuevo_estado in ['EN_CONSULTA', 'FINALIZADA'] and actividad.fecha_inicio is None:
+            actividad.fecha_inicio = timezone.now()
+            campos.append('fecha_inicio')
+
+        if nuevo_estado == 'FINALIZADA':
+            actividad.fecha_finalizacion = timezone.now()
+            campos.append('fecha_finalizacion')
+
+        actividad.save(update_fields=campos)
+
+        estado_cita = {
+            'EN_ESPERA': 'EN_ESPERA',
+            'EN_CONSULTA': 'EN_ATENCION',
+            'FINALIZADA': 'FINALIZADA',
+        }[nuevo_estado]
+
+        Cita.objects.filter(
+            institucion=institucion,
+            paciente=actividad.paciente,
+            fecha_hora__date=hoy,
+        ).exclude(
+            area='RADIOLOGIA'
+        ).exclude(
+            estado__in=['CANCELADA', 'NO_ASISTIO']
+        ).update(estado=estado_cita)
+
+    elif tipo_actividad == 'ESTUDIO':
+        actividad = get_object_or_404(
+            Estudio.objects.select_related('paciente', 'tipo_estudio'),
+            pk=actividad_id,
+            paciente__institucion=institucion,
+        )
+        estados_permitidos = {
+            'PENDIENTE',
+            'EN_PROCESO',
+            'COMPLETADO',
+        }
+        if nuevo_estado not in estados_permitidos:
+            messages.error(request, 'El estado seleccionado no es válido.')
+            return redirect('panel_recepcion')
+
+        actividad.estado = nuevo_estado
+        campos = ['estado']
+
+        if nuevo_estado in ['EN_PROCESO', 'COMPLETADO'] and actividad.fecha_inicio is None:
+            actividad.fecha_inicio = timezone.now()
+            campos.append('fecha_inicio')
+
+        if nuevo_estado == 'COMPLETADO':
+            actividad.fecha_finalizacion = timezone.now()
+            campos.append('fecha_finalizacion')
+
+        actividad.save(update_fields=campos)
+
+        estado_cita = {
+            'PENDIENTE': 'EN_ESPERA',
+            'EN_PROCESO': 'EN_ATENCION',
+            'COMPLETADO': 'FINALIZADA',
+        }[nuevo_estado]
+
+        Cita.objects.filter(
+            institucion=institucion,
+            paciente=actividad.paciente,
+            tipo_estudio=actividad.tipo_estudio,
+            area='RADIOLOGIA',
+            fecha_hora__date=hoy,
+        ).exclude(
+            estado__in=['CANCELADA', 'NO_ASISTIO']
+        ).update(estado=estado_cita)
+
+    else:
+        messages.error(request, 'El tipo de atención no es válido.')
+        return redirect('panel_recepcion')
+
+    messages.success(request, 'El estado del paciente fue actualizado.')
+    return redirect('panel_recepcion')
 
 
 # =========================================================

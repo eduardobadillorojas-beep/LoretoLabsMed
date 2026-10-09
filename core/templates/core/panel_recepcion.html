@@ -212,6 +212,22 @@ Recepción | Loreto One
         scroll-margin-top: 20px;
     }
 
+    .control-estado {
+        display: inline-flex;
+        gap: 5px;
+        align-items: center;
+        justify-content: flex-end;
+        margin-left: 5px;
+    }
+
+    .control-estado .form-select {
+        width: 145px;
+        min-height: 27px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        font-size: .7rem;
+    }
+
     @media (max-width: 1000px) {
         .recepcion-top {
             grid-template-columns: 1fr;
@@ -291,7 +307,7 @@ Recepción | Loreto One
         <div class="acciones-top">
 
             <a href="{% url 'equipos_incidencias_institucionales' %}" class="btn btn-outline-warning btn-sm">
-                ⚠ Falla{% if incidencias_equipos_abiertas %} · {{ incidencias_equipos_abiertas }}{% endif %}
+                ⚠  Falla{% if incidencias_equipos_abiertas %} · {{ incidencias_equipos_abiertas }}{% endif %}
             </a>
 
             <a
@@ -401,6 +417,7 @@ Recepción | Loreto One
                             <tr>
                                 <th>Registro</th>
                                 <th>Paciente</th>
+                                <th>Atención</th>
                                 <th>Nacimiento</th>
                                 <th>Teléfono</th>
                                 <th>Estado</th>
@@ -423,6 +440,10 @@ Recepción | Loreto One
                                     <td class="nombre-paciente">
                                         {{ paciente.nombre }}
                                         {{ paciente.apellido }}
+                                    </td>
+
+                                    <td>
+                                        {{ paciente.actividad_detalle|default:"—" }}
                                     </td>
 
                                     <td>
@@ -458,6 +479,32 @@ Recepción | Loreto One
                                         >
                                             Servicios
                                         </a>
+
+                                        {% if paciente.actividad_id %}
+                                            <form
+                                                method="post"
+                                                action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}"
+                                                class="control-estado"
+                                            >
+                                                {% csrf_token %}
+
+                                                <select name="estado" class="form-select form-select-sm">
+                                                    {% if paciente.actividad_tipo == 'CONSULTA' %}
+                                                        <option value="EN_ESPERA">En espera</option>
+                                                        <option value="EN_CONSULTA">Siendo atendido</option>
+                                                        <option value="FINALIZADA">Atención terminada</option>
+                                                    {% else %}
+                                                        <option value="PENDIENTE">En espera</option>
+                                                        <option value="EN_PROCESO">Siendo atendido</option>
+                                                        <option value="COMPLETADO">Atención terminada</option>
+                                                    {% endif %}
+                                                </select>
+
+                                                <button type="submit" class="btn btn-sm btn-primary py-0">
+                                                    Cambiar
+                                                </button>
+                                            </form>
+                                        {% endif %}
 
                                     </td>
 
@@ -520,6 +567,7 @@ Recepción | Loreto One
                         <tr>
                             <th>Registro</th>
                             <th>Paciente</th>
+                            <th>Atención</th>
                             <th>Hora</th>
                             <th>Género</th>
                             <th>Teléfono</th>
@@ -545,6 +593,10 @@ Recepción | Loreto One
                                 <td class="nombre-paciente">
                                     {{ paciente.nombre }}
                                     {{ paciente.apellido }}
+                                </td>
+
+                                <td>
+                                    {{ paciente.actividad_detalle|default:"—" }}
                                 </td>
 
                                 <td>
@@ -584,6 +636,32 @@ Recepción | Loreto One
                                     >
                                         Servicios
                                     </a>
+
+                                    {% if paciente.actividad_id %}
+                                        <form
+                                            method="post"
+                                            action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}"
+                                            class="control-estado"
+                                        >
+                                            {% csrf_token %}
+
+                                            <select name="estado" class="form-select form-select-sm">
+                                                {% if paciente.actividad_tipo == 'CONSULTA' %}
+                                                    <option value="EN_ESPERA">En espera</option>
+                                                    <option value="EN_CONSULTA">Siendo atendido</option>
+                                                    <option value="FINALIZADA">Atención terminada</option>
+                                                {% else %}
+                                                    <option value="PENDIENTE">En espera</option>
+                                                    <option value="EN_PROCESO">Siendo atendido</option>
+                                                    <option value="COMPLETADO">Atención terminada</option>
+                                                {% endif %}
+                                            </select>
+
+                                            <button type="submit" class="btn btn-sm btn-primary py-0">
+                                                Cambiar
+                                            </button>
+                                        </form>
+                                    {% endif %}
 
                                 </td>
 
@@ -648,6 +726,7 @@ Recepción | Loreto One
                             <th>Médico</th>
                             <th>Motivo / Estudio</th>
                             <th>Estado</th>
+                            <th class="text-end">Acción</th>
                         </tr>
                     </thead>
 
@@ -703,6 +782,28 @@ Recepción | Loreto One
 
                                 <td>
                                     {{ cita.get_estado_display }}
+                                </td>
+
+                                <td class="text-end">
+                                    {% if cita.estado == 'PROGRAMADA' or cita.estado == 'CONFIRMADA' %}
+                                        {% if cita.paciente %}
+                                            <form
+                                                method="post"
+                                                action="{% url 'registrar_llegada_cita' cita.id %}"
+                                            >
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-success py-0">
+                                                    Registrar llegada
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">
+                                                Sin expediente vinculado
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
                                 </td>
 
                             </tr>

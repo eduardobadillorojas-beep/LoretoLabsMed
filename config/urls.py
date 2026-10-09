@@ -350,7 +350,17 @@ urlpatterns = [
         views.panel_recepcion,
         name='panel_recepcion'
     ),
+    path(
+        'recepcion/citas/<int:cita_id>/registrar-llegada/',
+        views.registrar_llegada_cita,
+        name='registrar_llegada_cita'
+    ),
 
+    path(
+        'recepcion/atencion/<str:tipo_actividad>/<int:actividad_id>/estado/',
+        views.cambiar_estado_recepcion,
+        name='cambiar_estado_recepcion'
+    ),
     path(
         'recepcion/caja/',
         views.caja_recepcion,
