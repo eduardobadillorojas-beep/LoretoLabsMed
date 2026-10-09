@@ -92,6 +92,12 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+# La sesión puede conservarse durante un año en equipos autorizados.
+# Su vencimiento se renueva mientras el usuario siga utilizando Loreto One.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 365
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_SAVE_EVERY_REQUEST = True
+
 
 # ============================================================
 # APLICACIONES

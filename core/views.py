@@ -924,7 +924,46 @@ def crear_bitacora_radiologica(estudio):
 # INICIO
 # =========================================================
 
+def redirigir_panel_usuario(user):
+    if user.is_superuser:
+        return redirect('panel_config')
+
+    membresia = (
+        MembresiaInstitucion.objects
+        .filter(
+            usuario=user,
+            activa=True,
+            institucion__activa=True,
+        )
+        .first()
+    )
+
+    if membresia is None:
+        return redirect('panel_config')
+
+    destinos = {
+        'RECEPCION': 'panel_recepcion',
+        'MEDICO': 'panel_medico',
+        'RADIOLOGIA': 'panel_radiologo',
+        'TECNICO': 'panel_radiologo',
+        'MANTENIMIENTO': 'equipos_incidencias_institucionales',
+        'ADMIN': 'panel_config',
+    }
+
+    destino = destinos.get(
+        membresia.rol,
+        'panel_area_institucional'
+    )
+
+    return redirect(destino)
+
+
 def inicio(request):
+    if request.user.is_authenticated:
+        return redirigir_panel_usuario(
+            request.user
+        )
+
     return render(
         request,
         'core/inicio.html'
@@ -936,6 +975,11 @@ def inicio(request):
 # =========================================================
 
 def login_view(request):
+    if request.user.is_authenticated:
+        return redirigir_panel_usuario(
+            request.user
+        )
+
     error_message = None
 
     if request.method == 'POST':
@@ -993,6 +1037,19 @@ def login_view(request):
             request.session[
                 'sesion_trabajo_id'
             ] = sesion_trabajo.id
+
+            mantener_sesion = (
+                request.POST.get(
+                    'recordar_sesion'
+                ) == '1'
+            )
+
+            if mantener_sesion:
+                request.session.set_expiry(
+                    60 * 60 * 24 * 365
+                )
+            else:
+                request.session.set_expiry(0)
 
             membresia = (
                 MembresiaInstitucion.objects
@@ -1127,9 +1184,10 @@ def logout_view(request):
 
     logout(request)
 
-    return redirect(
-        'inicio'
-    )
+    if request.GET.get('cambiar') == '1':
+        return redirect('login')
+
+    return redirect('inicio')
 
 
 # =========================================================
