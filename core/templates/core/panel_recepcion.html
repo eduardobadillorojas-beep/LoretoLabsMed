@@ -349,7 +349,7 @@ Recepción | Loreto One
                 </div>
 
                 <div class="indicador-valor">
-                    {{ pacientes_hoy }}
+                    {{ total_en_recepcion }}
                 </div>
             </div>
 
@@ -551,13 +551,13 @@ Recepción | Loreto One
             </div>
 
             <span class="badge bg-primary">
-                {{ pacientes_hoy }}
+                {{ total_en_recepcion }}
             </span>
 
         </div>
 
 
-        {% if pacientes_de_hoy %}
+        {% if pacientes_de_hoy or citas_pendientes_llegada %}
 
             <div class="table-responsive">
 
@@ -669,6 +669,75 @@ Recepción | Loreto One
 
                         {% endfor %}
 
+                        {% for cita in citas_pendientes_llegada %}
+
+                            <tr>
+
+                                <td>
+                                    <span class="badge bg-info text-dark">
+                                        CITA
+                                    </span>
+                                </td>
+
+                                <td class="nombre-paciente">
+                                    {{ cita.nombre_paciente }}
+                                </td>
+
+                                <td>
+                                    {% if cita.area == 'RADIOLOGIA' and cita.tipo_estudio %}
+                                        {{ cita.tipo_estudio.nombre }}
+                                    {% else %}
+                                        {{ cita.motivo|default:cita.get_area_display }}
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {{ cita.fecha_hora|date:"H:i" }}
+                                </td>
+
+                                <td>—</td>
+
+                                <td>
+                                    {{ cita.telefono|default:"—" }}
+                                </td>
+
+                                <td>
+                                    <span class="estado-paciente estado-warning">
+                                        <span class="estado-punto"></span>
+                                        Cita pendiente de llegada
+                                    </span>
+
+                                    <div class="dato-secundario">
+                                        {{ cita.get_area_display }}
+                                    </div>
+                                </td>
+
+                                <td class="text-end">
+                                    {% if cita.paciente %}
+                                        <form
+                                            method="post"
+                                            action="{% url 'registrar_llegada_cita' cita.id %}"
+                                            class="d-inline"
+                                        >
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-success py-0">
+                                                Registrar llegada
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <a
+                                            href="{% url 'registrar_recepcion' %}?cita={{ cita.id }}"
+                                            class="btn btn-sm btn-warning py-0"
+                                        >
+                                            Crear expediente y registrar llegada
+                                        </a>
+                                    {% endif %}
+                                </td>
+
+                            </tr>
+
+                        {% endfor %}
+
                     </tbody>
 
                 </table>
@@ -678,7 +747,7 @@ Recepción | Loreto One
         {% else %}
 
             <div class="vacio">
-                No hay pacientes registrados durante el día.
+                No hay pacientes ni citas pendientes en recepción.
             </div>
 
         {% endif %}

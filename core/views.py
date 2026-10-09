@@ -4891,6 +4891,7 @@ def panel_recepcion(request):
     ).strip()
 
     hoy = timezone.localdate()
+    ahora = timezone.now()
 
     institucion = obtener_institucion_usuario(request)
 
@@ -5154,6 +5155,22 @@ def panel_recepcion(request):
         citas_de_hoy.count()
     )
 
+    citas_pendientes_llegada = (
+        citas_de_hoy
+        .filter(
+            fecha_hora__lte=ahora,
+            estado__in=[
+                'PROGRAMADA',
+                'CONFIRMADA',
+            ],
+        )
+    )
+
+    total_en_recepcion = (
+        pacientes_hoy
+        + citas_pendientes_llegada.count()
+    )
+
     context = {
         'pacientes':
             pacientes,
@@ -5167,11 +5184,17 @@ def panel_recepcion(request):
         'pacientes_hoy':
             pacientes_hoy,
 
+        'total_en_recepcion':
+            total_en_recepcion,
+
         'total_citas_hoy':
             citas_hoy,
 
         'citas_de_hoy':
             citas_de_hoy,
+
+        'citas_pendientes_llegada':
+            citas_pendientes_llegada,
 
         'incidencias_equipos_abiertas': ReporteFallaEquipo.objects.filter(
             institucion=institucion
@@ -9915,6 +9938,33 @@ def registrar_estudio_recepcion(request):
     if institucion is None:
         return redirect('panel_config')
 
+    cita_id = (
+        request.POST.get('cita_id')
+        or request.GET.get('cita')
+    )
+
+    cita_origen = None
+
+    if cita_id:
+        cita_origen = get_object_or_404(
+            Cita.objects.select_related(
+                'tipo_estudio'
+            ),
+            pk=cita_id,
+            institucion=institucion,
+        )
+
+        if cita_origen.estado in [
+            'CANCELADA',
+            'NO_ASISTIO',
+            'FINALIZADA',
+        ]:
+            messages.error(
+                request,
+                'Esta cita ya no puede registrarse como llegada.'
+            )
+            return redirect('panel_recepcion')
+
     if request.method == 'POST':
 
         paciente_form = PacienteForm(
@@ -10019,32 +10069,103 @@ def registrar_estudio_recepcion(request):
 
                         estudio.save()
 
+                    if cita_origen is not None:
+                        cita_origen.paciente = paciente
+                        cita_origen.estado = 'EN_ESPERA'
+                        cita_origen.save(
+                            update_fields=[
+                                'paciente',
+                                'estado',
+                            ]
+                        )
+
                 return redirect(
-                    'detalle_paciente',
-                    paciente_id=paciente.id
+                    'panel_recepcion'
                 )
 
     else:
 
-        paciente_form = PacienteForm()
+        paciente_inicial = {}
+
+        if cita_origen is not None:
+            partes_nombre = (
+                cita_origen.nombre_paciente
+                or ''
+            ).strip().split(
+                maxsplit=1
+            )
+
+            if partes_nombre:
+                paciente_inicial['nombre'] = (
+                    partes_nombre[0]
+                )
+
+            if len(partes_nombre) > 1:
+                paciente_inicial['apellido'] = (
+                    partes_nombre[1]
+                )
+
+            paciente_inicial['telefono'] = (
+                cita_origen.telefono
+                or ''
+            )
+
+        paciente_form = PacienteForm(
+            initial=paciente_inicial
+        )
+
+        tipo_atencion_inicial = 'CONSULTA'
+
+        if (
+            cita_origen is not None
+            and cita_origen.area == 'RADIOLOGIA'
+        ):
+            tipo_atencion_inicial = 'RADIOLOGIA'
 
         destino_form = (
             DestinoAtencionForm(
                 initial={
                     'tipo_atencion':
-                        'CONSULTA',
+                        tipo_atencion_inicial,
                 }
             )
         )
 
         consulta_form = (
-            ConsultaForm()
+            ConsultaForm(
+                initial={
+                    'motivo_consulta': (
+                        cita_origen.motivo
+                        if cita_origen is not None
+                        else ''
+                    ),
+                }
+            )
         )
 
         estudio_form = EstudioForm(
             initial={
                 'estado':
                     'PENDIENTE',
+                'tipo_estudio': (
+                    cita_origen.tipo_estudio_id
+                    if cita_origen is not None
+                    else None
+                ),
+                'medico_solicitante': (
+                    cita_origen.medico_nombre
+                    if cita_origen is not None
+                    else ''
+                ),
+                'descripcion': (
+                    (
+                        cita_origen.motivo
+                        or cita_origen.observaciones
+                        or ''
+                    )
+                    if cita_origen is not None
+                    else ''
+                ),
             }
         )
 
@@ -10060,6 +10181,9 @@ def registrar_estudio_recepcion(request):
 
         'estudio_form':
             estudio_form,
+
+        'cita_origen':
+            cita_origen,
     }
 
     return render(

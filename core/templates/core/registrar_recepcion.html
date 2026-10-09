@@ -254,6 +254,16 @@ Registrar paciente | Loreto One
         Registra los datos del paciente y selecciona el área a la que será enviado.
     </p>
 
+    {% if cita_origen %}
+        <div class="alert alert-info mt-3">
+            <strong>Cita de {{ cita_origen.nombre_paciente }}</strong><br>
+            Programa: {{ cita_origen.fecha_hora|date:"d/m/Y H:i" }} ·
+            {{ cita_origen.get_area_display }}.<br>
+            Completa o corrige los datos. Al guardar, el expediente quedará
+            vinculado a la cita y el paciente aparecerá en espera.
+        </div>
+    {% endif %}
+
 
     <form
         method="post"
@@ -263,6 +273,14 @@ Registrar paciente | Loreto One
     >
 
         {% csrf_token %}
+
+        {% if cita_origen %}
+            <input
+                type="hidden"
+                name="cita_id"
+                value="{{ cita_origen.id }}"
+            >
+        {% endif %}
 
 
         <!-- ======================================
