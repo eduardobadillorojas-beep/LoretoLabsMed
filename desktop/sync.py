@@ -1,4 +1,4 @@
-"""Sincronización offline-first de Loreto One Desktop con el servidor."""
+"""SincronizaciÃƒÂ³n offline-first de Loreto One Desktop con el servidor."""
 
 from __future__ import annotations
 
@@ -11,12 +11,22 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.utils import timezone
 
 from api.models import SyncCursor, SyncOutbox
 from api.sync_context import importar_desde_servidor
-from core.models import Estudio, Institucion, Paciente, TipoEstudio
+from core.models import (
+    AccesoModuloMembresia,
+    AreaInstitucional,
+    Estudio,
+    Institucion,
+    MembresiaInstitucion,
+    ModuloSistema,
+    Paciente,
+    TipoEstudio,
+)
 
 
 DATA_DIR = Path(
@@ -77,7 +87,7 @@ def _request(config, method="GET", path="", payload=None):
         method=method,
     )
 
-    with urlopen(request, timeout=15) as response:
+    with urlopen(request, timeout=60) as response:
         raw = response.read()
 
     return json.loads(raw.decode("utf-8"))
@@ -92,7 +102,7 @@ def _iso(fecha):
 def sincronizar_catalogo(config):
     data = _request(config, path="/api/v1/catalogo/estudios/")
     if not data.get("ok"):
-        raise RuntimeError(data.get("error", "No se pudo obtener el catálogo."))
+        raise RuntimeError(data.get("error", "No se pudo obtener el catÃƒÂ¡logo."))
 
     actualizados = 0
     for item in data.get("estudios", []):
@@ -108,6 +118,103 @@ def sincronizar_catalogo(config):
         actualizados += 1
 
     return actualizados
+
+
+def sincronizar_usuarios(config):
+    """Sincroniza usuarios, membresÃas y permisos desde el servidor."""
+    data = _request(config, path="/api/v1/sync/usuarios/")
+    if not data.get("ok"):
+        raise RuntimeError(data.get("error", "No se pudieron obtener los usuarios."))
+
+    User = get_user_model()
+    institucion = (
+        Institucion.objects
+        .filter(activa=True)
+        .order_by("id")
+        .first()
+    )
+    if institucion is None:
+        raise RuntimeError("No existe una instituciÃ³n activa en la base local.")
+
+    total = 0
+
+    with transaction.atomic():
+        for item in data.get("usuarios", []):
+            username = str(item.get("username", "")).strip()
+            if not username:
+                continue
+
+            user, _ = User.objects.get_or_create(username=username)
+
+            user.password = item.get("password", user.password)
+            user.first_name = item.get("first_name", "") or ""
+            user.last_name = item.get("last_name", "") or ""
+            user.email = item.get("email", "") or ""
+            user.is_active = bool(item.get("is_active", True))
+            user.is_staff = bool(item.get("is_staff", False))
+            user.is_superuser = bool(item.get("is_superuser", False))
+            user.save()
+
+            area = None
+            area_clave = item.get("area_clave")
+            if area_clave:
+                area = (
+                    AreaInstitucional.objects
+                    .filter(institucion=institucion, clave=area_clave)
+                    .first()
+                )
+                if area is None:
+                    area = AreaInstitucional.objects.create(
+                        institucion=institucion,
+                        clave=area_clave,
+                        nombre=area_clave,
+                    )
+
+            membresia, _ = MembresiaInstitucion.objects.update_or_create(
+                institucion=institucion,
+                usuario=user,
+                defaults={
+                    "rol": item.get("rol", "OTRO") or "OTRO",
+                    "puesto": item.get("puesto", "") or "",
+                    "area": area,
+                    "activa": True,
+                },
+            )
+
+            accesos_recibidos = item.get("accesos") or []
+            codigos_recibidos = set()
+
+            for acceso in accesos_recibidos:
+                codigo = str(acceso.get("codigo", "")).strip()
+                if not codigo:
+                    continue
+
+                modulo, _ = ModuloSistema.objects.get_or_create(
+                    codigo=codigo,
+                    defaults={"nombre": codigo},
+                )
+                codigos_recibidos.add(codigo)
+
+                AccesoModuloMembresia.objects.update_or_create(
+                    membresia=membresia,
+                    modulo=modulo,
+                    defaults={
+                        "puede_ver": bool(acceso.get("puede_ver", False)),
+                        "puede_registrar": bool(acceso.get("puede_registrar", False)),
+                        "puede_editar": bool(acceso.get("puede_editar", False)),
+                        "puede_administrar": bool(acceso.get("puede_administrar", False)),
+                    },
+                )
+
+            AccesoModuloMembresia.objects.filter(
+                membresia=membresia,
+            ).exclude(
+                modulo__codigo__in=codigos_recibidos,
+            ).delete()
+
+            total += 1
+
+    return total
 
 
 def _payload_paciente(paciente):
@@ -171,7 +278,7 @@ def enviar_pendientes(config):
                 payload={"pacientes": pacientes, "estudios": estudios},
             )
         except (HTTPError, URLError, TimeoutError, OSError):
-            LOG.exception("No se pudo enviar la cola de sincronización")
+            LOG.exception("No se pudo enviar la cola de sincronizaciÃƒÂ³n")
             errores += len(filas)
             break
 
@@ -203,7 +310,6 @@ def enviar_pendientes(config):
                 fila.ultimo_error = ""
                 enviados += 1
             fila.save(update_fields=["intentos", "enviado_el", "ultimo_error", "actualizado_el"])
-
         if errores_api:
             break
 
@@ -224,13 +330,13 @@ def descargar_cambios(config):
     cursor = _cursor_actual()
 
     if cursor is None:
-        estado = _request(config, path="/api/v1/sync/estado/")
-        servidor = estado.get("server_time")
-        if not servidor:
-            return 0
-        fecha = datetime.fromisoformat(servidor.replace("Z", "+00:00"))
-        SyncCursor.objects.create(clave="principal", valor=fecha)
-        return 0
+        # Una instalacion nueva debe descargar tambien los registros que ya
+        # existen en el servidor. El comportamiento anterior iniciaba el
+        # cursor en la hora actual y, por lo tanto, omitía todo el historial.
+        cursor = SyncCursor.objects.create(
+            clave="principal",
+            valor=datetime(1970, 1, 1, tzinfo=dt_timezone.utc),
+        )
 
     total = 0
     since = cursor.valor
@@ -241,7 +347,7 @@ def descargar_cambios(config):
         .first()
     )
     if institucion_local is None:
-        raise RuntimeError("No existe una institución activa en la base local.")
+        raise RuntimeError("No existe una instituciÃƒÂ³n activa en la base local.")
 
     while True:
         data = _request(
@@ -347,16 +453,18 @@ def descargar_cambios(config):
 def ejecutar_sincronizacion():
     config = cargar_configuracion()
     if not config:
-        LOG.info("Sincronización desactivada: no existe sync.json configurado.")
+        LOG.info("SincronizaciÃƒÂ³n desactivada: no existe sync.json configurado.")
         return {"estado": "desactivada"}
 
     try:
         catalogo = sincronizar_catalogo(config)
+        usuarios = sincronizar_usuarios(config)
         enviados, errores = enviar_pendientes(config)
         descargados = descargar_cambios(config)
         LOG.info(
-            "Sincronización completada: catálogo=%s, enviados=%s, errores=%s, descargados=%s",
+            "SincronizaciÃ³n completada: catÃ¡logo=%s, usuarios=%s, enviados=%s, errores=%s, descargados=%s",
             catalogo,
+            usuarios,
             enviados,
             errores,
             descargados,
@@ -364,12 +472,13 @@ def ejecutar_sincronizacion():
         return {
             "estado": "ok",
             "catalogo": catalogo,
+            "usuarios": usuarios,
             "enviados": enviados,
             "errores": errores,
             "descargados": descargados,
         }
     except Exception:
-        LOG.exception("Error general durante la sincronización")
+        LOG.exception("Error general durante la sincronizaciÃƒÂ³n")
         return {"estado": "error"}
 
 
@@ -379,7 +488,7 @@ _SYNC_LOCK = threading.Lock()
 
 
 def ejecutar_sincronizacion_segura():
-    """Ejecuta una sincronización sin permitir ejecuciones simultáneas."""
+    """Ejecuta una sincronizaciÃƒÂ³n sin permitir ejecuciones simultÃƒÂ¡neas."""
     if not _SYNC_LOCK.acquire(blocking=False):
         return {"estado": "ocupada"}
     try:
@@ -389,7 +498,7 @@ def ejecutar_sincronizacion_segura():
 
 
 def iniciar_sincronizacion_automatica(intervalo_segundos=30):
-    """Mantiene la sincronización activa mientras Loreto One Desktop está abierto."""
+    """Mantiene la sincronizaciÃƒÂ³n activa mientras Loreto One Desktop estÃƒÂ¡ abierto."""
     global _SYNC_THREAD
     if _SYNC_THREAD is not None and _SYNC_THREAD.is_alive():
         return
@@ -397,14 +506,14 @@ def iniciar_sincronizacion_automatica(intervalo_segundos=30):
     _SYNC_STOP.clear()
 
     def worker():
-        LOG.info("Sincronización automática iniciada; intervalo=%ss", intervalo_segundos)
+        LOG.info("SincronizaciÃƒÂ³n automÃƒÂ¡tica iniciada; intervalo=%ss", intervalo_segundos)
         while not _SYNC_STOP.is_set():
             try:
                 ejecutar_sincronizacion_segura()
             except Exception:
-                LOG.exception("Error inesperado en la sincronización automática")
+                LOG.exception("Error inesperado en la sincronizaciÃƒÂ³n automÃƒÂ¡tica")
             _SYNC_STOP.wait(intervalo_segundos)
-        LOG.info("Sincronización automática detenida")
+        LOG.info("SincronizaciÃƒÂ³n automÃƒÂ¡tica detenida")
 
     _SYNC_THREAD = threading.Thread(
         target=worker,

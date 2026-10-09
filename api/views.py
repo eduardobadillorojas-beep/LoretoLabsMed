@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.csrf import csrf_exempt
 
 from core.models import Institucion, Estudio, Paciente, TipoEstudio, MembresiaInstitucion, AreaInstitucional, ModuloSistema, AccesoModuloMembresia
 
@@ -119,6 +120,7 @@ def sync_estado(request):
     })
 
 
+@csrf_exempt
 @require_POST
 def sync_push(request):
     error = _requiere_token(request)
