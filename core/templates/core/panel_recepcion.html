@@ -212,22 +212,6 @@ Recepción | Loreto One
         scroll-margin-top: 20px;
     }
 
-    .control-estado {
-        display: inline-flex;
-        gap: 5px;
-        align-items: center;
-        justify-content: flex-end;
-        margin-left: 5px;
-    }
-
-    .control-estado .form-select {
-        width: 145px;
-        min-height: 27px;
-        padding-top: 2px;
-        padding-bottom: 2px;
-        font-size: .7rem;
-    }
-
     @media (max-width: 1000px) {
         .recepcion-top {
             grid-template-columns: 1fr;
@@ -481,29 +465,33 @@ Recepción | Loreto One
                                         </a>
 
                                         {% if paciente.actividad_id %}
-                                            <form
-                                                method="post"
-                                                action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}"
-                                                class="control-estado"
-                                            >
-                                                {% csrf_token %}
-
-                                                <select name="estado" class="form-select form-select-sm">
+                                            {% if paciente.estado_atencion == 'En espera' %}
+                                                <form method="post" action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}" class="d-inline">
+                                                    {% csrf_token %}
                                                     {% if paciente.actividad_tipo == 'CONSULTA' %}
-                                                        <option value="EN_ESPERA">En espera</option>
-                                                        <option value="EN_CONSULTA">Siendo atendido</option>
-                                                        <option value="FINALIZADA">Atención terminada</option>
+                                                        <input type="hidden" name="estado" value="EN_CONSULTA">
                                                     {% else %}
-                                                        <option value="PENDIENTE">En espera</option>
-                                                        <option value="EN_PROCESO">Siendo atendido</option>
-                                                        <option value="COMPLETADO">Atención terminada</option>
+                                                        <input type="hidden" name="estado" value="EN_PROCESO">
                                                     {% endif %}
-                                                </select>
-
-                                                <button type="submit" class="btn btn-sm btn-primary py-0">
-                                                    Cambiar
-                                                </button>
-                                            </form>
+                                                    <button type="submit" class="btn btn-sm btn-info py-0">
+                                                        Iniciar atención
+                                                    </button>
+                                                </form>
+                                            {% elif paciente.estado_atencion == 'Siendo atendido' %}
+                                                <form method="post" action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    {% if paciente.actividad_tipo == 'CONSULTA' %}
+                                                        <input type="hidden" name="estado" value="FINALIZADA">
+                                                    {% else %}
+                                                        <input type="hidden" name="estado" value="COMPLETADO">
+                                                    {% endif %}
+                                                    <button type="submit" class="btn btn-sm btn-success py-0">
+                                                        Finalizar atención
+                                                    </button>
+                                                </form>
+                                            {% elif paciente.estado_atencion == 'Atendido' or paciente.estado_atencion == 'Atención terminada' %}
+                                                <span class="badge bg-success">Finalizada 🔒</span>
+                                            {% endif %}
                                         {% endif %}
 
                                     </td>
@@ -638,29 +626,33 @@ Recepción | Loreto One
                                     </a>
 
                                     {% if paciente.actividad_id %}
-                                        <form
-                                            method="post"
-                                            action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}"
-                                            class="control-estado"
-                                        >
-                                            {% csrf_token %}
-
-                                            <select name="estado" class="form-select form-select-sm">
+                                        {% if paciente.estado_atencion == 'En espera' %}
+                                            <form method="post" action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}" class="d-inline">
+                                                {% csrf_token %}
                                                 {% if paciente.actividad_tipo == 'CONSULTA' %}
-                                                    <option value="EN_ESPERA">En espera</option>
-                                                    <option value="EN_CONSULTA">Siendo atendido</option>
-                                                    <option value="FINALIZADA">Atención terminada</option>
+                                                    <input type="hidden" name="estado" value="EN_CONSULTA">
                                                 {% else %}
-                                                    <option value="PENDIENTE">En espera</option>
-                                                    <option value="EN_PROCESO">Siendo atendido</option>
-                                                    <option value="COMPLETADO">Atención terminada</option>
+                                                    <input type="hidden" name="estado" value="EN_PROCESO">
                                                 {% endif %}
-                                            </select>
-
-                                            <button type="submit" class="btn btn-sm btn-primary py-0">
-                                                Cambiar
-                                            </button>
-                                        </form>
+                                                <button type="submit" class="btn btn-sm btn-info py-0">
+                                                    Iniciar atención
+                                                </button>
+                                            </form>
+                                        {% elif paciente.estado_atencion == 'Siendo atendido' %}
+                                            <form method="post" action="{% url 'cambiar_estado_recepcion' paciente.actividad_tipo paciente.actividad_id %}" class="d-inline">
+                                                {% csrf_token %}
+                                                {% if paciente.actividad_tipo == 'CONSULTA' %}
+                                                    <input type="hidden" name="estado" value="FINALIZADA">
+                                                {% else %}
+                                                    <input type="hidden" name="estado" value="COMPLETADO">
+                                                {% endif %}
+                                                <button type="submit" class="btn btn-sm btn-success py-0">
+                                                    Finalizar atención
+                                                </button>
+                                            </form>
+                                        {% elif paciente.estado_atencion == 'Atendido' or paciente.estado_atencion == 'Atención terminada' %}
+                                            <span class="badge bg-success">Finalizada 🔒</span>
+                                        {% endif %}
                                     {% endif %}
 
                                 </td>

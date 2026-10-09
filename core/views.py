@@ -5291,13 +5291,23 @@ def cambiar_estado_recepcion(request, tipo_actividad, actividad_id):
             pk=actividad_id,
             paciente__institucion=institucion,
         )
-        estados_permitidos = {
-            'EN_ESPERA',
-            'EN_CONSULTA',
-            'FINALIZADA',
-        }
-        if nuevo_estado not in estados_permitidos:
-            messages.error(request, 'El estado seleccionado no es válido.')
+        siguiente_estado = {
+            'EN_ESPERA': 'EN_CONSULTA',
+            'EN_CONSULTA': 'FINALIZADA',
+        }.get(actividad.estado)
+
+        if siguiente_estado is None:
+            messages.error(
+                request,
+                'La consulta ya fue finalizada y no puede modificarse.'
+            )
+            return redirect('panel_recepcion')
+
+        if nuevo_estado != siguiente_estado:
+            messages.error(
+                request,
+                'Solo puedes avanzar al siguiente estado de atención.'
+            )
             return redirect('panel_recepcion')
 
         actividad.estado = nuevo_estado
@@ -5335,13 +5345,23 @@ def cambiar_estado_recepcion(request, tipo_actividad, actividad_id):
             pk=actividad_id,
             paciente__institucion=institucion,
         )
-        estados_permitidos = {
-            'PENDIENTE',
-            'EN_PROCESO',
-            'COMPLETADO',
-        }
-        if nuevo_estado not in estados_permitidos:
-            messages.error(request, 'El estado seleccionado no es válido.')
+        siguiente_estado = {
+            'PENDIENTE': 'EN_PROCESO',
+            'EN_PROCESO': 'COMPLETADO',
+        }.get(actividad.estado)
+
+        if siguiente_estado is None:
+            messages.error(
+                request,
+                'El estudio ya fue finalizado y no puede modificarse.'
+            )
+            return redirect('panel_recepcion')
+
+        if nuevo_estado != siguiente_estado:
+            messages.error(
+                request,
+                'Solo puedes avanzar al siguiente estado de atención.'
+            )
             return redirect('panel_recepcion')
 
         actividad.estado = nuevo_estado
