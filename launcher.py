@@ -1,4 +1,4 @@
-﻿"""Lanzador de Loreto One Desktop para Windows 10/11 de 64 bits."""
+"""Lanzador de Loreto One Desktop para Windows 10/11 de 64 bits."""
 
 from __future__ import annotations
 
@@ -541,11 +541,13 @@ def main() -> int:
                 f"--user-data-dir={profile}",
                 "--no-first-run",
                 "--disable-sync",
+                "--disable-background-mode",
             ]
         )
 
         # Mantener LoretoOne.exe vivo mientras la ventana esté abierta.
-        window.wait()
+        while True:
+            time.sleep(5)
 
         logging.info(
             "Ventana de Loreto One cerrada."
