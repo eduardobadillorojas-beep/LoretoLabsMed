@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load static %}
 
 {% block title %}Visor DICOM | Loreto One{% endblock %}
 
@@ -33,6 +34,13 @@
     .viewer-workspace.hide-series.hide-report{grid-template-columns:1fr}
     .viewer-workspace:fullscreen{width:100vw;height:100vh;border:0;border-radius:0;background:#000}.viewer-workspace:fullscreen .viewer-stage{height:calc(100vh - 142px);max-height:none}.viewer-workspace:fullscreen .report-panel{min-height:100vh}
     @media(max-width:1180px){.viewer-workspace{grid-template-columns:180px minmax(0,1fr)}.report-panel{grid-column:1/-1}.viewer-workspace.hide-series{grid-template-columns:1fr}.viewer-workspace.hide-report .report-panel{display:none}}
+    .mpr-grid{height:calc(100vh - 355px);min-height:470px;max-height:820px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:#263342}
+    .mpr-grid[hidden]{display:none}.mpr-viewport{position:relative;min-width:0;min-height:0;background:#000;overflow:hidden}
+    .mpr-canvas{position:absolute;inset:0}.mpr-label{position:absolute;left:8px;top:7px;z-index:3;color:#22d3ee;font-size:.68rem;font-weight:800;letter-spacing:.08em;pointer-events:none;text-shadow:0 1px 2px #000}
+    .mpr-help{position:absolute;left:8px;bottom:7px;z-index:3;color:#94a3b8;font-size:.56rem;pointer-events:none;text-shadow:0 1px 2px #000}
+    .mpr-loading{position:absolute;inset:0;z-index:5;display:grid;place-items:center;background:rgba(2,6,12,.9);color:#d8e9f3;font-size:.75rem;text-align:center;padding:20px}.mpr-loading[hidden]{display:none}
+    .mpr-button.active{background:#0ea5e9;border-color:#0ea5e9;color:#001018}
+    @media(max-width:900px){.mpr-grid{grid-template-columns:1fr;height:auto;max-height:none}.mpr-viewport{height:420px}}
 </style>
 
 <div class="dicom-wrap" data-manifest-url="{{ manifiesto_dicom_url }}">
@@ -49,6 +57,7 @@
             <button type="button" class="btn btn-outline-light btn-sm" id="toggle-series">Series</button>
             <button type="button" class="btn btn-outline-light btn-sm" id="toggle-report">Reporte</button>
             <button type="button" class="btn btn-outline-info btn-sm" id="fullscreen-workspace">Pantalla completa</button>
+            <button type="button" class="btn btn-outline-info btn-sm mpr-button" id="activar-mpr">MPR 3 planos</button>
             <a id="descargar-original" href="{% url 'archivo_instancia_dicom' estudio.id instancia.id %}" target="_blank" class="btn btn-outline-secondary btn-sm">DICOM original</a>
             <a href="{% url 'estudio_radiologia' estudio.id %}" class="btn btn-outline-secondary btn-sm">Cerrar estudio</a>
         </div>
@@ -141,6 +150,12 @@
                 >
                 <span class="slice-slider-value" id="slice-slider-value">{{ posicion }}/{{ total_instancias }}</span>
             </div>
+        </div>
+        <div class="mpr-grid" id="mpr-grid" hidden>
+            <div class="mpr-viewport"><div class="mpr-label">AXIAL</div><div class="mpr-canvas" id="mpr-axial"></div><div class="mpr-help">Rueda: cortes · Ctrl+rueda: zoom</div></div>
+            <div class="mpr-viewport"><div class="mpr-label">CORONAL</div><div class="mpr-canvas" id="mpr-coronal"></div><div class="mpr-help">Rueda: cortes · Ctrl+rueda: zoom</div></div>
+            <div class="mpr-viewport"><div class="mpr-label">SAGITAL</div><div class="mpr-canvas" id="mpr-sagital"></div><div class="mpr-help">Rueda: cortes · Ctrl+rueda: zoom</div></div>
+            <div class="mpr-loading" id="mpr-loading">Preparando reconstrucción multiplanar…</div>
         </div>
         <div id="measurement-result" class="measurement-result">Selecciona una herramienta. La regla necesita 2 puntos, el ángulo 3 y la ROI dos esquinas.</div>
         </section>
@@ -601,4 +616,5 @@
     });
 })();
 </script>
+<script type="module" src="{% static 'core/dicom_viewer/mpr-viewer.js' %}"></script>
 {% endblock %}

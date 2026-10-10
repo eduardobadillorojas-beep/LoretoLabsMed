@@ -1,0 +1,23 @@
+{
+  "name": "dicom_viewer_frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@cornerstonejs/core": "^5.11.7",
+    "@cornerstonejs/dicom-image-loader": "^5.11.7",
+    "@cornerstonejs/tools": "^5.11.7",
+    "dicom-parser": "^1.8.21"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}
