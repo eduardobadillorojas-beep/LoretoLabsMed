@@ -26,7 +26,7 @@
     .series-card{background:#080d12;border-color:#202d3a;border-radius:5px}.series-card:hover{background:#0b1720}.series-card.active{border-color:var(--lo-blue);box-shadow:inset 3px 0 0 var(--lo-blue)}
     .viewer-toolbar{gap:4px;padding:6px 8px;background:#0a0f14;border-color:var(--lo-line);position:relative}.viewer-toolbar .btn{border-color:#2c3a48;color:#d6e2eb}.viewer-toolbar .active-tool{background:var(--lo-blue);border-color:var(--lo-blue);color:white}
     .preset-details,.cine-row{background:#0b1117;border-color:var(--lo-line)}.viewer-stage{height:calc(100vh - 355px);min-height:470px;max-height:820px;background:#000}.measurement-result{background:#0a0f14;border-color:var(--lo-line);color:#bdcad5}
-    .report-scroll{background:var(--lo-panel);padding:12px}.report-footer{background:#091017;border-color:var(--lo-line)}.auto-data{background:#080d12;border-color:#24313e}.rich-editor{min-height:390px}
+    .report-scroll{background:var(--lo-panel);padding:12px}.report-footer{background:#091017;border-color:var(--lo-line)}.auto-data{background:#080d12;border-color:#24313e}.rich-editor{min-height:390px;background:#101820;color:#e5eef5;border-color:#344657}.rich-editor[contenteditable=false]{background:#0e151c;color:#d7e2ea}
     .technical-details{border-color:var(--lo-line);background:var(--lo-panel);border-radius:6px}
     .viewer-workspace.hide-series{grid-template-columns:0 minmax(460px,1fr) 370px}.viewer-workspace.hide-series .series-panel{display:none}
     .viewer-workspace.hide-report{grid-template-columns:210px minmax(460px,1fr) 0}.viewer-workspace.hide-report .report-panel{display:none}
@@ -353,13 +353,29 @@
     let previewBrightness = 1, previewContrast = 1;
     let cineTimer = null, resetPreviewOnLoad = false, imageLoading = !image.complete;
     let sliderTimer = null;
+    let fitOnLoad = true;
 
     function draw() {
         image.style.transform = `translate(${x}px, ${y}px) scale(${zoom}) rotate(${rotation}deg)`;
         image.style.filter = `${inverted ? 'invert(1)' : ''} brightness(${previewBrightness}) contrast(${previewContrast})`;
         drawAnnotations();
     }
-    function reset() { zoom = 1; rotation = 0; inverted = false; x = 0; y = 0; previewBrightness = 1; previewContrast = 1; wc.value = ''; ww.value = ''; resetPreviewOnLoad = true; image.src = baseUrl; draw(); }
+    function fitImage() {
+        if (!image.naturalWidth || !image.naturalHeight) return;
+        const availableWidth = Math.max(1, stage.clientWidth - 34);
+        const availableHeight = Math.max(1, stage.clientHeight - 34);
+        zoom = Math.max(
+            .2,
+            Math.min(
+                8,
+                availableWidth / image.naturalWidth,
+                availableHeight / image.naturalHeight,
+            ),
+        );
+        x = 0;
+        y = 0;
+    }
+    function reset() { rotation = 0; inverted = false; x = 0; y = 0; previewBrightness = 1; previewContrast = 1; wc.value = ''; ww.value = ''; resetPreviewOnLoad = true; fitOnLoad = true; image.src = baseUrl; if (image.complete) fitImage(); draw(); }
     function resizeCanvas() { canvas.width = stage.clientWidth; canvas.height = stage.clientHeight; drawAnnotations(); }
     function screenPoint(event) { const r = stage.getBoundingClientRect(); return {x:event.clientX-r.left,y:event.clientY-r.top}; }
     function toImage(point) {
@@ -516,7 +532,9 @@
     });
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { imageLoading=false;result.textContent='No fue posible cargar este corte. Espera unos segundos e inténtalo nuevamente.'; });
-    image.addEventListener('load',()=>{imageLoading=false;if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
+    image.addEventListener('load',()=>{imageLoading=false;if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();if(fitOnLoad){fitImage();fitOnLoad=false;}draw();});
+    stage.addEventListener('dblclick',()=>{fitImage();draw();});
+    window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();if(image.complete){fitImage();fitOnLoad=false;}draw();
 })();
 </script>
 <script>
