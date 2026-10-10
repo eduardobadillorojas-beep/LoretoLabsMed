@@ -234,6 +234,18 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/estudio/<int:estudio_id>/dicom/manifiesto/',
+        views.manifiesto_estudio_dicom,
+        name='manifiesto_estudio_dicom'
+    ),
+
+    path(
+        'radiologia/estudio/<int:estudio_id>/dicom/<int:instancia_id>/archivo/',
+        views.archivo_instancia_dicom,
+        name='archivo_instancia_dicom'
+    ),
+
+    path(
         'radiologia/estudio/<int:estudio_id>/dicom/<int:instancia_id>/medir/',
         views.medir_instancia_dicom,
         name='medir_instancia_dicom'

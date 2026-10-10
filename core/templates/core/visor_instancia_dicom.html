@@ -11,23 +11,55 @@
     .viewer-workspace{align-items:start}.viewer-shell{align-self:start}
     .slice-slider-wrap{position:absolute;right:10px;top:18px;bottom:18px;z-index:4;display:flex;flex-direction:column;align-items:center;gap:7px;padding:8px 6px;background:rgba(15,23,42,.88);border:1px solid #475569;border-radius:9px;backdrop-filter:blur(3px)}.slice-slider-wrap[hidden]{display:none}.slice-slider-label{font-size:.61rem;color:#cbd5e1;white-space:nowrap}.slice-slider{writing-mode:vertical-lr;direction:rtl;width:24px;flex:1;min-height:180px;accent-color:#22d3ee;cursor:pointer;touch-action:none}.slice-slider-value{font-size:.66rem;font-weight:700;color:#fff;min-width:42px;text-align:center}@media(max-width:760px){.slice-slider-wrap{right:5px;top:10px;bottom:10px;padding:7px 4px}.slice-slider{min-height:140px}.slice-slider-label{display:none}}
 </style>
+<style>
+    :root{--lo-bg:#070a0e;--lo-panel:#0d131a;--lo-panel-2:#111a24;--lo-line:#263342;--lo-cyan:#22d3ee;--lo-blue:#2583ff;--lo-text:#e8f0f7;--lo-muted:#8ea1b5}
+    .dicom-wrap{max-width:none;margin:0;padding:0 10px 18px;color:var(--lo-text)}
+    .dicom-head{position:relative;margin:0 -10px 8px;padding:8px 14px;background:linear-gradient(90deg,#090d12 0%,#0d1620 55%,#0a1017 100%);border-bottom:1px solid var(--lo-line)}
+    .dicom-brand{display:flex;align-items:center;gap:12px;min-width:0}.dicom-brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#0ea5e9,#2563eb);font-weight:900;color:white;box-shadow:0 0 20px rgba(34,211,238,.18)}
+    .dicom-title{font-size:.86rem;font-weight:800;letter-spacing:.02em}.dicom-patient-line{font-size:.68rem;color:var(--lo-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .workspace-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}.workspace-actions .btn{font-size:.66rem;border-color:#324457}
+    .engine-status{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid #234153;border-radius:20px;background:#0a1821;color:#a9ddea;font-size:.62rem}.engine-status::before{content:'';width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e}
+    .notice{margin:0 0 8px;border-radius:5px;border-color:#3a4856;background:#111820;color:#aebdcb;padding:6px 10px}
+    .viewer-workspace{grid-template-columns:210px minmax(460px,1fr) 370px;gap:1px;margin:0;background:var(--lo-line);border:1px solid var(--lo-line);border-radius:7px;overflow:hidden;min-height:690px}
+    .series-panel,.viewer-shell,.report-panel{border:0;border-radius:0;margin:0;background:var(--lo-panel)}.series-panel{max-height:none;padding:9px}.report-panel{min-height:690px}.viewer-shell{background:#030506}
+    .series-panel h2{display:flex;align-items:center;justify-content:space-between;color:#cfe7f3}.series-panel h2::after{content:'SERIES';font-size:.52rem;letter-spacing:.12em;color:#5f7c90}
+    .series-card{background:#080d12;border-color:#202d3a;border-radius:5px}.series-card:hover{background:#0b1720}.series-card.active{border-color:var(--lo-blue);box-shadow:inset 3px 0 0 var(--lo-blue)}
+    .viewer-toolbar{gap:4px;padding:6px 8px;background:#0a0f14;border-color:var(--lo-line);position:relative}.viewer-toolbar .btn{border-color:#2c3a48;color:#d6e2eb}.viewer-toolbar .active-tool{background:var(--lo-blue);border-color:var(--lo-blue);color:white}
+    .preset-details,.cine-row{background:#0b1117;border-color:var(--lo-line)}.viewer-stage{height:calc(100vh - 355px);min-height:470px;max-height:820px;background:#000}.measurement-result{background:#0a0f14;border-color:var(--lo-line);color:#bdcad5}
+    .report-scroll{background:var(--lo-panel);padding:12px}.report-footer{background:#091017;border-color:var(--lo-line)}.auto-data{background:#080d12;border-color:#24313e}.rich-editor{min-height:390px}
+    .technical-details{border-color:var(--lo-line);background:var(--lo-panel);border-radius:6px}
+    .viewer-workspace.hide-series{grid-template-columns:0 minmax(460px,1fr) 370px}.viewer-workspace.hide-series .series-panel{display:none}
+    .viewer-workspace.hide-report{grid-template-columns:210px minmax(460px,1fr) 0}.viewer-workspace.hide-report .report-panel{display:none}
+    .viewer-workspace.hide-series.hide-report{grid-template-columns:1fr}
+    .viewer-workspace:fullscreen{width:100vw;height:100vh;border:0;border-radius:0;background:#000}.viewer-workspace:fullscreen .viewer-stage{height:calc(100vh - 142px);max-height:none}.viewer-workspace:fullscreen .report-panel{min-height:100vh}
+    @media(max-width:1180px){.viewer-workspace{grid-template-columns:180px minmax(0,1fr)}.report-panel{grid-column:1/-1}.viewer-workspace.hide-series{grid-template-columns:1fr}.viewer-workspace.hide-report .report-panel{display:none}}
+</style>
 
-<div class="dicom-wrap">
+<div class="dicom-wrap" data-manifest-url="{{ manifiesto_dicom_url }}">
     <div class="dicom-head">
-        <div>
-            <a href="{% url 'estudio_radiologia' estudio.id %}" class="text-decoration-none text-secondary small">← Volver al estudio</a>
-            <h1 class="h4 mt-2 mb-1">Visor DICOM</h1>
-            <div class="text-secondary small">{{ paciente.nombre }} {{ paciente.apellido }} · Registro {{ paciente.identificacion }}</div>
+        <div class="dicom-brand">
+            <div class="dicom-brand-mark">L1</div>
+            <div>
+                <div class="dicom-title">Loreto One · Estación diagnóstica</div>
+                <div class="dicom-patient-line">{{ paciente.nombre }} {{ paciente.apellido }} · {{ paciente.identificacion }} · {{ estudio.tipo_estudio.nombre }}</div>
+            </div>
         </div>
-        <a id="descargar-original" href="{{ instancia.archivo_estudio.archivo.url }}" target="_blank" class="btn btn-outline-info btn-sm">Descargar original</a>
+        <div class="workspace-actions">
+            <span class="engine-status">DICOM original protegido</span>
+            <button type="button" class="btn btn-outline-light btn-sm" id="toggle-series">Series</button>
+            <button type="button" class="btn btn-outline-light btn-sm" id="toggle-report">Reporte</button>
+            <button type="button" class="btn btn-outline-info btn-sm" id="fullscreen-workspace">Pantalla completa</button>
+            <a id="descargar-original" href="{% url 'archivo_instancia_dicom' estudio.id instancia.id %}" target="_blank" class="btn btn-outline-secondary btn-sm">DICOM original</a>
+            <a href="{% url 'estudio_radiologia' estudio.id %}" class="btn btn-outline-secondary btn-sm">Cerrar estudio</a>
+        </div>
     </div>
 
-    <div class="notice">Visor clínico en desarrollo. Conserva y muestra el DICOM original, pero todavía no sustituye una estación diagnóstica certificada.</div>
+    <div class="notice">Visor clínico en desarrollo. Los objetos DICOM originales permanecen íntegros; valida el flujo diagnóstico y la calibración de cada estación antes de uso asistencial definitivo.</div>
     <form id="csrf-mediciones" style="display:none;">{% csrf_token %}</form>
     {{ navegacion_instancias|json_script:"instancias-serie-data" }}
     {{ plantillas_reporte_datos|json_script:"plantillas-reporte-data" }}
 
-    <div class="viewer-workspace">
+    <div class="viewer-workspace" id="viewer-workspace">
         <aside class="series-panel">
             <h2>Series del estudio</h2>
             {% for serie_item in series_navegacion %}
@@ -485,6 +517,70 @@
     window.addEventListener('mouseup',()=>{if(dragging&&tool==='wl'&&moved)applyWindow();dragging=false;stage.classList.remove('dragging');});
     image.addEventListener('error', () => { imageLoading=false;result.textContent='No fue posible cargar este corte. Espera unos segundos e inténtalo nuevamente.'; });
     image.addEventListener('load',()=>{imageLoading=false;if(resetPreviewOnLoad){previewBrightness=1;previewContrast=1;resetPreviewOnLoad=false;}resizeCanvas();draw();});window.addEventListener('resize',resizeCanvas);preloadAround(currentIndex);resizeCanvas();draw();
+})();
+</script>
+<script>
+(() => {
+    const workspace = document.getElementById('viewer-workspace');
+    if (!workspace) return;
+
+    const seriesButton = document.getElementById('toggle-series');
+    const reportButton = document.getElementById('toggle-report');
+    const fullscreenButton = document.getElementById('fullscreen-workspace');
+
+    const notifyResize = () => window.setTimeout(
+        () => window.dispatchEvent(new Event('resize')),
+        40,
+    );
+
+    seriesButton?.addEventListener('click', () => {
+        workspace.classList.toggle('hide-series');
+        seriesButton.classList.toggle(
+            'active',
+            !workspace.classList.contains('hide-series'),
+        );
+        notifyResize();
+    });
+
+    reportButton?.addEventListener('click', () => {
+        workspace.classList.toggle('hide-report');
+        reportButton.classList.toggle(
+            'active',
+            !workspace.classList.contains('hide-report'),
+        );
+        notifyResize();
+    });
+
+    fullscreenButton?.addEventListener('click', async () => {
+        try {
+            if (!document.fullscreenElement) {
+                await workspace.requestFullscreen();
+            } else {
+                await document.exitFullscreen();
+            }
+        } catch (error) {
+            console.warn('Pantalla completa no disponible.', error);
+        }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+        fullscreenButton.textContent = document.fullscreenElement
+            ? 'Salir de pantalla completa'
+            : 'Pantalla completa';
+        notifyResize();
+    });
+
+    // Atajos simples y previsibles. No se ejecutan mientras el radiólogo
+    // escribe en el reporte o en un campo.
+    document.addEventListener('keydown', event => {
+        const tag = event.target?.tagName?.toLowerCase();
+        if (event.target?.isContentEditable || ['input', 'textarea', 'select'].includes(tag)) {
+            return;
+        }
+        if (event.key.toLowerCase() === 's') seriesButton?.click();
+        if (event.key.toLowerCase() === 'r') reportButton?.click();
+        if (event.key.toLowerCase() === 'f') fullscreenButton?.click();
+    });
 })();
 </script>
 {% endblock %}

@@ -1,0 +1,37 @@
+LORETO ONE PACS - VISOR DICOM, FASE 1
+======================================
+
+Contenido
+---------
+- core/views.py
+- core/templates/core/visor_instancia_dicom.html
+- config/urls.py
+
+Qué incorpora
+-------------
+1. Interfaz de estación diagnóstica propia de Loreto One.
+2. Paneles de series y reporte plegables.
+3. Pantalla completa y atajos S, R y F.
+4. Descarga autenticada del objeto DICOM original.
+5. Manifiesto JSON del estudio para el futuro motor volumétrico.
+6. Geometría DICOM para nuevos archivos: posición, orientación,
+   espaciado, espesor, transformación de píxel y ventana inicial.
+7. Compatibilidad con estudios cargados antes de esta actualización:
+   su geometría se lee del encabezado sin cargar PixelData.
+8. Orden espacial preparado mediante ImagePositionPatient e
+   ImageOrientationPatient.
+
+Esta fase conserva
+------------------
+- Visor 2D actual y su renderizado PNG como respaldo.
+- Cine, presets, distancia, ángulo y ROI/HU.
+- Reporte, plantillas, firma, PDF y entrega digital.
+- Archivos DICOM originales sin alteración.
+
+Importante
+----------
+Esta fase prepara el backend para Cornerstone3D. Todavía no activa MPR ni
+renderizado volumétrico 3D. Esas funciones corresponden a la siguiente fase,
+después de validar esta actualización con estudios reales anonimizados.
+
+No genera migraciones ni modifica la estructura de la base de datos.

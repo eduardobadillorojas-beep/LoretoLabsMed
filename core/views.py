@@ -22,7 +22,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.core.paginator import Paginator
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -640,6 +640,20 @@ def analizar_archivo_dicom(archivo):
     if getattr(dataset, 'file_meta', None):
         transfer_syntax = valor_dicom(dataset.file_meta, 'TransferSyntaxUID')
 
+    def lista_decimal(keyword):
+        valor = getattr(dataset, keyword, None)
+        if valor in (None, ''):
+            return []
+        if not isinstance(valor, (list, tuple)):
+            try:
+                valor = list(valor)
+            except TypeError:
+                valor = [valor]
+        try:
+            return [float(item) for item in valor]
+        except (TypeError, ValueError):
+            return []
+
     metadatos = {
         'patient_id': valor_dicom(dataset, 'PatientID'),
         'patient_name': valor_dicom(dataset, 'PatientName'),
@@ -672,6 +686,22 @@ def analizar_archivo_dicom(archivo):
         'referring_physician': valor_dicom(dataset, 'ReferringPhysicianName'),
         'sop_class_uid': valor_dicom(dataset, 'SOPClassUID'),
         'transfer_syntax_uid': transfer_syntax,
+        # Geometría y transformación de píxel necesarias para un visor
+        # diagnóstico, MPR y reconstrucción volumétrica. Se guardan en JSON
+        # para ampliar compatibilidad sin duplicar el encabezado DICOM.
+        'image_position_patient': lista_decimal('ImagePositionPatient'),
+        'image_orientation_patient': lista_decimal('ImageOrientationPatient'),
+        'pixel_spacing': lista_decimal('PixelSpacing'),
+        'slice_thickness': decimal_dicom(dataset, 'SliceThickness'),
+        'spacing_between_slices': decimal_dicom(dataset, 'SpacingBetweenSlices'),
+        'slice_location': decimal_dicom(dataset, 'SliceLocation'),
+        'rescale_slope': decimal_dicom(dataset, 'RescaleSlope'),
+        'rescale_intercept': decimal_dicom(dataset, 'RescaleIntercept'),
+        'window_center': (lista_decimal('WindowCenter') or [None])[0],
+        'window_width': (lista_decimal('WindowWidth') or [None])[0],
+        'bits_stored': entero_dicom(dataset, 'BitsStored'),
+        'high_bit': entero_dicom(dataset, 'HighBit'),
+        'pixel_representation': entero_dicom(dataset, 'PixelRepresentation'),
     }
     archivo.seek(0)
     return {'dataset': dataset, 'hash_sha256': digest.hexdigest(), 'tamano_bytes': tamano, 'metadatos': metadatos, **requeridos}
@@ -3039,7 +3069,10 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
                         args=[estudio_id, item.id],
                     ),
                     'visor_url': visor_url,
-                    'original_url': item.archivo_estudio.archivo.url,
+                    'original_url': reverse(
+                        'archivo_instancia_dicom',
+                        args=[estudio_id, item.id],
+                    ),
                     'fotometria': item.interpretacion_fotometrica or '',
                 }
             )
@@ -3160,6 +3193,10 @@ def visor_instancia_dicom(request, estudio_id, instancia_id):
             'frame_actual': frame_actual,
             'navegacion_instancias': navegacion_instancias,
             'series_navegacion': series_navegacion,
+            'manifiesto_dicom_url': reverse(
+                'manifiesto_estudio_dicom',
+                args=[estudio.id],
+            ),
             'reporte_radiologico': reporte,
             'plantillas_reporte': plantillas,
             'plantillas_reporte_datos': plantillas_datos,
@@ -4088,6 +4125,243 @@ def entrega_digital_medir(request, token, instancia_id):
     except Exception as exc:
         logger.exception('Error en medición pública DICOM. %s', exc)
         return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
+
+
+def _metadatos_visor_instancia(instancia):
+    """Metadatos normalizados que necesita el motor DICOM del navegador."""
+    metadatos = dict(instancia.metadatos or {})
+    claves_geometricas = (
+        'image_position_patient',
+        'image_orientation_patient',
+        'pixel_spacing',
+        'slice_thickness',
+        'spacing_between_slices',
+        'slice_location',
+        'rescale_slope',
+        'rescale_intercept',
+        'window_center',
+        'window_width',
+        'bits_stored',
+        'high_bit',
+        'pixel_representation',
+    )
+    if all(clave in metadatos for clave in claves_geometricas):
+        return metadatos
+
+    # Compatibilidad con archivos almacenados antes de guardar geometría en
+    # el JSON: se lee únicamente el encabezado, nunca PixelData.
+    try:
+        with instancia.archivo_estudio.archivo.open('rb') as archivo:
+            dataset = pydicom.dcmread(
+                archivo,
+                stop_before_pixels=True,
+                force=False,
+            )
+
+        def lista_decimal(keyword):
+            valor = getattr(dataset, keyword, None)
+            if valor in (None, ''):
+                return []
+            if not isinstance(valor, (list, tuple)):
+                try:
+                    valor = list(valor)
+                except TypeError:
+                    valor = [valor]
+            try:
+                return [float(item) for item in valor]
+            except (TypeError, ValueError):
+                return []
+
+        metadatos.update({
+            'image_position_patient': lista_decimal('ImagePositionPatient'),
+            'image_orientation_patient': lista_decimal('ImageOrientationPatient'),
+            'pixel_spacing': lista_decimal('PixelSpacing'),
+            'slice_thickness': decimal_dicom(dataset, 'SliceThickness'),
+            'spacing_between_slices': decimal_dicom(dataset, 'SpacingBetweenSlices'),
+            'slice_location': decimal_dicom(dataset, 'SliceLocation'),
+            'rescale_slope': decimal_dicom(dataset, 'RescaleSlope'),
+            'rescale_intercept': decimal_dicom(dataset, 'RescaleIntercept'),
+            'window_center': (lista_decimal('WindowCenter') or [None])[0],
+            'window_width': (lista_decimal('WindowWidth') or [None])[0],
+            'bits_stored': entero_dicom(dataset, 'BitsStored'),
+            'high_bit': entero_dicom(dataset, 'HighBit'),
+            'pixel_representation': entero_dicom(dataset, 'PixelRepresentation'),
+        })
+    except Exception:
+        logger.exception(
+            'No fue posible leer geometría DICOM. instancia_id=%s',
+            instancia.id,
+        )
+    return metadatos
+
+
+def _posicion_espacial_dicom(metadatos):
+    posicion = metadatos.get('image_position_patient') or []
+    orientacion = metadatos.get('image_orientation_patient') or []
+    if len(posicion) != 3 or len(orientacion) != 6:
+        return None
+    fila = orientacion[:3]
+    columna = orientacion[3:]
+    normal = (
+        fila[1] * columna[2] - fila[2] * columna[1],
+        fila[2] * columna[0] - fila[0] * columna[2],
+        fila[0] * columna[1] - fila[1] * columna[0],
+    )
+    return sum(posicion[indice] * normal[indice] for indice in range(3))
+
+
+@login_required
+def manifiesto_estudio_dicom(request, estudio_id):
+    """Describe estudio, series e instancias para visores web DICOM."""
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return JsonResponse({'error': 'Acceso no autorizado.'}, status=403)
+
+    estudio_dicom = get_object_or_404(
+        EstudioDicom.objects.select_related(
+            'estudio__paciente',
+            'estudio__tipo_estudio',
+        ).prefetch_related(
+            'series__instancias__archivo_estudio',
+        ),
+        estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+
+    series = []
+    for serie in estudio_dicom.series.all().order_by('numero_serie', 'id'):
+        instancias = []
+        for instancia in serie.instancias.all():
+            metadatos = _metadatos_visor_instancia(instancia)
+            instancias.append({
+                'id': instancia.id,
+                'sop_instance_uid': instancia.sop_instance_uid,
+                'sop_class_uid': instancia.sop_class_uid,
+                'transfer_syntax_uid': instancia.transfer_syntax_uid,
+                'numero_instancia': instancia.numero_instancia,
+                'numero_frames': max(1, instancia.numero_frames or 1),
+                'filas': instancia.filas,
+                'columnas': instancia.columnas,
+                'bits_asignados': instancia.bits_asignados,
+                'fotometria': instancia.interpretacion_fotometrica,
+                'tamano_bytes': instancia.tamano_bytes,
+                'posicion_espacial': _posicion_espacial_dicom(metadatos),
+                'geometria': {
+                    clave: metadatos.get(clave)
+                    for clave in (
+                        'image_position_patient',
+                        'image_orientation_patient',
+                        'pixel_spacing',
+                        'slice_thickness',
+                        'spacing_between_slices',
+                        'slice_location',
+                        'rescale_slope',
+                        'rescale_intercept',
+                        'window_center',
+                        'window_width',
+                        'bits_stored',
+                        'high_bit',
+                        'pixel_representation',
+                    )
+                },
+                'dicom_url': reverse(
+                    'archivo_instancia_dicom',
+                    args=[estudio_id, instancia.id],
+                ),
+                'imagen_respaldo_url': reverse(
+                    'imagen_instancia_dicom',
+                    args=[estudio_id, instancia.id],
+                ),
+            })
+
+        instancias.sort(key=lambda item: (
+            item['posicion_espacial'] is None,
+            item['posicion_espacial']
+            if item['posicion_espacial'] is not None
+            else item['numero_instancia'] or 0,
+            item['id'],
+        ))
+        orientadas = sum(
+            item['posicion_espacial'] is not None for item in instancias
+        )
+        series.append({
+            'id': serie.id,
+            'series_instance_uid': serie.series_instance_uid,
+            'numero': serie.numero_serie,
+            'modalidad': serie.modalidad,
+            'descripcion': serie.descripcion,
+            'protocolo': serie.protocolo,
+            'region_anatomica': serie.region_anatomica,
+            'fabricante': serie.fabricante,
+            'estacion': serie.estacion,
+            'cantidad_instancias': len(instancias),
+            'apta_para_volumen': (
+                serie.modalidad in ['CT', 'MR', 'PT']
+                and len(instancias) > 1
+                and orientadas == len(instancias)
+            ),
+            'instancias': instancias,
+        })
+
+    paciente = estudio_dicom.estudio.paciente
+    respuesta = JsonResponse({
+        'version': 1,
+        'estudio': {
+            'id': estudio_dicom.estudio_id,
+            'study_instance_uid': estudio_dicom.study_instance_uid,
+            'accession_number': estudio_dicom.accession_number,
+            'descripcion': estudio_dicom.descripcion,
+            'fecha': estudio_dicom.fecha_estudio.isoformat()
+            if estudio_dicom.fecha_estudio else None,
+            'paciente': {
+                'identificacion': paciente.identificacion,
+                'nombre': f'{paciente.nombre} {paciente.apellido}'.strip(),
+                'fecha_nacimiento': paciente.fecha_nacimiento.isoformat(),
+                'genero': paciente.genero,
+            },
+        },
+        'series': series,
+    })
+    respuesta['Cache-Control'] = 'private, max-age=60'
+    respuesta['X-Content-Type-Options'] = 'nosniff'
+    return respuesta
+
+
+@login_required
+def archivo_instancia_dicom(request, estudio_id, instancia_id):
+    """Entrega autenticada del objeto DICOM original al visor web."""
+    membresia = obtener_membresia_usuario(request)
+    if membresia is None or membresia.rol not in [
+        'TECNICO', 'RADIOLOGIA', 'MEDICO', 'ADMIN',
+    ]:
+        return HttpResponse(status=403)
+
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio_id=estudio_id,
+        institucion=membresia.institucion,
+    )
+    archivo = instancia.archivo_estudio.archivo.open('rb')
+    nombre = (
+        instancia.archivo_estudio.nombre_original
+        or Path(instancia.archivo_estudio.archivo.name).name
+        or f'{instancia.sop_instance_uid}.dcm'
+    )
+    respuesta = FileResponse(
+        archivo,
+        content_type='application/dicom',
+    )
+    respuesta['Content-Disposition'] = (
+        "inline; filename*=UTF-8''" + quote(nombre)
+    )
+    respuesta['Cache-Control'] = 'private, max-age=900'
+    respuesta['X-Content-Type-Options'] = 'nosniff'
+    if instancia.tamano_bytes:
+        respuesta['Content-Length'] = str(instancia.tamano_bytes)
+    return respuesta
 
 
 @login_required
