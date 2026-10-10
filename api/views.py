@@ -1,10 +1,12 @@
 import json
+import hashlib
 import os
+import secrets
 import uuid
 from datetime import datetime
 
 from django.db import transaction
-from django.contrib.auth import get_user_model
+from django.contrib.auth import authenticate, get_user_model
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
@@ -12,29 +14,65 @@ from django.views.decorators.csrf import csrf_exempt
 
 from core.models import Institucion, Estudio, Paciente, TipoEstudio, MembresiaInstitucion, AreaInstitucional, ModuloSistema, AccesoModuloMembresia
 
-from .models import SyncOutbox
+from .models import DispositivoSync, SyncOutbox
 from .sync_context import importar_desde_servidor
 
 
-API_VERSION = '1.0'
+API_VERSION = '1.1'
 
 
-def _sync_token_valido(request):
+def _token_hash(token):
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def _institucion_token_legacy(request):
+    """Compatibilidad temporal con instalaciones que usan el token maestro."""
     esperado = os.environ.get('LORETO_SYNC_TOKEN', '').strip()
     recibido = request.headers.get('X-Loreto-Sync-Token', '').strip()
-    return bool(esperado) and recibido == esperado
-
-
-def _requiere_token(request):
-    if _sync_token_valido(request):
+    if not esperado or not secrets.compare_digest(recibido, esperado):
         return None
-    return JsonResponse(
-        {'ok': False, 'error': 'Token de sincronización inválido.'},
+    return _institucion_sync_legacy()
+
+
+def _institucion_desde_token(request):
+    token = request.headers.get('X-Loreto-Sync-Token', '').strip()
+    if not token:
+        return None
+
+    institucion_legacy = _institucion_token_legacy(request)
+    if institucion_legacy is not None:
+        return institucion_legacy
+
+    dispositivo = (
+        DispositivoSync.objects
+        .select_related('institucion')
+        .filter(
+            token_hash=_token_hash(token),
+            activo=True,
+            institucion__activa=True,
+        )
+        .first()
+    )
+    if dispositivo is None:
+        return None
+
+    DispositivoSync.objects.filter(pk=dispositivo.pk).update(
+        ultima_conexion=timezone.now(),
+    )
+    return dispositivo.institucion
+
+
+def _requiere_institucion(request):
+    institucion = _institucion_desde_token(request)
+    if institucion is not None:
+        return institucion, None
+    return None, JsonResponse(
+        {'ok': False, 'error': 'Dispositivo no autorizado para sincronizar.'},
         status=401,
     )
 
 
-def _institucion_sync():
+def _institucion_sync_legacy():
     valor = os.environ.get('LORETO_SYNC_INSTITUCION_ID', '').strip()
 
     if valor:
@@ -49,6 +87,96 @@ def _institucion_sync():
         .order_by('id')
         .first()
     )
+
+
+@csrf_exempt
+@require_POST
+def sync_activar_dispositivo(request):
+    """Registra una computadora usando credenciales administrativas normales."""
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse(
+            {'ok': False, 'error': 'JSON inválido.'},
+            status=400,
+        )
+
+    username = str(payload.get('username', '')).strip()
+    password = str(payload.get('password', ''))
+    nombre = str(payload.get('nombre_dispositivo', '')).strip()[:150]
+
+    try:
+        dispositivo_id = uuid.UUID(str(payload.get('dispositivo_id', '')))
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse(
+            {'ok': False, 'error': 'Identificador de dispositivo inválido.'},
+            status=400,
+        )
+
+    usuario = authenticate(
+        request,
+        username=username,
+        password=password,
+    )
+    if usuario is None or not usuario.is_active:
+        return JsonResponse(
+            {'ok': False, 'error': 'Usuario o contraseña incorrectos.'},
+            status=401,
+        )
+
+    membresia = (
+        MembresiaInstitucion.objects
+        .select_related('institucion')
+        .filter(
+            usuario=usuario,
+            activa=True,
+            institucion__activa=True,
+        )
+        .order_by('id')
+        .first()
+    )
+
+    if usuario.is_superuser:
+        institucion = membresia.institucion if membresia else _institucion_sync_legacy()
+    elif membresia and membresia.rol in {'ADMIN', 'SISTEMAS'}:
+        institucion = membresia.institucion
+    else:
+        institucion = None
+
+    if institucion is None:
+        return JsonResponse(
+            {
+                'ok': False,
+                'error': 'Se requiere una cuenta administradora o de sistemas para activar este equipo.',
+            },
+            status=403,
+        )
+
+    token = secrets.token_urlsafe(48)
+    dispositivo, _ = DispositivoSync.objects.update_or_create(
+        institucion=institucion,
+        dispositivo_id=dispositivo_id,
+        defaults={
+            'nombre': nombre or 'Equipo Loreto One',
+            'token_hash': _token_hash(token),
+            'autorizado_por': usuario,
+            'activo': True,
+            'ultima_conexion': timezone.now(),
+        },
+    )
+
+    return JsonResponse({
+        'ok': True,
+        'token': token,
+        'dispositivo': {
+            'id': str(dispositivo.dispositivo_id),
+            'nombre': dispositivo.nombre,
+        },
+        'institucion': {
+            'id': institucion.id,
+            'nombre': institucion.nombre,
+        },
+    })
 
 
 def _parse_datetime(valor):
@@ -95,19 +223,9 @@ def catalogo_estudios(request):
 
 @require_GET
 def sync_estado(request):
-    error = _requiere_token(request)
+    institucion, error = _requiere_institucion(request)
     if error:
         return error
-
-    institucion = _institucion_sync()
-    if institucion is None:
-        return JsonResponse(
-            {
-                'ok': False,
-                'error': 'No existe una institución activa configurada para sincronización.',
-            },
-            status=503,
-        )
 
     return JsonResponse({
         'ok': True,
@@ -123,16 +241,9 @@ def sync_estado(request):
 @csrf_exempt
 @require_POST
 def sync_push(request):
-    error = _requiere_token(request)
+    institucion, error = _requiere_institucion(request)
     if error:
         return error
-
-    institucion = _institucion_sync()
-    if institucion is None:
-        return JsonResponse(
-            {'ok': False, 'error': 'No existe institución activa para sincronización.'},
-            status=503,
-        )
 
     try:
         payload = json.loads(request.body.decode('utf-8') or '{}')
@@ -261,13 +372,9 @@ def sync_push(request):
 
 @require_GET
 def sync_usuarios(request):
-    error = _requiere_token(request)
+    institucion, error = _requiere_institucion(request)
     if error:
         return error
-
-    institucion = _institucion_sync()
-    if institucion is None:
-        return JsonResponse({'ok': False, 'error': 'No existe institución activa para sincronización.'}, status=503)
 
     User = get_user_model()
     membresias = (
@@ -313,16 +420,9 @@ def sync_usuarios(request):
 
 @require_GET
 def sync_pull(request):
-    error = _requiere_token(request)
+    institucion, error = _requiere_institucion(request)
     if error:
         return error
-
-    institucion = _institucion_sync()
-    if institucion is None:
-        return JsonResponse(
-            {'ok': False, 'error': 'No existe institución activa para sincronización.'},
-            status=503,
-        )
 
     since = _parse_datetime(request.GET.get('since'))
     limit_raw = request.GET.get('limit', '100')
@@ -382,9 +482,23 @@ def sync_pull(request):
         *(p.actualizado_el for p in pacientes),
         *(e.actualizado_el for e in estudios),
     ]
-    next_since = max(timestamps).isoformat() if timestamps else (
-        since.isoformat() if since else timezone.now().isoformat()
-    )
+    cursores_saturados = []
+    if len(pacientes) >= limit:
+        cursores_saturados.append(pacientes[-1].actualizado_el)
+    if len(estudios) >= limit:
+        cursores_saturados.append(estudios[-1].actualizado_el)
+
+    # Si una colección llenó la página, no se debe adelantar el cursor por
+    # encima de ella debido a registros más recientes de la otra colección.
+    # Es preferible repetir un update_or_create que omitir datos.
+    if cursores_saturados:
+        siguiente_fecha = min(cursores_saturados)
+    elif timestamps:
+        siguiente_fecha = max(timestamps)
+    else:
+        siguiente_fecha = since or timezone.now()
+
+    next_since = siguiente_fecha.isoformat()
 
     return JsonResponse({
         'ok': True,

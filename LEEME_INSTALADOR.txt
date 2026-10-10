@@ -1,0 +1,27 @@
+LORETO ONE DESKTOP 1.0.0
+========================
+
+Requisitos del equipo de uso
+----------------------------
+- Windows 10 u 11 de 64 bits.
+- Microsoft Edge instalado.
+- Internet únicamente para la primera activación y para sincronizar.
+
+Primera apertura
+----------------
+1. Loreto One prepara automáticamente su base SQLite local.
+2. Solicita una sola vez una cuenta ADMIN o SISTEMAS de Loreto One.
+3. El servidor registra la computadora y entrega una credencial exclusiva.
+4. La contraseña usada para activar no se guarda.
+5. Después puede trabajar sin Internet y sincroniza al recuperar conexión.
+
+Datos locales
+-------------
+Los datos permanecen en %LOCALAPPDATA%\LoretoOne y no se eliminan al
+actualizar o desinstalar la aplicación.
+
+Construcción
+------------
+Ejecutar CONSTRUIR_INSTALADOR.cmd desde la raíz del proyecto.
+El resultado queda en:
+Instalador_Final\LoretoOne_Setup_1.0.0_x64.exe

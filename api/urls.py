@@ -5,6 +5,11 @@ from . import views
 
 urlpatterns = [
     path(
+        'sync/activar/',
+        views.sync_activar_dispositivo,
+        name='api_sync_activar_dispositivo',
+    ),
+    path(
         'catalogo/estudios/',
         views.catalogo_estudios,
         name='api_catalogo_estudios',

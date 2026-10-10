@@ -1,3 +1,6 @@
+import uuid
+
+from django.conf import settings
 from django.db import models
 
 
@@ -38,3 +41,44 @@ class SyncCursor(models.Model):
 
     def __str__(self):
         return self.clave
+
+
+class DispositivoSync(models.Model):
+    """Computadora autorizada para sincronizar una institución."""
+
+    institucion = models.ForeignKey(
+        'core.Institucion',
+        on_delete=models.CASCADE,
+        related_name='dispositivos_sync',
+    )
+    dispositivo_id = models.UUIDField(default=uuid.uuid4)
+    nombre = models.CharField(max_length=150)
+    token_hash = models.CharField(max_length=64, unique=True)
+    autorizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='dispositivos_sync_autorizados',
+        blank=True,
+        null=True,
+    )
+    activo = models.BooleanField(default=True)
+    creado_el = models.DateTimeField(auto_now_add=True)
+    actualizado_el = models.DateTimeField(auto_now=True)
+    ultima_conexion = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['institucion', 'dispositivo_id'],
+                name='sync_dispositivo_institucion_id_unico',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['activo', 'ultima_conexion'],
+                name='api_disposi_activo_83d793_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.nombre} - {self.institucion}'
