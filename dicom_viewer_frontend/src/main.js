@@ -21,6 +21,7 @@ let volumeId = null;
 let activeTool = 'wl';
 let activeViewportId = VIEWPORTS[0][0];
 const invertedViewports = new Set();
+let mprCineTimer = null;
 
 function absoluteUrl(value) {
   return new URL(value, window.location.origin).href;
@@ -65,6 +66,8 @@ function setTool(tool) {
 
 function configureInteractions(viewportId, viewport, element) {
   element.addEventListener('pointerenter', () => selectViewport(viewportId));
+  element.parentElement?.addEventListener('pointerenter', () => selectViewport(viewportId));
+  element.parentElement?.addEventListener('pointerdown', () => selectViewport(viewportId));
   element.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
     event.preventDefault();
@@ -110,10 +113,7 @@ function configureInteractions(viewportId, viewport, element) {
       const current = viewport.getZoom();
       viewport.setZoom(Math.max(0.2, Math.min(12, current * (event.deltaY < 0 ? 1.12 : 0.89))));
     } else {
-      utilities.scroll(viewport, {
-        delta: event.deltaY > 0 ? 1 : -1,
-        volumeId,
-      });
+      scrollViewport(viewport, event.deltaY > 0 ? 1 : -1);
     }
     viewport.render();
   }, { passive: false });
@@ -122,6 +122,30 @@ function configureInteractions(viewportId, viewport, element) {
     viewport.resetCamera();
     viewport.render();
   });
+}
+
+function updateMprCounter(viewport = activeViewport()) {
+  if (!viewport) return;
+  const index = viewport.getCurrentImageIdIndex?.();
+  const count = viewport.getNumberOfSlices?.();
+  const counter = document.getElementById('contador-imagen');
+  if (counter) {
+    counter.textContent = Number.isFinite(index) && Number.isFinite(count)
+      ? `MPR · Corte ${index + 1} de ${count}`
+      : 'MPR · Plano activo';
+  }
+}
+
+function scrollViewport(viewport, delta) {
+  if (!viewport) return;
+  utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
+  viewport.render();
+  window.requestAnimationFrame(() => updateMprCounter(viewport));
+}
+
+function stopMprCine() {
+  if (mprCineTimer) window.clearInterval(mprCineTimer);
+  mprCineTimer = null;
 }
 
 function applyPreset(center, width) {
@@ -193,6 +217,7 @@ function toggleMpr() {
   const stack = document.getElementById('viewer-stage');
   const button = document.getElementById('activar-mpr');
   active = !active;
+  if (!active) stopMprCine();
   grid.hidden = !active;
   stack.hidden = active;
   button.classList.toggle('active', active);
@@ -206,6 +231,31 @@ function toggleMpr() {
 }
 
 document.getElementById('activar-mpr')?.addEventListener('click', toggleMpr);
+const previousCutBack = document.getElementById('corte-anterior')?.onclick;
+const previousCutForward = document.getElementById('corte-siguiente')?.onclick;
+const previousCinePlay = document.getElementById('cine-reproducir')?.onclick;
+const previousCinePause = document.getElementById('cine-pausar')?.onclick;
+
+document.getElementById('corte-anterior').onclick = event => {
+  if (!active) return previousCutBack?.call(event.currentTarget, event);
+  stopMprCine();
+  scrollViewport(activeViewport(), -1);
+};
+document.getElementById('corte-siguiente').onclick = event => {
+  if (!active) return previousCutForward?.call(event.currentTarget, event);
+  stopMprCine();
+  scrollViewport(activeViewport(), 1);
+};
+document.getElementById('cine-pausar').onclick = event => {
+  if (!active) return previousCinePause?.call(event.currentTarget, event);
+  stopMprCine();
+};
+document.getElementById('cine-reproducir').onclick = event => {
+  if (!active) return previousCinePlay?.call(event.currentTarget, event);
+  stopMprCine();
+  const fps = Math.max(1, Number(document.getElementById('cine-velocidad')?.value || 5));
+  mprCineTimer = window.setInterval(() => scrollViewport(activeViewport(), 1), 1000 / fps);
+};
 document.querySelectorAll('.tool-button').forEach(button => {
   button.addEventListener('click', () => {
     if (!active) return;
