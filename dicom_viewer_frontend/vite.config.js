@@ -4,6 +4,13 @@ import { resolve } from 'node:path';
 export default defineConfig({
   base: '/static/core/dicom_viewer/',
 
+  resolve: {
+    alias: {
+      events: resolve(import.meta.dirname, 'node_modules/events/events.js'),
+      url: resolve(import.meta.dirname, 'node_modules/url/url.js'),
+    },
+  },
+
   worker: {
     format: 'es',
   },

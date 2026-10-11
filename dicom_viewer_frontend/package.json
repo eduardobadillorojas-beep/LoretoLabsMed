@@ -15,7 +15,9 @@
     "@cornerstonejs/core": "^5.11.7",
     "@cornerstonejs/dicom-image-loader": "^5.11.7",
     "@cornerstonejs/tools": "^5.11.7",
-    "dicom-parser": "^1.8.21"
+    "dicom-parser": "^1.8.21",
+    "events": "^3.3.0",
+    "url": "^0.11.4"
   },
   "devDependencies": {
     "vite": "7.2.4"
