@@ -1773,6 +1773,11 @@ def registrar_paciente_radiologia(request):
     telefono = request.POST.get('telefono', '').strip()
     medico = request.POST.get('medico_solicitante', '').strip()
     descripcion = request.POST.get('descripcion', '').strip()
+    formato_entrega = request.POST.get('formato_entrega', '').strip().upper()
+
+    if formato_entrega not in {'DIGITAL', 'IMPRESO', 'AMBOS'}:
+        messages.error(request, 'Selecciona si la entrega será digital, impresa o ambas.')
+        return redirect('panel_radiologo')
 
     try:
         fecha_nacimiento = date.fromisoformat(nacimiento_texto)
@@ -1818,6 +1823,7 @@ def registrar_paciente_radiologia(request):
         estudio = Estudio.objects.create(
             paciente=paciente,
             tipo_estudio=tipo_estudio,
+            formato_entrega=formato_entrega,
             medico_solicitante=medico or None,
             descripcion=descripcion or 'Paciente y estudio registrados desde Radiología.',
             estado='PENDIENTE',

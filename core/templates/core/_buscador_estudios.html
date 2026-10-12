@@ -1,0 +1,120 @@
+<style>
+    .loreto-study-search { position: relative; width: 100%; }
+    .loreto-study-search input {
+        width: 100%; background: #0f172a; color: #f8fafc;
+        border: 1px solid #475569; border-radius: 8px; padding: 10px 38px 10px 12px;
+    }
+    .loreto-study-search input:focus {
+        border-color: #22d3ee; outline: none; box-shadow: 0 0 0 3px rgba(34,211,238,.14);
+    }
+    .loreto-study-clear {
+        position: absolute; right: 8px; top: 7px; border: 0; background: transparent;
+        color: #94a3b8; font-size: 20px; line-height: 1; cursor: pointer;
+    }
+    .loreto-study-results {
+        display: none; position: absolute; z-index: 1080; left: 0; right: 0; top: calc(100% + 4px);
+        max-height: 300px; overflow-y: auto; background: #0b1220; border: 1px solid #475569;
+        border-radius: 9px; box-shadow: 0 16px 35px rgba(0,0,0,.45);
+    }
+    .loreto-study-results.open { display: block; }
+    .loreto-study-option, .loreto-study-empty {
+        display: block; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid #1e293b;
+        background: transparent; color: #e2e8f0; text-align: left;
+    }
+    button.loreto-study-option { cursor: pointer; }
+    button.loreto-study-option:hover, button.loreto-study-option.active { background: #164e63; color: #fff; }
+    .loreto-study-empty { color: #94a3b8; }
+</style>
+
+<script>
+(function () {
+    function normalizar(texto) {
+        return (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    }
+
+    function iniciar(select) {
+        if (!select || select.dataset.searchReady === '1' || select.closest('.campo-tipo-estudio-original')) return;
+        select.dataset.searchReady = '1';
+
+        const opciones = Array.from(select.options)
+            .filter(opcion => opcion.value)
+            .map(opcion => ({ value: opcion.value, text: (opcion.textContent || '').trim(), search: normalizar(opcion.textContent) }));
+
+        const caja = document.createElement('div');
+        caja.className = 'loreto-study-search';
+        const entrada = document.createElement('input');
+        entrada.type = 'text';
+        entrada.autocomplete = 'off';
+        entrada.placeholder = select.dataset.placeholder || 'Escribe para buscar un estudio…';
+        entrada.setAttribute('aria-label', 'Buscar estudio');
+        const limpiar = document.createElement('button');
+        limpiar.type = 'button';
+        limpiar.className = 'loreto-study-clear';
+        limpiar.textContent = '×';
+        limpiar.title = 'Cambiar estudio';
+        const resultados = document.createElement('div');
+        resultados.className = 'loreto-study-results';
+        caja.append(entrada, limpiar, resultados);
+        select.insertAdjacentElement('afterend', caja);
+        select.style.display = 'none';
+
+        let indice = -1;
+        function cerrar() { resultados.classList.remove('open'); indice = -1; }
+        function elegir(opcion) {
+            select.value = opcion.value;
+            entrada.value = opcion.text;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            cerrar();
+        }
+        function mostrar() {
+            const termino = normalizar(entrada.value);
+            resultados.innerHTML = '';
+            indice = -1;
+            const coincidencias = opciones.filter(o => !termino || o.search.includes(termino)).slice(0, 40);
+            if (!coincidencias.length) {
+                const vacio = document.createElement('div');
+                vacio.className = 'loreto-study-empty';
+                vacio.textContent = 'No se encontraron coincidencias.';
+                resultados.appendChild(vacio);
+            } else {
+                coincidencias.forEach(opcion => {
+                    const boton = document.createElement('button');
+                    boton.type = 'button'; boton.className = 'loreto-study-option'; boton.textContent = opcion.text;
+                    boton.addEventListener('mousedown', evento => { evento.preventDefault(); elegir(opcion); });
+                    resultados.appendChild(boton);
+                });
+            }
+            resultados.classList.add('open');
+        }
+        function marcar(nuevo) {
+            const botones = Array.from(resultados.querySelectorAll('.loreto-study-option'));
+            if (!botones.length) return;
+            indice = Math.max(0, Math.min(nuevo, botones.length - 1));
+            botones.forEach((b, i) => b.classList.toggle('active', i === indice));
+            botones[indice].scrollIntoView({ block: 'nearest' });
+        }
+
+        entrada.addEventListener('focus', mostrar);
+        entrada.addEventListener('input', () => { select.value = ''; mostrar(); });
+        entrada.addEventListener('keydown', evento => {
+            if (evento.key === 'ArrowDown') { evento.preventDefault(); marcar(indice + 1); }
+            else if (evento.key === 'ArrowUp') { evento.preventDefault(); marcar(indice - 1); }
+            else if (evento.key === 'Enter') {
+                const activos = resultados.querySelectorAll('.loreto-study-option');
+                if (indice >= 0 && activos[indice]) { evento.preventDefault(); activos[indice].dispatchEvent(new MouseEvent('mousedown')); }
+            } else if (evento.key === 'Escape') cerrar();
+        });
+        limpiar.addEventListener('click', () => { select.value = ''; entrada.value = ''; entrada.focus(); mostrar(); });
+        document.addEventListener('click', evento => { if (!caja.contains(evento.target)) cerrar(); });
+
+        if (select.value) {
+            const actual = opciones.find(opcion => opcion.value === select.value);
+            if (actual) entrada.value = actual.text;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('select.js-buscador-estudio, select[name="tipo_estudio"]').forEach(iniciar);
+    });
+})();
+</script>

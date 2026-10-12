@@ -220,6 +220,12 @@ Estudio | Loreto One
                 Estudio #{{ estudio.id }}
             </div>
 
+            <div class="mt-2">
+                <span class="badge {% if estudio.formato_entrega == 'IMPRESO' %}bg-warning text-dark{% elif estudio.formato_entrega == 'AMBOS' %}bg-info text-dark{% else %}bg-primary{% endif %}">
+                    Entrega solicitada: {{ estudio.get_formato_entrega_display }}
+                </span>
+            </div>
+
         </div>
 
 
@@ -507,6 +513,15 @@ Estudio | Loreto One
                                     Médico solicitante
                                 </label>
                                 {{ estudio_adicional_form.medico_solicitante }}
+                            </div>
+
+                            <div class="full">
+                                <label class="form-label small">Entrega solicitada</label>
+                                <div class="d-flex flex-wrap gap-3">
+                                    {% for opcion in estudio_adicional_form.formato_entrega %}
+                                        <label class="form-check form-check-inline m-0">{{ opcion.tag }} <span class="form-check-label">{{ opcion.choice_label }}</span></label>
+                                    {% endfor %}
+                                </div>
                             </div>
 
                             <div class="full">
@@ -1185,5 +1200,7 @@ function confirmarEliminacionSerie(formulario, descripcion, cantidad) {
     });
 })();
 </script>
+
+{% include 'core/_buscador_estudios.html' %}
 
 {% endblock %}

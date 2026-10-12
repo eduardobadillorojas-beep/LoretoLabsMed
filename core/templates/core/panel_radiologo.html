@@ -357,7 +357,8 @@ Radiología | Loreto One
             <div><label>Fecha de nacimiento *</label><input type="date" name="fecha_nacimiento" required></div>
             <div><label>Género *</label><select name="genero" required><option value="">Seleccionar…</option><option value="F">Femenino</option><option value="M">Masculino</option><option value="O">Otro</option></select></div>
             <div><label>Teléfono</label><input name="telefono" inputmode="tel" autocomplete="tel"></div>
-            <div class="wide"><label>Estudio *</label><select name="tipo_estudio" required><option value="">Seleccionar estudio…</option>{% for tipo in tipos_estudio %}<option value="{{ tipo.id }}">{{ tipo.get_modalidad_display }} · {{ tipo.nombre }}</option>{% endfor %}</select></div>
+            <div class="wide"><label>Estudio *</label><select name="tipo_estudio" class="js-buscador-estudio" data-placeholder="Escribe para buscar un estudio…" required><option value="">Seleccionar estudio…</option>{% for tipo in tipos_estudio %}<option value="{{ tipo.id }}">{{ tipo.get_modalidad_display }} · {{ tipo.nombre }}</option>{% endfor %}</select></div>
+            <div class="wide"><label>Entrega solicitada *</label><select name="formato_entrega" required><option value="">Seleccionar…</option><option value="DIGITAL">Digital</option><option value="IMPRESO">Impreso</option><option value="AMBOS">Impreso y digital</option></select></div>
             <div><label>Médico solicitante</label><input name="medico_solicitante"></div>
             <div class="full"><label>Indicaciones u observaciones</label><textarea name="descripcion" rows="2"></textarea></div>
             <label class="duplicate-check full"><input type="checkbox" name="confirmar_duplicado" value="1"> Crear aunque el sistema encuentre el mismo nombre y fecha de nacimiento</label>
@@ -761,6 +762,12 @@ Radiología | Loreto One
                                         {{ estudio.tipo_estudio.get_modalidad_display }}
                                     </div>
 
+                                    <div class="mt-1">
+                                        <span class="badge {% if estudio.formato_entrega == 'IMPRESO' %}bg-warning text-dark{% elif estudio.formato_entrega == 'AMBOS' %}bg-info text-dark{% else %}bg-primary{% endif %}">
+                                            Entrega: {{ estudio.get_formato_entrega_display }}
+                                        </span>
+                                    </div>
+
                                 </td>
 
 
@@ -928,6 +935,10 @@ Radiología | Loreto One
                                 {{ estudio.tipo_estudio.nombre }}
                             </div>
 
+                            <div class="small text-info">
+                                Entrega: {{ estudio.get_formato_entrega_display }}
+                            </div>
+
                         </div>
 
 
@@ -961,5 +972,7 @@ Radiología | Loreto One
 
 
 </div>
+
+{% include 'core/_buscador_estudios.html' %}
 
 {% endblock %}

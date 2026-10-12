@@ -465,6 +465,19 @@ Registrar paciente | Loreto One
 
                 <!-- OBSERVACIONES -->
 
+                <div class="mb-3 formato-entrega">
+                    <label class="form-label">Entrega solicitada *</label>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for opcion in estudio_form.formato_entrega %}
+                            <label class="form-check form-check-inline m-0">
+                                {{ opcion.tag }}
+                                <span class="form-check-label">{{ opcion.choice_label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    {{ estudio_form.formato_entrega.errors }}
+                </div>
+
                 <div class="mb-3">
 
                     {{ estudio_form.descripcion.label_tag }}

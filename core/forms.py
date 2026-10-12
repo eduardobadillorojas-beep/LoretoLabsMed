@@ -107,7 +107,8 @@ class EstudioForm(forms.ModelForm):
         empty_label='Selecciona un estudio',
         widget=forms.Select(
             attrs={
-                'class': 'form-select',
+                'class': 'form-select js-buscador-estudio',
+                'data-placeholder': 'Escribe para buscar un estudio…',
             }
         )
     )
@@ -118,6 +119,7 @@ class EstudioForm(forms.ModelForm):
         fields = [
             'medico_solicitante',
             'tipo_estudio',
+            'formato_entrega',
             'descripcion',
             'estado',
         ]
@@ -137,6 +139,11 @@ class EstudioForm(forms.ModelForm):
                         'Diagnóstico presuntivo, indicaciones '
                         'u observaciones del estudio'
                     ),
+                }
+            ),
+            'formato_entrega': forms.RadioSelect(
+                attrs={
+                    'class': 'form-check-input',
                 }
             ),
             'estado': forms.Select(

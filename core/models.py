@@ -1275,6 +1275,12 @@ class EstudioSolicitado(models.Model):
 
 
 class Estudio(models.Model):
+    FORMATO_ENTREGA_CHOICES = [
+        ('DIGITAL', 'Digital'),
+        ('IMPRESO', 'Impreso'),
+        ('AMBOS', 'Impreso y digital'),
+    ]
+
     ESTADO_CHOICES = [
         ('PENDIENTE', 'Pendiente'),
         ('EN_PROCESO', 'En proceso'),
@@ -1306,6 +1312,13 @@ class Estudio(models.Model):
         TipoEstudio,
         on_delete=models.PROTECT,
         related_name='estudios'
+    )
+
+    formato_entrega = models.CharField(
+        max_length=10,
+        choices=FORMATO_ENTREGA_CHOICES,
+        default='DIGITAL',
+        verbose_name='Entrega solicitada'
     )
 
     medico_solicitante = models.CharField(
