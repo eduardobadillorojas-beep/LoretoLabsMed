@@ -138,6 +138,12 @@ urlpatterns = [
     ),
 
     path(
+        'radiologia/lista/actualizar/',
+        views.actualizar_lista_radiologia,
+        name='actualizar_lista_radiologia'
+    ),
+
+    path(
         'radiologia/bitacora/',
         views.bitacora_radiologica_panel,
         name='bitacora_radiologica_panel'

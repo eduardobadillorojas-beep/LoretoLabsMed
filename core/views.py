@@ -23,12 +23,13 @@ from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.core.paginator import Paginator
 from django.http import FileResponse, HttpResponse, JsonResponse
+from django.template.loader import render_to_string
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 from django.utils.text import slugify
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -1757,6 +1758,65 @@ def panel_radiologo(request):
         'core/panel_radiologo.html',
         context
     )
+
+
+@login_required
+@require_GET
+def actualizar_lista_radiologia(request):
+    membresia = obtener_membresia_usuario(request)
+
+    if membresia is None or membresia.rol not in [
+        'TECNICO',
+        'RADIOLOGIA',
+        'ADMIN',
+    ]:
+        return JsonResponse(
+            {'ok': False, 'error': 'No tienes permiso para consultar Radiología.'},
+            status=403,
+        )
+
+    institucion = membresia.institucion
+    hoy = timezone.localdate()
+
+    estudios_pendientes = list(
+        Estudio.objects
+        .select_related('paciente', 'tipo_estudio')
+        .filter(
+            paciente__institucion=institucion,
+            estado='PENDIENTE',
+        )
+        .order_by('fecha_creacion')
+    )
+
+    html = render_to_string(
+        'core/_lista_espera_radiologia.html',
+        {'estudios_pendientes': estudios_pendientes},
+        request=request,
+    )
+
+    return JsonResponse({
+        'ok': True,
+        'html': html,
+        'ids': [estudio.id for estudio in estudios_pendientes],
+        'en_espera': len(estudios_pendientes),
+        'en_proceso': Estudio.objects.filter(
+            paciente__institucion=institucion,
+            estado='EN_PROCESO',
+        ).count(),
+        'citados_hoy': Cita.objects.filter(
+            institucion=institucion,
+            area='RADIOLOGIA',
+            fecha_hora__date=hoy,
+        ).exclude(
+            estado__in=['CANCELADA', 'NO_ASISTIO', 'FINALIZADA']
+        ).count(),
+        'realizados_hoy': Estudio.objects.filter(
+            paciente__institucion=institucion,
+            estado='COMPLETADO',
+            fecha_finalizacion__date=hoy,
+        ).count(),
+        'actualizado': timezone.localtime().strftime('%H:%M:%S'),
+    })
 
 
 @login_required

@@ -377,7 +377,7 @@ Radiología | Loreto One
                 EN ESPERA
             </div>
 
-            <div class="status-number">
+            <div class="status-number" id="contador-en-espera">
                 {{ estudios_pendientes|length }}
             </div>
 
@@ -390,7 +390,7 @@ Radiología | Loreto One
                 EN PROCESO
             </div>
 
-            <div class="status-number">
+            <div class="status-number" id="contador-en-proceso">
                 {{ estudios_en_proceso|length }}
             </div>
 
@@ -403,7 +403,7 @@ Radiología | Loreto One
                 CITADOS HOY
             </div>
 
-            <div class="status-number">
+            <div class="status-number" id="contador-citados-hoy">
                 {{ citas_radiologia_hoy|length }}
             </div>
 
@@ -416,7 +416,7 @@ Radiología | Loreto One
                 REALIZADOS HOY
             </div>
 
-            <div class="status-number">
+            <div class="status-number" id="contador-realizados-hoy">
                 {{ estudios_realizados_hoy|length }}
             </div>
 
@@ -657,167 +657,19 @@ Radiología | Loreto One
 
             </div>
 
-            <span class="badge bg-primary">
+            <span class="badge bg-primary" id="badge-en-espera">
                 {{ estudios_pendientes|length }}
             </span>
 
         </div>
 
 
-        {% if estudios_pendientes %}
-
-            <div class="table-responsive">
-
-                <table
-                    class="table
-                           table-dark
-                           table-hover
-                           radio-table"
-                >
-
-                    <thead>
-
-                        <tr>
-
-                            <th>
-                                Llegada
-                            </th>
-
-                            <th>
-                                Paciente
-                            </th>
-
-                            <th>
-                                Fecha de nacimiento
-                            </th>
-
-                            <th>
-                                Teléfono
-                            </th>
-
-                            <th>
-                                Estudio solicitado
-                            </th>
-
-                            <th>
-                                Médico
-                            </th>
-
-                            <th>
-                                Indicaciones / Observaciones
-                            </th>
-
-                            <th class="text-end">
-                                Acción
-                            </th>
-
-                        </tr>
-
-                    </thead>
-
-
-                    <tbody>
-
-                        {% for estudio in estudios_pendientes %}
-
-                            <tr>
-
-                                <td class="hora">
-                                    {{ estudio.fecha_creacion|date:"H:i" }}
-                                </td>
-
-
-                                <td>
-
-                                    <div class="paciente">
-                                        {{ estudio.paciente.nombre }}
-                                        {{ estudio.paciente.apellido }}
-                                    </div>
-
-                                    <div class="paciente-dato">
-                                        Registro
-                                        {{ estudio.paciente.identificacion }}
-                                    </div>
-
-                                </td>
-
-
-                                <td>
-                                    {{ estudio.paciente.fecha_nacimiento|date:"d/m/Y" }}
-                                </td>
-
-
-                                <td>
-                                    {{ estudio.paciente.telefono|default:"—" }}
-                                </td>
-
-
-                                <td>
-
-                                    <div class="estudio">
-                                        {{ estudio.tipo_estudio.nombre }}
-                                    </div>
-
-                                    <div class="paciente-dato">
-                                        {{ estudio.tipo_estudio.get_modalidad_display }}
-                                    </div>
-
-                                    <div class="mt-1">
-                                        <span class="badge {% if estudio.formato_entrega == 'IMPRESO' %}bg-warning text-dark{% elif estudio.formato_entrega == 'AMBOS' %}bg-info text-dark{% else %}bg-primary{% endif %}">
-                                            Entrega: {{ estudio.get_formato_entrega_display }}
-                                        </span>
-                                    </div>
-
-                                </td>
-
-
-                                <td>
-                                    {{ estudio.medico_solicitante|default:"—" }}
-                                </td>
-
-
-                                <td class="observaciones">
-                                    {{ estudio.descripcion|default:"Sin observaciones" }}
-                                </td>
-
-
-                                <td class="text-end">
-
-                                    <a
-                                        href="{% url 'detalle_paciente' estudio.paciente.id %}"
-                                        class="btn
-                                               btn-outline-info
-                                               btn-estudio"
-                                    >
-                                        Expediente
-                                    </a>
-
-                                    <a
-    href="{% url 'estudio_radiologia' estudio.id %}"
-    class="btn btn-primary btn-estudio"
->
-    Abrir estudio
-</a>
-
-                                </td>
-
-                            </tr>
-
-                        {% endfor %}
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        {% else %}
-
-            <div class="lista-vacia">
-                No hay pacientes esperando estudios.
-            </div>
-
-        {% endif %}
+        <div
+            id="lista-espera-radiologia"
+            data-estudio-ids="{% for estudio in estudios_pendientes %}{{ estudio.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+        >
+            {% include 'core/_lista_espera_radiologia.html' %}
+        </div>
 
     </div>
 
@@ -972,6 +824,86 @@ Radiología | Loreto One
 
 
 </div>
+
+<style>
+    .aviso-radiologia-nuevo {
+        position: fixed; right: 22px; bottom: 22px; z-index: 2000;
+        max-width: 360px; padding: 14px 18px; border-radius: 12px;
+        color: #ecfeff; background: #155e75; border: 1px solid #22d3ee;
+        box-shadow: 0 16px 35px rgba(0,0,0,.45);
+        opacity: 0; transform: translateY(14px); pointer-events: none;
+        transition: opacity .2s ease, transform .2s ease;
+    }
+    .aviso-radiologia-nuevo.visible { opacity: 1; transform: translateY(0); }
+</style>
+
+<div id="aviso-radiologia-nuevo" class="aviso-radiologia-nuevo" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+    const lista = document.getElementById('lista-espera-radiologia');
+    if (!lista) return;
+
+    const url = "{% url 'actualizar_lista_radiologia' %}";
+    const aviso = document.getElementById('aviso-radiologia-nuevo');
+    let idsAnteriores = new Set((lista.dataset.estudioIds || '').split(',').filter(Boolean));
+    let actualizando = false;
+    let temporizadorAviso = null;
+
+    function escribir(id, valor) {
+        const elemento = document.getElementById(id);
+        if (elemento) elemento.textContent = valor;
+    }
+
+    function mostrarAviso(cantidad) {
+        if (!aviso || cantidad < 1) return;
+        aviso.textContent = cantidad === 1
+            ? 'Nuevo paciente en Radiología.'
+            : `${cantidad} pacientes nuevos en Radiología.`;
+        aviso.classList.add('visible');
+        clearTimeout(temporizadorAviso);
+        temporizadorAviso = setTimeout(() => aviso.classList.remove('visible'), 6000);
+    }
+
+    async function actualizarLista() {
+        if (actualizando || document.hidden) return;
+        actualizando = true;
+        try {
+            const respuesta = await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            if (!respuesta.ok) return;
+            const datos = await respuesta.json();
+            if (!datos.ok) return;
+
+            const idsNuevos = new Set((datos.ids || []).map(String));
+            const cantidadNuevos = Array.from(idsNuevos).filter(id => !idsAnteriores.has(id)).length;
+
+            lista.innerHTML = datos.html;
+            lista.dataset.estudioIds = Array.from(idsNuevos).join(',');
+            idsAnteriores = idsNuevos;
+
+            escribir('contador-en-espera', datos.en_espera);
+            escribir('contador-en-proceso', datos.en_proceso);
+            escribir('contador-citados-hoy', datos.citados_hoy);
+            escribir('contador-realizados-hoy', datos.realizados_hoy);
+            escribir('badge-en-espera', datos.en_espera);
+            mostrarAviso(cantidadNuevos);
+        } catch (error) {
+            // Si no hay conexión, el panel permanece usable y reintentará después.
+        } finally {
+            actualizando = false;
+        }
+    }
+
+    setInterval(actualizarLista, 10000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) actualizarLista();
+    });
+})();
+</script>
 
 {% include 'core/_buscador_estudios.html' %}
 
