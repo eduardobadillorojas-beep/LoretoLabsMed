@@ -317,6 +317,14 @@ def sync_push(request):
                 sync_id = uuid.UUID(str(item['sync_id']))
                 paciente_sync_id = uuid.UUID(str(item['paciente_sync_id']))
                 tipo_codigo = str(item['tipo_estudio_codigo']).strip()
+                formato_entrega = str(
+                    item.get('formato_entrega') or 'DIGITAL'
+                ).strip().upper()
+
+                if formato_entrega not in {'DIGITAL', 'IMPRESO', 'AMBOS'}:
+                    raise ValueError(
+                        'El formato de entrega debe ser DIGITAL, IMPRESO o AMBOS.'
+                    )
 
                 paciente = Paciente.objects.get(
                     sync_id=paciente_sync_id,
@@ -335,6 +343,7 @@ def sync_push(request):
                         'medico_solicitante': item.get('medico_solicitante') or '',
                         'descripcion': item.get('descripcion') or '',
                         'estado': item.get('estado') or 'PENDIENTE',
+                        'formato_entrega': formato_entrega,
                     },
                 )
 
@@ -344,6 +353,7 @@ def sync_push(request):
                     estudio.medico_solicitante = item.get('medico_solicitante') or ''
                     estudio.descripcion = item.get('descripcion') or ''
                     estudio.estado = item.get('estado') or estudio.estado
+                    estudio.formato_entrega = formato_entrega
                     estudio.save()
 
                 respuesta_estudios.append({
@@ -473,6 +483,7 @@ def sync_pull(request):
             'medico_solicitante': e.medico_solicitante or '',
             'descripcion': e.descripcion or '',
             'estado': e.estado,
+            'formato_entrega': e.formato_entrega,
             'actualizado_el': e.actualizado_el.isoformat(),
         }
         for e in estudios

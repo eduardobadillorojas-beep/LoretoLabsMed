@@ -237,6 +237,7 @@ def _payload_estudio(estudio):
         "medico_solicitante": estudio.medico_solicitante or "",
         "descripcion": estudio.descripcion or "",
         "estado": estudio.estado,
+        "formato_entrega": estudio.formato_entrega,
     }
 
 
@@ -420,6 +421,17 @@ def descargar_cambios(config):
                     LOG.warning("No se pudo importar estudio %s: faltan relaciones.", item.get("sync_id"))
                     continue
 
+                formato_entrega = str(
+                    item.get("formato_entrega") or "DIGITAL"
+                ).strip().upper()
+                if formato_entrega not in {"DIGITAL", "IMPRESO", "AMBOS"}:
+                    LOG.warning(
+                        "Formato de entrega inválido en estudio %s: %s. Se usará DIGITAL.",
+                        item.get("sync_id"),
+                        formato_entrega,
+                    )
+                    formato_entrega = "DIGITAL"
+
                 estudio, _ = Estudio.objects.get_or_create(
                     sync_id=item["sync_id"],
                     defaults={
@@ -428,6 +440,7 @@ def descargar_cambios(config):
                         "medico_solicitante": item.get("medico_solicitante", ""),
                         "descripcion": item.get("descripcion", ""),
                         "estado": item.get("estado", "PENDIENTE"),
+                        "formato_entrega": formato_entrega,
                     },
                 )
                 estudio.paciente = paciente
@@ -435,6 +448,7 @@ def descargar_cambios(config):
                 estudio.medico_solicitante = item.get("medico_solicitante", "")
                 estudio.descripcion = item.get("descripcion", "")
                 estudio.estado = item.get("estado", estudio.estado)
+                estudio.formato_entrega = formato_entrega
                 estudio.save()
                 total += 1
 
