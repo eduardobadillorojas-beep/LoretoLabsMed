@@ -4,9 +4,11 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core import views
+from core import plataforma_views
 
 
 urlpatterns = [
+    path('plataforma/instituciones/', plataforma_views.instituciones_plataforma, name='instituciones_plataforma'),
     path(
         'admin/',
         admin.site.urls
