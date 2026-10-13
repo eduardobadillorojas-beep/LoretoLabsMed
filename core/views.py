@@ -1646,7 +1646,8 @@ def panel_radiologo(request):
     citas_radiologia_hoy = (
         Cita.objects
         .select_related(
-            'tipo_estudio'
+            'tipo_estudio',
+            'paciente',
         )
         .filter(
             institucion=institucion,
@@ -1662,6 +1663,14 @@ def panel_radiologo(request):
         )
         .order_by(
             'fecha_hora'
+        )
+    )
+
+    citas_radiologia_pendientes = (
+        citas_radiologia_hoy
+        .filter(
+            fecha_hora__lte=timezone.now(),
+            estado__in=['PROGRAMADA', 'CONFIRMADA'],
         )
     )
 
@@ -1743,6 +1752,10 @@ def panel_radiologo(request):
             estudios_realizados_hoy,
         'citas_radiologia_hoy':
             citas_radiologia_hoy,
+        'citas_radiologia_pendientes':
+            citas_radiologia_pendientes,
+        'total_pendientes_radiologia':
+            estudios_pendientes.count() + citas_radiologia_pendientes.count(),
         'busqueda_paciente':
             busqueda_paciente,
         'pacientes_historial':
@@ -1788,17 +1801,36 @@ def actualizar_lista_radiologia(request):
         .order_by('fecha_creacion')
     )
 
+    citas_radiologia_pendientes = list(
+        Cita.objects
+        .select_related('paciente', 'tipo_estudio')
+        .filter(
+            institucion=institucion,
+            area='RADIOLOGIA',
+            fecha_hora__date=hoy,
+            fecha_hora__lte=timezone.now(),
+            estado__in=['PROGRAMADA', 'CONFIRMADA'],
+        )
+        .order_by('fecha_hora')
+    )
+
     html = render_to_string(
         'core/_lista_espera_radiologia.html',
-        {'estudios_pendientes': estudios_pendientes},
+        {
+            'estudios_pendientes': estudios_pendientes,
+            'citas_radiologia_pendientes': citas_radiologia_pendientes,
+        },
         request=request,
     )
 
     return JsonResponse({
         'ok': True,
         'html': html,
-        'ids': [estudio.id for estudio in estudios_pendientes],
-        'en_espera': len(estudios_pendientes),
+        'ids': [
+            *[f'cita-{cita.id}' for cita in citas_radiologia_pendientes],
+            *[f'estudio-{estudio.id}' for estudio in estudios_pendientes],
+        ],
+        'en_espera': len(estudios_pendientes) + len(citas_radiologia_pendientes),
         'en_proceso': Estudio.objects.filter(
             paciente__institucion=institucion,
             estado='EN_PROCESO',
@@ -5614,8 +5646,14 @@ def registrar_llegada_cita(request, cita_id):
     if membresia is None:
         return redirect('panel_config')
 
-    if membresia.rol not in ['RECEPCION', 'ADMIN']:
+    if membresia.rol not in ['RECEPCION', 'TECNICO', 'RADIOLOGIA', 'ADMIN']:
         return redirect('panel_config')
+
+    regreso = (
+        'panel_radiologo'
+        if membresia.rol in ['TECNICO', 'RADIOLOGIA']
+        else 'panel_recepcion'
+    )
 
     cita = get_object_or_404(
         Cita.objects.select_related('paciente', 'tipo_estudio'),
@@ -5625,24 +5663,34 @@ def registrar_llegada_cita(request, cita_id):
 
     if cita.estado in ['CANCELADA', 'NO_ASISTIO', 'FINALIZADA']:
         messages.error(request, 'Esta cita ya no puede registrar una llegada.')
-        return redirect('panel_recepcion')
+        return redirect(regreso)
 
     if cita.estado in ['LLEGO', 'EN_ESPERA', 'EN_ATENCION']:
         messages.info(request, 'La llegada de esta cita ya fue registrada.')
-        return redirect('panel_recepcion')
+        return redirect(regreso)
 
     if cita.paciente is None:
         messages.error(
             request,
             'La cita no está vinculada con un expediente. Primero vincula o registra al paciente.'
         )
-        return redirect('panel_recepcion')
+        return redirect(regreso)
 
     with transaction.atomic():
+        cita = get_object_or_404(
+            Cita.objects.select_for_update().select_related('paciente', 'tipo_estudio'),
+            pk=cita_id,
+            institucion=membresia.institucion,
+        )
+
+        if cita.estado not in ['PROGRAMADA', 'CONFIRMADA']:
+            messages.info(request, 'La llegada de esta cita ya fue registrada.')
+            return redirect(regreso)
+
         if cita.area == 'RADIOLOGIA':
             if cita.tipo_estudio is None:
                 messages.error(request, 'La cita no tiene un estudio asignado.')
-                return redirect('panel_recepcion')
+                return redirect(regreso)
 
             Estudio.objects.create(
                 paciente=cita.paciente,
@@ -5665,7 +5713,7 @@ def registrar_llegada_cita(request, cita_id):
         request,
         f'Se registró la llegada de {cita.nombre_paciente}.'
     )
-    return redirect('panel_recepcion')
+    return redirect(regreso)
 
 
 @login_required
@@ -10497,9 +10545,10 @@ def registrar_estudio_recepcion(request):
                             ]
                         )
 
-                return redirect(
-                    'panel_recepcion'
-                )
+                membresia = obtener_membresia_usuario(request)
+                if membresia and membresia.rol in ['TECNICO', 'RADIOLOGIA']:
+                    return redirect('panel_radiologo')
+                return redirect('panel_recepcion')
 
     else:
 

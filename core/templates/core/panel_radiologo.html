@@ -378,7 +378,7 @@ Radiología | Loreto One
             </div>
 
             <div class="status-number" id="contador-en-espera">
-                {{ estudios_pendientes|length }}
+                {{ total_pendientes_radiologia }}
             </div>
 
         </div>
@@ -648,17 +648,17 @@ Radiología | Loreto One
             <div>
 
                 <div class="worklist-title">
-                    Pacientes en espera
+                    Citas por recibir y pacientes en espera
                 </div>
 
                 <div class="worklist-subtitle">
-                    Ordenados conforme fueron registrados en Recepción.
+                    Las citas aparecen aquí al llegar su hora; confirma la llegada para crear el estudio.
                 </div>
 
             </div>
 
             <span class="badge bg-primary" id="badge-en-espera">
-                {{ estudios_pendientes|length }}
+                {{ total_pendientes_radiologia }}
             </span>
 
         </div>
@@ -666,7 +666,7 @@ Radiología | Loreto One
 
         <div
             id="lista-espera-radiologia"
-            data-estudio-ids="{% for estudio in estudios_pendientes %}{{ estudio.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+            data-estudio-ids="{% for cita in citas_radiologia_pendientes %}cita-{{ cita.id }},{% endfor %}{% for estudio in estudios_pendientes %}estudio-{{ estudio.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
         >
             {% include 'core/_lista_espera_radiologia.html' %}
         </div>

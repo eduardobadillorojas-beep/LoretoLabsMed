@@ -1,3 +1,48 @@
+{% if citas_radiologia_pendientes %}
+    <div class="alert alert-warning mx-3 mt-3 mb-2">
+        <strong>Citas cuya hora ya llegó</strong><br>
+        Confirma la llegada para crear el estudio. La hora por sí sola no confirma que el paciente se presentó.
+    </div>
+    <div class="table-responsive">
+        <table class="table table-dark table-hover radio-table">
+            <thead>
+                <tr>
+                    <th>Cita</th><th>Paciente</th><th>Teléfono</th><th>Estudio solicitado</th><th>Médico</th><th class="text-end">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cita in citas_radiologia_pendientes %}
+                    <tr data-cita-id="{{ cita.id }}">
+                        <td class="hora">{{ cita.fecha_hora|date:"H:i" }}</td>
+                        <td>
+                            <div class="paciente">{{ cita.nombre_paciente }}</div>
+                            {% if cita.paciente %}
+                                <div class="paciente-dato">Registro {{ cita.paciente.identificacion }}</div>
+                            {% else %}
+                                <div class="paciente-dato text-warning">Expediente pendiente de vincular</div>
+                            {% endif %}
+                        </td>
+                        <td>{{ cita.telefono|default:"—" }}</td>
+                        <td><div class="estudio">{{ cita.tipo_estudio.nombre|default:"Estudio no especificado" }}</div></td>
+                        <td>{{ cita.medico_nombre|default:"—" }}</td>
+                        <td class="text-end">
+                            {% if cita.paciente %}
+                                <a href="{% url 'detalle_paciente' cita.paciente.id %}" class="btn btn-outline-info btn-estudio">Expediente</a>
+                                <form method="post" action="{% url 'registrar_llegada_cita' cita.id %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-warning btn-estudio">Confirmar llegada</button>
+                                </form>
+                            {% else %}
+                                <a href="{% url 'registrar_recepcion' %}?cita={{ cita.id }}" class="btn btn-warning btn-estudio">Completar datos y registrar</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+
 {% if estudios_pendientes %}
     <div class="table-responsive">
         <table class="table table-dark table-hover radio-table">
@@ -43,6 +88,6 @@
             </tbody>
         </table>
     </div>
-{% else %}
+{% elif not citas_radiologia_pendientes %}
     <div class="lista-vacia">No hay pacientes esperando estudios.</div>
 {% endif %}
