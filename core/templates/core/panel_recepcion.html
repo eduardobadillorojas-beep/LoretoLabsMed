@@ -889,4 +889,56 @@ Recepción | Loreto One
 
 </div>
 
+<!-- LORETO_RECEPCION_AUTOREFRESH_V1 -->
+<script>
+(() => {
+  'use strict';
+  const intervalMs = 5000;
+  let running = false;
+  const selectors = ['#pacientes', '#citas', '.indicadores'];
+  const normalize = (node) => node ? node.innerHTML : '';
+
+  async function refreshReception() {
+    if (running || document.hidden || !document.getElementById('pacientes')) return;
+    // Do not interrupt keyboard interaction or form editing.
+    const active = document.activeElement;
+    if (active && (active.matches('input, textarea, select') || active.isContentEditable)) return;
+    if (document.querySelector('form[data-dirty="true"]')) return;
+    running = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'GET', credentials: 'same-origin', cache: 'no-store',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        signal: controller.signal
+      });
+      if (!response.ok || response.redirected) return;
+      const html = await response.text();
+      const remote = new DOMParser().parseFromString(html, 'text/html');
+      // If the session expired or the panel changed, do not inject login HTML.
+      if (!remote.querySelector('#pacientes') || !remote.querySelector('#citas')) return;
+      for (const selector of selectors) {
+        const current = document.querySelector(selector);
+        const next = remote.querySelector(selector);
+        if (!current || !next || normalize(current) === normalize(next)) continue;
+        if (current.contains(document.activeElement) && document.activeElement !== document.body) continue;
+        current.innerHTML = next.innerHTML;
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') console.debug('Recepcion: actualizacion pendiente', error);
+    } finally {
+      clearTimeout(timeout);
+      running = false;
+    }
+  }
+
+  document.addEventListener('input', event => {
+    const form = event.target.closest('form');
+    if (form && !form.matches('.busqueda-superior')) form.dataset.dirty = 'true';
+  });
+  setInterval(refreshReception, intervalMs);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshReception(); });
+})();
+</script>
 {% endblock %}
