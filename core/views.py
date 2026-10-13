@@ -1,4 +1,4 @@
-from collections import Counter
+﻿from collections import Counter
 import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -1267,6 +1267,10 @@ def perfil_medico(request):
             or None
         )
 
+        perfil.cedula_especialidad = (
+            request.POST.get('cedula_especialidad', '').strip()
+            or None
+        )
         perfil.telefono_profesional = (
             request.POST.get(
                 'telefono_profesional',
@@ -1293,7 +1297,6 @@ def perfil_medico(request):
 
             perfil.firma = None
 
-        perfil.activo = True
         perfil.save()
 
         guardado = True
@@ -9830,6 +9833,16 @@ def accesos_modulos_config(request):
                     institucion=institucion, usuario=usuario, rol=rol, area=area,
                     puesto=request.POST.get('puesto', '').strip(), activa=True,
                 )
+                if rol == 'MEDICO':
+                    PerfilMedico.objects.create(
+                        institucion=institucion,
+                        usuario=usuario,
+                        especialidad=request.POST.get('especialidad', '').strip()[:150] or None,
+                        cedula_profesional=request.POST.get('cedula_profesional', '').strip()[:50] or None,
+                        cedula_especialidad=request.POST.get('cedula_especialidad', '').strip()[:50] or None,
+                        telefono_profesional=request.POST.get('telefono_profesional', '').strip()[:20] or None,
+                        activo=True,
+                    )
                 seleccionados = modulos.filter(pk__in=request.POST.getlist('modulos'))
                 AccesoModuloMembresia.objects.bulk_create([
                     AccesoModuloMembresia(
@@ -9854,13 +9867,27 @@ def accesos_modulos_config(request):
             if objetivo.pk == membresia_actual.pk and (rol != 'ADMIN' or request.POST.get('activa') != '1'):
                 messages.error(request, 'No puedes retirar tu propio acceso administrativo ni desactivar tu cuenta.')
                 return redirect('accesos_modulos_config')
-            objetivo.rol = rol
-            objetivo.area = area
-            objetivo.puesto = request.POST.get('puesto', '').strip()
-            objetivo.activa = request.POST.get('activa') == '1'
-            objetivo.save(update_fields=['rol', 'area', 'puesto', 'activa'])
             seleccionados = list(modulos.filter(pk__in=request.POST.getlist('modulos'), disponible=True))
             with transaction.atomic():
+                objetivo.rol = rol
+                objetivo.area = area
+                objetivo.puesto = request.POST.get('puesto', '').strip()
+                objetivo.activa = request.POST.get('activa') == '1'
+                objetivo.save(update_fields=['rol', 'area', 'puesto', 'activa'])
+                if rol == 'MEDICO':
+                    perfil, _ = PerfilMedico.objects.get_or_create(
+                        institucion=institucion,
+                        usuario=objetivo.usuario,
+                        defaults={'activo': True},
+                    )
+                    perfil.especialidad = request.POST.get('especialidad', '').strip()[:150] or None
+                    perfil.cedula_profesional = request.POST.get('cedula_profesional', '').strip()[:50] or None
+                    perfil.cedula_especialidad = request.POST.get('cedula_especialidad', '').strip()[:50] or None
+                    perfil.telefono_profesional = request.POST.get('telefono_profesional', '').strip()[:20] or None
+                    perfil.save(update_fields=[
+                        'especialidad', 'cedula_profesional',
+                        'cedula_especialidad', 'telefono_profesional', 'actualizado_el',
+                    ])
                 objetivo.accesos_modulos.all().delete()
                 AccesoModuloMembresia.objects.bulk_create([
                     AccesoModuloMembresia(
@@ -9889,7 +9916,15 @@ def accesos_modulos_config(request):
     membresias = MembresiaInstitucion.objects.filter(
         institucion=institucion
     ).select_related('usuario', 'area').prefetch_related('accesos_modulos__modulo').order_by('usuario__username')
+    perfiles_medicos = {
+        perfil.usuario_id: perfil
+        for perfil in PerfilMedico.objects.filter(
+            institucion=institucion,
+            usuario_id__in=[item.usuario_id for item in membresias],
+        )
+    }
     for item in membresias:
+        item.perfil_medico_admin = perfiles_medicos.get(item.usuario_id)
         item.modulos_asignados_ids = {
             acceso.modulo_id for acceso in item.accesos_modulos.all() if acceso.puede_ver
         }
@@ -10658,3 +10693,4 @@ def registrar_estudio_recepcion(request):
         'core/registrar_recepcion.html',
         context
     )
+

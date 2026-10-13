@@ -1,4 +1,4 @@
-from django.conf import settings
+﻿from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from decimal import Decimal
@@ -377,6 +377,12 @@ class PerfilMedico(models.Model):
         return f'{nombre} - {self.institucion.nombre}'
 
 
+    cedula_especialidad = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        verbose_name='Cédula de especialidad'
+    )
 class Paciente(models.Model):
     institucion = models.ForeignKey(
         Institucion,
@@ -2857,3 +2863,4 @@ class CargoPaciente(models.Model):
             f'{self.descripcion} - '
             f'${self.subtotal:.2f}'
         )
+
