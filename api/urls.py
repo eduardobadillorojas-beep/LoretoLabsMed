@@ -34,4 +34,9 @@ urlpatterns = [
         views.sync_pull,
         name='api_sync_pull',
     ),
+    path(
+        'catalogo/servicios/',
+        views.catalogo_servicios,
+        name='api_catalogo_servicios',
+    ),
 ]

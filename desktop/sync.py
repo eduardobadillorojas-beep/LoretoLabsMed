@@ -99,6 +99,25 @@ def _iso(fecha):
     return fecha.astimezone(dt_timezone.utc).isoformat()
 
 
+def _institucion_local_autorizada(config):
+    """Fail closed if local clinic cannot be matched to device token's clinic."""
+    estado = _request(config, path="/api/v1/sync/estado/")
+    if not estado.get("ok") or not isinstance(estado.get("institucion"), dict):
+        raise RuntimeError("No se pudo validar la institución de este dispositivo.")
+    remota = estado["institucion"]
+    try:
+        remota_id = int(remota["id"])
+    except (ValueError, TypeError, KeyError):
+        raise RuntimeError("El servidor no devolvió una institución válida.")
+    local = Institucion.objects.filter(pk=remota_id, activa=True).first()
+    if local is None or local.nombre.strip() != str(remota.get("nombre", "")).strip():
+        raise RuntimeError(
+            "Sincronización detenida: la institución local no coincide con "
+            "la institución autorizada en el servidor. No se modificaron datos."
+        )
+    return local
+
+
 def sincronizar_catalogo(config):
     data = _request(config, path="/api/v1/catalogo/estudios/")
     if not data.get("ok"):
@@ -120,6 +139,68 @@ def sincronizar_catalogo(config):
     return actualizados
 
 
+
+
+def sincronizar_servicios_comerciales(config):
+    """Descarga servicios comerciales de la instituci?n autorizada."""
+    from decimal import Decimal
+    from django.db import transaction
+    from core.models import Servicio
+
+    institucion = _institucion_local_autorizada(config)
+    data = _request(config, path="/api/v1/catalogo/servicios/")
+
+    if not data.get("ok"):
+        raise RuntimeError(
+            data.get("error", "No se pudo descargar el cat?logo comercial.")
+        )
+
+    if int(data.get("institucion_id", -1)) != institucion.pk:
+        raise RuntimeError(
+            "El cat?logo recibido no corresponde a la instituci?n local."
+        )
+
+    servicios = data.get("servicios")
+    if not isinstance(servicios, list):
+        raise RuntimeError("El servidor devolvi? un cat?logo inv?lido.")
+
+    actualizados = 0
+
+    with transaction.atomic():
+        for item in servicios:
+            servicio_id = int(item["id"])
+
+            existente = Servicio.objects.filter(pk=servicio_id).first()
+            if existente and existente.institucion_id != institucion.pk:
+                raise RuntimeError(
+                    "Conflicto de identificadores entre instituciones."
+                )
+
+            tipo_estudio = None
+            codigo = item.get("tipo_estudio_codigo")
+
+            if codigo:
+                tipo_estudio = TipoEstudio.objects.filter(
+                    codigo=codigo
+                ).first()
+
+            Servicio.objects.update_or_create(
+                pk=servicio_id,
+                defaults={
+                    "institucion": institucion,
+                    "tipo_estudio": tipo_estudio,
+                    "nombre": item["nombre"],
+                    "tipo": item["tipo"],
+                    "precio_base": Decimal(str(item["precio_base"])),
+                    "precio_editable": bool(item["precio_editable"]),
+                    "activo": bool(item["activo"]),
+                },
+            )
+
+            actualizados += 1
+
+    return actualizados
+
 def sincronizar_usuarios(config):
     """Sincroniza usuarios, membresÃas y permisos desde el servidor."""
     data = _request(config, path="/api/v1/sync/usuarios/")
@@ -127,12 +208,7 @@ def sincronizar_usuarios(config):
         raise RuntimeError(data.get("error", "No se pudieron obtener los usuarios."))
 
     User = get_user_model()
-    institucion = (
-        Institucion.objects
-        .filter(activa=True)
-        .order_by("id")
-        .first()
-    )
+    institucion = _institucion_local_autorizada(config)
     if institucion is None:
         raise RuntimeError("No existe una instituciÃ³n activa en la base local.")
 
@@ -341,12 +417,7 @@ def descargar_cambios(config):
 
     total = 0
     since = cursor.valor
-    institucion_local = (
-        Institucion.objects
-        .filter(activa=True)
-        .order_by("id")
-        .first()
-    )
+    institucion_local = _institucion_local_autorizada(config)
     if institucion_local is None:
         raise RuntimeError("No existe una instituciÃƒÂ³n activa en la base local.")
 
@@ -395,6 +466,8 @@ def descargar_cambios(config):
                         )
                     else:
                         paciente.sync_id = item["sync_id"]
+                if paciente.institucion_id != institucion_local.id:
+                    raise RuntimeError("Sincronización detenida: paciente de otra institución.")
                 paciente.identificacion = item.get("identificacion", paciente.identificacion)
                 paciente.nombre = item["nombre"]
                 paciente.apellido = item["apellido"]
@@ -443,6 +516,10 @@ def descargar_cambios(config):
                         "formato_entrega": formato_entrega,
                     },
                 )
+                if estudio.paciente.institucion_id != institucion_local.id:
+                    raise RuntimeError("Sincronización detenida: estudio de otra institución.")
+                if paciente.institucion_id != institucion_local.id:
+                    raise RuntimeError("Sincronización detenida: paciente de otra institución.")
                 estudio.paciente = paciente
                 estudio.tipo_estudio = tipo
                 estudio.medico_solicitante = item.get("medico_solicitante", "")
@@ -472,6 +549,7 @@ def ejecutar_sincronizacion():
 
     try:
         catalogo = sincronizar_catalogo(config)
+        servicios = sincronizar_servicios_comerciales(config)
         usuarios = sincronizar_usuarios(config)
         enviados, errores = enviar_pendientes(config)
         descargados = descargar_cambios(config)
