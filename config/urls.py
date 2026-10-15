@@ -5,9 +5,11 @@ from django.urls import include, path
 
 from core import views
 from core import plataforma_views
+from core import instituciones_sesion
 
 
 urlpatterns = [
+    path("instituciones/seleccionar/", instituciones_sesion.seleccionar_institucion, name="seleccionar_institucion"),
     path('plataforma/instituciones/', plataforma_views.instituciones_plataforma, name='instituciones_plataforma'),
     path(
         'admin/',
@@ -323,6 +325,18 @@ urlpatterns = [
         'resultados/<uuid:token>/medir/<int:instancia_id>/',
         views.entrega_digital_medir,
         name='entrega_digital_medir'
+    ),
+
+    path(
+        'resultados/<uuid:token>/dicom/manifiesto/',
+        views.entrega_digital_manifiesto,
+        name='entrega_digital_manifiesto'
+    ),
+
+    path(
+        'resultados/<uuid:token>/dicom/<int:instancia_id>/archivo/',
+        views.entrega_digital_archivo,
+        name='entrega_digital_archivo'
     ),
 
     path(

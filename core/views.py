@@ -1,4 +1,4 @@
-﻿from collections import Counter
+from collections import Counter
 import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -54,6 +54,8 @@ import numpy as np
 from PIL import Image as PILImage
 from pydicom.errors import InvalidDicomError
 from pydicom.pixels import apply_modality_lut
+
+from .instituciones_sesion import membresia_activa, membresias_disponibles
 
 from .forms import (
     CitaForm,
@@ -365,16 +367,8 @@ def texto_plano_reporte(valor):
 # =========================================================
 
 def obtener_membresia_usuario(request):
-    return (
-        MembresiaInstitucion.objects
-        .select_related('institucion')
-        .filter(
-            usuario=request.user,
-            activa=True,
-            institucion__activa=True,
-        )
-        .first()
-    )
+    """Solo devuelve una membresía autorizada para la institución activa."""
+    return membresia_activa(request)
 
 
 def obtener_institucion_usuario(request):
@@ -955,22 +949,13 @@ def crear_bitacora_radiologica(estudio):
 # INICIO
 # =========================================================
 
-def redirigir_panel_usuario(user):
-    if user.is_superuser:
+def redirigir_panel_usuario(request):
+    if request.user.is_superuser:
         return redirect('panel_config')
 
-    membresia = (
-        MembresiaInstitucion.objects
-        .filter(
-            usuario=user,
-            activa=True,
-            institucion__activa=True,
-        )
-        .first()
-    )
-
+    membresia = obtener_membresia_usuario(request)
     if membresia is None:
-        return redirect('panel_config')
+        return redirect('seleccionar_institucion')
 
     destinos = {
         'RECEPCION': 'panel_recepcion',
@@ -980,19 +965,13 @@ def redirigir_panel_usuario(user):
         'MANTENIMIENTO': 'equipos_incidencias_institucionales',
         'ADMIN': 'panel_config',
     }
-
-    destino = destinos.get(
-        membresia.rol,
-        'panel_area_institucional'
-    )
-
-    return redirect(destino)
+    return redirect(destinos.get(membresia.rol, 'panel_area_institucional'))
 
 
 def inicio(request):
     if request.user.is_authenticated:
         return redirigir_panel_usuario(
-            request.user
+            request
         )
 
     return render(
@@ -1008,7 +987,7 @@ def inicio(request):
 def login_view(request):
     if request.user.is_authenticated:
         return redirigir_panel_usuario(
-            request.user
+            request
         )
 
     error_message = None
@@ -1082,59 +1061,7 @@ def login_view(request):
             else:
                 request.session.set_expiry(0)
 
-            membresia = (
-                MembresiaInstitucion.objects
-                .select_related('institucion')
-                .filter(
-                    usuario=user,
-                    activa=True,
-                    institucion__activa=True,
-                )
-                .first()
-            )
-
-            if user.is_superuser:
-                return redirect(
-                    'panel_config'
-                )
-
-            if membresia is None:
-                return redirect(
-                    'panel_config'
-                )
-
-            if membresia.rol == 'RECEPCION':
-                return redirect(
-                    'panel_recepcion'
-                )
-
-            if membresia.rol == 'MEDICO':
-                return redirect(
-                    'panel_medico'
-                )
-
-            if membresia.rol in [
-                'RADIOLOGIA',
-                'TECNICO',
-            ]:
-                return redirect(
-                    'panel_radiologo'
-                )
-
-            if membresia.rol == 'MANTENIMIENTO':
-                return redirect('equipos_incidencias_institucionales')
-
-            if membresia.rol == 'ADMIN':
-                return redirect(
-                    'panel_config'
-                )
-
-            if membresia.rol in ['ENFERMERIA', 'LIMPIEZA', 'SEGURIDAD', 'LABORATORIO', 'FARMACIA', 'FINANZAS', 'SISTEMAS', 'OTRO']:
-                return redirect('panel_area_institucional')
-
-            return redirect(
-                'panel_config'
-            )
+            return redirigir_panel_usuario(request)
 
         error_message = (
             'Usuario o contraseña incorrectos'
@@ -4096,6 +4023,10 @@ def entrega_digital_estudio(request, token):
         'paciente': entrega.estudio.paciente,
         'reporte': entrega.estudio.reporte_radiologico,
         'series': series,
+        'manifiesto_dicom_url': reverse(
+            'entrega_digital_manifiesto',
+            args=[entrega.token],
+        ),
     })
 
 
@@ -4226,6 +4157,138 @@ def entrega_digital_medir(request, token, instancia_id):
     except Exception as exc:
         logger.exception('Error en medición pública DICOM. %s', exc)
         return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
+
+
+def entrega_digital_manifiesto(request, token):
+    """Manifiesto DICOM de sólo lectura protegido por el enlace temporal."""
+    entrega = _obtener_entrega_vigente(token)
+    if not _entrega_disponible(entrega):
+        return JsonResponse(
+            {'error': 'Este enlace ya no está disponible.'},
+            status=403,
+        )
+
+    estudio_dicom = get_object_or_404(
+        EstudioDicom.objects.select_related(
+            'estudio__paciente',
+            'estudio__tipo_estudio',
+        ).prefetch_related(
+            'series__instancias__archivo_estudio',
+        ),
+        estudio=entrega.estudio,
+        institucion=entrega.institucion,
+    )
+
+    series = []
+    for serie in estudio_dicom.series.all().order_by('numero_serie', 'id'):
+        instancias = []
+        for instancia in serie.instancias.all():
+            metadatos = _metadatos_visor_instancia(instancia)
+            instancias.append({
+                'id': instancia.id,
+                'numero_instancia': instancia.numero_instancia,
+                'numero_frames': max(1, instancia.numero_frames or 1),
+                'filas': instancia.filas,
+                'columnas': instancia.columnas,
+                'fotometria': instancia.interpretacion_fotometrica,
+                'posicion_espacial': _posicion_espacial_dicom(metadatos),
+                'geometria': {
+                    clave: metadatos.get(clave)
+                    for clave in (
+                        'image_position_patient',
+                        'image_orientation_patient',
+                        'pixel_spacing',
+                        'slice_thickness',
+                        'spacing_between_slices',
+                        'slice_location',
+                        'rescale_slope',
+                        'rescale_intercept',
+                        'window_center',
+                        'window_width',
+                        'bits_stored',
+                        'high_bit',
+                        'pixel_representation',
+                    )
+                },
+                'dicom_url': reverse(
+                    'entrega_digital_archivo',
+                    args=[entrega.token, instancia.id],
+                ),
+            })
+
+        instancias.sort(key=lambda item: (
+            item['posicion_espacial'] is None,
+            item['posicion_espacial']
+            if item['posicion_espacial'] is not None
+            else item['numero_instancia'] or 0,
+            item['id'],
+        ))
+        orientadas = sum(
+            item['posicion_espacial'] is not None for item in instancias
+        )
+        series.append({
+            'id': serie.id,
+            'numero': serie.numero_serie,
+            'modalidad': serie.modalidad,
+            'descripcion': serie.descripcion,
+            'protocolo': serie.protocolo,
+            'region_anatomica': serie.region_anatomica,
+            'cantidad_instancias': len(instancias),
+            'apta_para_volumen': (
+                serie.modalidad in ['CT', 'MR', 'PT']
+                and len(instancias) > 1
+                and orientadas == len(instancias)
+            ),
+            'instancias': instancias,
+        })
+
+    respuesta = JsonResponse({
+        'version': 1,
+        'estudio': {
+            'id': estudio_dicom.estudio_id,
+            'descripcion': estudio_dicom.descripcion,
+            'paciente': {
+                'identificacion': entrega.estudio.paciente.identificacion,
+                'nombre': (
+                    f'{entrega.estudio.paciente.nombre} '
+                    f'{entrega.estudio.paciente.apellido}'
+                ).strip(),
+            },
+        },
+        'series': series,
+    })
+    respuesta['Cache-Control'] = 'private, max-age=60'
+    respuesta['X-Content-Type-Options'] = 'nosniff'
+    return respuesta
+
+
+def entrega_digital_archivo(request, token, instancia_id):
+    """Entrega un objeto DICOM únicamente dentro del estudio autorizado."""
+    entrega = _obtener_entrega_vigente(token)
+    if not _entrega_disponible(entrega):
+        return HttpResponse(status=403)
+
+    instancia = get_object_or_404(
+        InstanciaDicom.objects.select_related('archivo_estudio'),
+        pk=instancia_id,
+        archivo_estudio__estudio=entrega.estudio,
+        institucion=entrega.institucion,
+    )
+    archivo = instancia.archivo_estudio.archivo.open('rb')
+    nombre = (
+        instancia.archivo_estudio.nombre_original
+        or Path(instancia.archivo_estudio.archivo.name).name
+        or f'{instancia.sop_instance_uid}.dcm'
+    )
+    respuesta = FileResponse(archivo, content_type='application/dicom')
+    respuesta['Content-Disposition'] = (
+        "inline; filename*=UTF-8''" + quote(nombre)
+    )
+    respuesta['Cache-Control'] = 'private, max-age=900'
+    respuesta['X-Content-Type-Options'] = 'nosniff'
+    if instancia.tamano_bytes:
+        respuesta['Content-Length'] = str(instancia.tamano_bytes)
+    return respuesta
 
 
 def _metadatos_visor_instancia(instancia):

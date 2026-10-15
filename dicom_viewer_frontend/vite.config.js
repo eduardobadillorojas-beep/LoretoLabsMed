@@ -22,9 +22,12 @@ export default defineConfig({
     target: 'es2020',
 
     lib: {
-      entry: resolve(import.meta.dirname, 'src/main.js'),
+      entry: {
+        'mpr-viewer': resolve(import.meta.dirname, 'src/main.js'),
+        'public-viewer': resolve(import.meta.dirname, 'src/public.js'),
+      },
       formats: ['es'],
-      fileName: () => 'mpr-viewer.js',
+      fileName: (format, entryName) => `${entryName}.js`,
     },
 
     rollupOptions: {
