@@ -10,6 +10,7 @@ import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader'
 import {
   addTool,
   AngleTool,
+  CrosshairsTool,
   Enums as ToolsEnums,
   LengthTool,
   PanTool,
@@ -31,7 +32,7 @@ let started = false;
 let active = false;
 let renderingEngine = null;
 let volumeId = null;
-let activeTool = 'wl';
+let activeTool = null;
 let activeViewportId = VIEWPORTS[0][0];
 const invertedViewports = new Set();
 let mprCineTimer = null;
@@ -47,6 +48,13 @@ const TOOL_NAMES = {
   distancia: LengthTool.toolName,
   angulo: AngleTool.toolName,
   roi: RectangleROITool.toolName,
+  cruces: CrosshairsTool.toolName,
+};
+
+const PLANE_DATA = {
+  LORETO_AXIAL: { label: 'AXIAL', top: 'S', bottom: 'I' },
+  LORETO_CORONAL: { label: 'CORONAL', top: 'S', bottom: 'I' },
+  LORETO_SAGITAL: { label: 'SAGITAL', top: 'S', bottom: 'I' },
 };
 
 function absoluteUrl(value) {
@@ -73,6 +81,14 @@ function selectViewport(viewportId) {
   VIEWPORTS.forEach(([id, elementId]) => {
     document.getElementById(elementId)?.parentElement?.classList.toggle('selected', id === viewportId);
   });
+  const plane = PLANE_DATA[viewportId];
+  const planeLabel = document.getElementById('mpr-slider-plane');
+  const topLabel = document.getElementById('mpr-slider-top');
+  const bottomLabel = document.getElementById('mpr-slider-bottom');
+  if (planeLabel) planeLabel.textContent = plane?.label || 'PLANO';
+  if (topLabel) topLabel.textContent = plane?.top || '';
+  if (bottomLabel) bottomLabel.textContent = plane?.bottom || '';
+  updateMprCounter();
 }
 
 function activeViewport() {
@@ -81,19 +97,26 @@ function activeViewport() {
 
 function setTool(tool) {
   if (!Object.hasOwn(TOOL_NAMES, tool) || !toolGroup) return;
-  activeTool = tool;
+  const disabling = activeTool === tool;
   Object.values(TOOL_NAMES).forEach(toolName => {
     try {
-      toolGroup.setToolPassive(toolName);
+      toolGroup.setToolDisabled(toolName);
     } catch (error) {
-      console.debug('Herramienta pasiva:', toolName, error);
+      console.debug('Herramienta desactivada:', toolName, error);
     }
   });
-  toolGroup.setToolActive(TOOL_NAMES[tool], {
-    bindings: [{ mouseButton: ToolsEnums.MouseBindings.Primary }],
-  });
+  if (!disabling) {
+    toolGroup.setToolEnabled(TOOL_NAMES[tool]);
+    toolGroup.setToolActive(TOOL_NAMES[tool], {
+      bindings: [{ mouseButton: ToolsEnums.MouseBindings.Primary }],
+    });
+    activeTool = tool;
+  } else {
+    activeTool = null;
+  }
   document.querySelectorAll('.tool-button').forEach(button => {
-    button.classList.toggle('active-tool', button.dataset.tool === tool);
+    button.classList.toggle('active-tool', !disabling && button.dataset.tool === tool);
+    button.setAttribute('aria-pressed', String(!disabling && button.dataset.tool === tool));
   });
   const labels = {
     pan: 'Mover',
@@ -102,20 +125,25 @@ function setTool(tool) {
     distancia: 'Regla',
     angulo: 'Ángulo',
     roi: 'ROI/HU',
+    cruces: 'Cruces enlazadas',
   };
   const result = document.getElementById('measurement-result');
   if (result && active) {
     const instruction = ['distancia', 'angulo', 'roi'].includes(tool)
       ? 'Dibuja la medición con el botón izquierdo sobre cualquier plano.'
       : 'Arrastra con el botón izquierdo sobre el plano deseado.';
-    result.textContent = `MPR · Herramienta activa: ${labels[tool]}. ${instruction}`;
+    result.textContent = disabling
+      ? 'MPR · Herramienta desactivada. Usa la rueda para navegar o selecciona otra herramienta.'
+      : `MPR · Herramienta activa: ${labels[tool]}. ${instruction}`;
   }
 }
 
 function configureInteractions(viewportId, viewport, element) {
-  element.addEventListener('pointerenter', () => selectViewport(viewportId));
-  element.parentElement?.addEventListener('pointerenter', () => selectViewport(viewportId));
-  element.parentElement?.addEventListener('pointerdown', () => selectViewport(viewportId));
+  const select = () => selectViewport(viewportId);
+  element.addEventListener('pointerenter', select, true);
+  element.addEventListener('pointerdown', select, true);
+  element.parentElement?.addEventListener('pointerenter', select, true);
+  element.parentElement?.addEventListener('pointerdown', select, true);
 
   element.addEventListener('wheel', event => {
     event.preventDefault();
@@ -154,6 +182,7 @@ function updateMprCounter(viewport = activeViewport()) {
       : 'MPR · Plano activo';
   }
   const slider = document.getElementById('slice-slider');
+  const mprSlider = document.getElementById('mpr-slice-slider');
   const sliderValue = document.getElementById('slice-slider-value');
   if (Number.isFinite(index) && Number.isFinite(count)) {
     if (slider) {
@@ -161,6 +190,10 @@ function updateMprCounter(viewport = activeViewport()) {
       slider.value = String(index + 1);
     }
     if (sliderValue) sliderValue.textContent = `${index + 1}/${count}`;
+    if (mprSlider) {
+      mprSlider.max = String(count);
+      mprSlider.value = String(index + 1);
+    }
   }
 }
 
@@ -210,7 +243,7 @@ function startMprCine() {
 }
 
 function configureToolGroup() {
-  [PanTool, WindowLevelTool, ZoomTool, LengthTool, AngleTool, RectangleROITool].forEach(toolClass => {
+  [PanTool, WindowLevelTool, ZoomTool, LengthTool, AngleTool, RectangleROITool, CrosshairsTool].forEach(toolClass => {
     try {
       addTool(toolClass);
     } catch (error) {
@@ -221,9 +254,39 @@ function configureToolGroup() {
   toolGroup = ToolGroupManager.getToolGroup(toolGroupId)
     || ToolGroupManager.createToolGroup(toolGroupId);
   Object.values(TOOL_NAMES).forEach(toolName => {
-    if (!toolGroup.hasTool?.(toolName)) toolGroup.addTool(toolName);
+    if (toolGroup.hasTool?.(toolName)) return;
+    if (toolName === CrosshairsTool.toolName) {
+      toolGroup.addTool(toolName, {
+        configuration: {
+          getReferenceLineColor: viewportId => ({
+            LORETO_AXIAL: 'rgb(239,68,68)',
+            LORETO_CORONAL: 'rgb(34,197,94)',
+            LORETO_SAGITAL: 'rgb(59,130,246)',
+          })[viewportId] || 'rgb(34,211,238)',
+          getReferenceLineControllable: () => true,
+          getReferenceLineDraggableRotatable: () => true,
+          getReferenceLineSlabThicknessControlsOn: () => false,
+        },
+      });
+    } else {
+      toolGroup.addTool(toolName);
+    }
   });
   VIEWPORTS.forEach(([viewportId]) => toolGroup.addViewport(viewportId, renderingEngineId));
+  annotation.config.style.setToolGroupToolStyles(toolGroupId, {
+    global: {
+      color: 'rgb(34,211,238)',
+      colorHighlighted: 'rgb(250,204,21)',
+      colorSelected: 'rgb(255,255,255)',
+      lineWidth: '2',
+      textBoxColor: 'rgb(255,255,255)',
+      textBoxBackground: 'rgba(0,0,0,0.82)',
+      textBoxLinkColor: 'rgb(34,211,238)',
+      textBoxShadow: true,
+      textBoxFontSize: '14px',
+      textBoxFontFamily: 'Arial, sans-serif',
+    },
+  });
 }
 
 function applyPreset(center, width) {
@@ -302,6 +365,7 @@ function toggleMpr() {
   stack.hidden = active;
   button.classList.toggle('active', active);
   button.textContent = active ? 'Vista convencional' : 'MPR 3 planos';
+  document.querySelector('.viewer-shell')?.classList.toggle('mpr-active', active);
   if (active) {
     startMpr().then(() => {
       renderingEngine?.resize(true, false);
@@ -339,6 +403,19 @@ document.querySelectorAll('.tool-button').forEach(button => {
     if (!active) return;
     setTool(button.dataset.tool);
   });
+});
+document.getElementById('mpr-slice-slider')?.addEventListener('input', event => {
+  if (!active) return;
+  stopMprCine();
+  const viewport = activeViewport();
+  if (!viewport) return;
+  try {
+    const info = utilities.getVolumeViewportScrollInfo(viewport, volumeId, false);
+    const target = Number(event.currentTarget.value) - 1;
+    scrollViewport(viewport, target - info.currentStepIndex);
+  } catch (error) {
+    console.debug('Navegación vertical MPR:', error);
+  }
 });
 document.getElementById('zoom-mas')?.addEventListener('click', () => {
   if (!active) return;
