@@ -185,6 +185,16 @@ function setTool(tool) {
     });
   }
 
+  // Conserva visibles las referencias enlazadas mientras el usuario mide,
+  // mueve, amplifica o ajusta ventana/nivel.
+  if (mprActive && tool !== 'crosshairs' && mprGroup?.hasTool?.(CrosshairsTool.toolName)) {
+    try {
+      mprGroup.setToolEnabled(CrosshairsTool.toolName);
+    } catch (error) {
+      console.debug('Cruces MPR enlazadas:', error);
+    }
+  }
+
   document.querySelectorAll('[data-public-tool]').forEach(button => {
     const selected = !turnOff && button.dataset.publicTool === tool;
     button.classList.toggle('active', selected);
@@ -208,11 +218,15 @@ function scrollActive(delta) {
   if (!viewport || !delta) return;
   if (mprActive) {
     utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
+    engine.renderViewports(MPR_VIEWPORTS.map(([id]) => id));
   } else {
     utilities.scroll(viewport, { delta });
+    viewport.render();
   }
-  viewport.render();
-  window.requestAnimationFrame(updateSlider);
+  window.requestAnimationFrame(() => {
+    if (mprActive) engine.renderViewports(MPR_VIEWPORTS.map(([id]) => id));
+    updateSlider();
+  });
 }
 
 function scrollInfo() {
@@ -342,7 +356,7 @@ async function toggleMpr(force) {
         activeTool = null;
         setTool(previous);
       }
-      status('MPR activo. Selecciona un plano y utiliza sus herramientas.');
+      status('MPR enlazado activo. La rueda, barra, botones y cine actualizan la referencia en los tres planos.');
     } catch (error) {
       document.getElementById('public-stack-stage').hidden = false;
       document.getElementById('public-mpr-grid').hidden = true;

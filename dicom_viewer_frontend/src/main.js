@@ -114,6 +114,15 @@ function setTool(tool) {
   } else {
     activeTool = null;
   }
+  // Mantiene una sola referencia espacial entre axial, coronal y sagital,
+  // aunque otra herramienta tenga asignado el boton primario.
+  if (tool !== 'cruces') {
+    try {
+      toolGroup.setToolEnabled(CrosshairsTool.toolName);
+    } catch (error) {
+      console.debug('Cruces MPR enlazadas:', error);
+    }
+  }
   document.querySelectorAll('.tool-button').forEach(button => {
     button.classList.toggle('active-tool', !disabling && button.dataset.tool === tool);
     button.setAttribute('aria-pressed', String(!disabling && button.dataset.tool === tool));
@@ -200,9 +209,9 @@ function updateMprCounter(viewport = activeViewport()) {
 function scrollViewport(viewport, delta) {
   if (!viewport) return;
   utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
-  renderingEngine?.renderViewports([viewport.id]);
+  renderingEngine?.renderViewports(VIEWPORTS.map(([id]) => id));
   window.requestAnimationFrame(() => {
-    viewport.render();
+    renderingEngine?.renderViewports(VIEWPORTS.map(([id]) => id));
     updateMprCounter(viewport);
   });
 }
