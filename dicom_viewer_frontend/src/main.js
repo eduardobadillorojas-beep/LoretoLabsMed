@@ -38,6 +38,7 @@ const invertedViewports = new Set();
 let mprCineTimer = null;
 let mprCinePlaying = false;
 let toolGroup = null;
+let linkedRenderFrame = null;
 const renderingEngineId = 'LORETO_MPR_ENGINE';
 const toolGroupId = 'LORETO_MPR_TOOLS';
 
@@ -95,6 +96,16 @@ function activeViewport() {
   return renderingEngine?.getViewport(activeViewportId);
 }
 
+function scheduleLinkedRender(viewport = activeViewport()) {
+  if (!active || !renderingEngine) return;
+  if (linkedRenderFrame) window.cancelAnimationFrame(linkedRenderFrame);
+  linkedRenderFrame = window.requestAnimationFrame(() => {
+    linkedRenderFrame = null;
+    renderingEngine.renderViewports(VIEWPORTS.map(([id]) => id));
+    updateMprCounter(viewport);
+  });
+}
+
 function setTool(tool) {
   if (!Object.hasOwn(TOOL_NAMES, tool) || !toolGroup) return;
   const disabling = activeTool === tool;
@@ -149,10 +160,18 @@ function setTool(tool) {
 
 function configureInteractions(viewportId, viewport, element) {
   const select = () => selectViewport(viewportId);
-  element.addEventListener('pointerenter', select, true);
-  element.addEventListener('pointerdown', select, true);
-  element.parentElement?.addEventListener('pointerenter', select, true);
-  element.parentElement?.addEventListener('pointerdown', select, true);
+  const surfaces = new Set([element, element.parentElement].filter(Boolean));
+  surfaces.forEach(surface => {
+    surface.addEventListener('pointerenter', select, true);
+    surface.addEventListener('pointerdown', select, true);
+    surface.addEventListener('mousedown', select, true);
+    surface.addEventListener('touchstart', select, { capture: true, passive: true });
+    surface.addEventListener('click', select, true);
+  });
+
+  element.addEventListener(Enums.Events.CAMERA_MODIFIED, () => {
+    scheduleLinkedRender(viewport);
+  });
 
   element.addEventListener('wheel', event => {
     event.preventDefault();
@@ -209,11 +228,7 @@ function updateMprCounter(viewport = activeViewport()) {
 function scrollViewport(viewport, delta) {
   if (!viewport) return;
   utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
-  renderingEngine?.renderViewports(VIEWPORTS.map(([id]) => id));
-  window.requestAnimationFrame(() => {
-    renderingEngine?.renderViewports(VIEWPORTS.map(([id]) => id));
-    updateMprCounter(viewport);
-  });
+  scheduleLinkedRender(viewport);
 }
 
 function stopMprCine() {

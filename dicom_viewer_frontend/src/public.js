@@ -53,6 +53,7 @@ let stackGroup;
 let mprGroup;
 let cineTimer = null;
 let mprElementsEnabled = false;
+let linkedRenderFrame = null;
 
 const root = document.getElementById('public-dicom-viewer');
 const statusElement = document.getElementById('public-status');
@@ -91,6 +92,16 @@ function allVisibleViewports() {
 
 function renderVisible() {
   allVisibleViewports().forEach(viewport => viewport.render());
+}
+
+function scheduleLinkedRender() {
+  if (!mprActive || !engine) return;
+  if (linkedRenderFrame) window.cancelAnimationFrame(linkedRenderFrame);
+  linkedRenderFrame = window.requestAnimationFrame(() => {
+    linkedRenderFrame = null;
+    engine.renderViewports(MPR_VIEWPORTS.map(([id]) => id));
+    updateSlider();
+  });
 }
 
 function addTools() {
@@ -218,15 +229,12 @@ function scrollActive(delta) {
   if (!viewport || !delta) return;
   if (mprActive) {
     utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
-    engine.renderViewports(MPR_VIEWPORTS.map(([id]) => id));
+    scheduleLinkedRender();
   } else {
     utilities.scroll(viewport, { delta });
     viewport.render();
   }
-  window.requestAnimationFrame(() => {
-    if (mprActive) engine.renderViewports(MPR_VIEWPORTS.map(([id]) => id));
-    updateSlider();
-  });
+  if (!mprActive) window.requestAnimationFrame(updateSlider);
 }
 
 function scrollInfo() {
@@ -260,8 +268,18 @@ function updateSlider() {
 
 function configureViewportInput(element, viewportId) {
   const select = () => selectViewport(viewportId);
-  element.addEventListener('pointerenter', select, true);
-  element.addEventListener('pointerdown', select, true);
+  const wrapper = element.closest?.('.public-viewport') || element.parentElement;
+  const surfaces = new Set([element, wrapper].filter(Boolean));
+  surfaces.forEach(surface => {
+    surface.addEventListener('pointerenter', select, true);
+    surface.addEventListener('pointerdown', select, true);
+    surface.addEventListener('mousedown', select, true);
+    surface.addEventListener('touchstart', select, { capture: true, passive: true });
+    surface.addEventListener('click', select, true);
+  });
+  element.addEventListener(Enums.Events.CAMERA_MODIFIED, () => {
+    scheduleLinkedRender();
+  });
   element.addEventListener('wheel', event => {
     event.preventDefault();
     event.stopPropagation();
