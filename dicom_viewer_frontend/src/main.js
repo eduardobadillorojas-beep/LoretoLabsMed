@@ -7,6 +7,19 @@ import {
   volumeLoader,
 } from '@cornerstonejs/core';
 import { init as dicomImageLoaderInit } from '@cornerstonejs/dicom-image-loader';
+import {
+  addTool,
+  AngleTool,
+  Enums as ToolsEnums,
+  LengthTool,
+  PanTool,
+  RectangleROITool,
+  ToolGroupManager,
+  WindowLevelTool,
+  ZoomTool,
+  annotation,
+  init as toolsInit,
+} from '@cornerstonejs/tools';
 
 const VIEWPORTS = [
   ['LORETO_AXIAL', 'mpr-axial', Enums.OrientationAxis.AXIAL],
@@ -22,6 +35,19 @@ let activeTool = 'wl';
 let activeViewportId = VIEWPORTS[0][0];
 const invertedViewports = new Set();
 let mprCineTimer = null;
+let mprCinePlaying = false;
+let toolGroup = null;
+const renderingEngineId = 'LORETO_MPR_ENGINE';
+const toolGroupId = 'LORETO_MPR_TOOLS';
+
+const TOOL_NAMES = {
+  pan: PanTool.toolName,
+  wl: WindowLevelTool.toolName,
+  zoom: ZoomTool.toolName,
+  distancia: LengthTool.toolName,
+  angulo: AngleTool.toolName,
+  roi: RectangleROITool.toolName,
+};
 
 function absoluteUrl(value) {
   return new URL(value, window.location.origin).href;
@@ -54,57 +80,42 @@ function activeViewport() {
 }
 
 function setTool(tool) {
-  if (!['pan', 'wl', 'zoom'].includes(tool)) return;
+  if (!Object.hasOwn(TOOL_NAMES, tool) || !toolGroup) return;
   activeTool = tool;
+  Object.values(TOOL_NAMES).forEach(toolName => {
+    try {
+      toolGroup.setToolPassive(toolName);
+    } catch (error) {
+      console.debug('Herramienta pasiva:', toolName, error);
+    }
+  });
+  toolGroup.setToolActive(TOOL_NAMES[tool], {
+    bindings: [{ mouseButton: ToolsEnums.MouseBindings.Primary }],
+  });
   document.querySelectorAll('.tool-button').forEach(button => {
     button.classList.toggle('active-tool', button.dataset.tool === tool);
   });
-  const labels = { pan: 'Mover', wl: 'Ventana/nivel', zoom: 'Zoom' };
+  const labels = {
+    pan: 'Mover',
+    wl: 'Ventana/nivel',
+    zoom: 'Zoom',
+    distancia: 'Regla',
+    angulo: 'Ángulo',
+    roi: 'ROI/HU',
+  };
   const result = document.getElementById('measurement-result');
-  if (result && active) result.textContent = `MPR · Herramienta activa: ${labels[tool]}. Arrastra con el botón izquierdo sobre el plano deseado.`;
+  if (result && active) {
+    const instruction = ['distancia', 'angulo', 'roi'].includes(tool)
+      ? 'Dibuja la medición con el botón izquierdo sobre cualquier plano.'
+      : 'Arrastra con el botón izquierdo sobre el plano deseado.';
+    result.textContent = `MPR · Herramienta activa: ${labels[tool]}. ${instruction}`;
+  }
 }
 
 function configureInteractions(viewportId, viewport, element) {
   element.addEventListener('pointerenter', () => selectViewport(viewportId));
   element.parentElement?.addEventListener('pointerenter', () => selectViewport(viewportId));
   element.parentElement?.addEventListener('pointerdown', () => selectViewport(viewportId));
-  element.addEventListener('pointerdown', event => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    selectViewport(viewportId);
-    element.setPointerCapture(event.pointerId);
-    const start = { x: event.clientX, y: event.clientY };
-    const startZoom = viewport.getZoom();
-    const startPan = viewport.getPan ? viewport.getPan() : [0, 0];
-    const properties = viewport.getProperties();
-    const initialRange = properties.voiRange || { lower: -160, upper: 240 };
-
-    const move = moveEvent => {
-      const dx = moveEvent.clientX - start.x;
-      const dy = moveEvent.clientY - start.y;
-      if (activeTool === 'wl') {
-        const width = Math.max(1, initialRange.upper - initialRange.lower);
-        const center = (initialRange.upper + initialRange.lower) / 2;
-        const newWidth = Math.max(1, width + dx * 3);
-        const newCenter = center - dy * 2;
-        viewport.setProperties({ voiRange: { lower: newCenter - newWidth / 2, upper: newCenter + newWidth / 2 } });
-      } else if (activeTool === 'pan' && viewport.setPan) {
-        viewport.setPan([startPan[0] + dx, startPan[1] + dy]);
-      } else if (activeTool === 'zoom') {
-        viewport.setZoom(Math.max(0.2, Math.min(12, startZoom * Math.exp(-dy / 180))));
-      }
-      viewport.render();
-    };
-    const end = endEvent => {
-      element.releasePointerCapture?.(endEvent.pointerId);
-      element.removeEventListener('pointermove', move);
-      element.removeEventListener('pointerup', end);
-      element.removeEventListener('pointercancel', end);
-    };
-    element.addEventListener('pointermove', move);
-    element.addEventListener('pointerup', end);
-    element.addEventListener('pointercancel', end);
-  });
 
   element.addEventListener('wheel', event => {
     event.preventDefault();
@@ -126,26 +137,93 @@ function configureInteractions(viewportId, viewport, element) {
 
 function updateMprCounter(viewport = activeViewport()) {
   if (!viewport) return;
-  const index = viewport.getCurrentImageIdIndex?.();
-  const count = viewport.getNumberOfSlices?.();
+  let index;
+  let count;
+  try {
+    const info = utilities.getVolumeViewportScrollInfo(viewport, volumeId, false);
+    index = info.currentStepIndex;
+    count = info.numScrollSteps + 1;
+  } catch (error) {
+    index = viewport.getCurrentImageIdIndex?.();
+    count = viewport.getNumberOfSlices?.();
+  }
   const counter = document.getElementById('contador-imagen');
   if (counter) {
     counter.textContent = Number.isFinite(index) && Number.isFinite(count)
       ? `MPR · Corte ${index + 1} de ${count}`
       : 'MPR · Plano activo';
   }
+  const slider = document.getElementById('slice-slider');
+  const sliderValue = document.getElementById('slice-slider-value');
+  if (Number.isFinite(index) && Number.isFinite(count)) {
+    if (slider) {
+      slider.max = String(count);
+      slider.value = String(index + 1);
+    }
+    if (sliderValue) sliderValue.textContent = `${index + 1}/${count}`;
+  }
 }
 
 function scrollViewport(viewport, delta) {
   if (!viewport) return;
   utilities.scroll(viewport, { delta, volumeId, scrollSlabs: true });
-  viewport.render();
-  window.requestAnimationFrame(() => updateMprCounter(viewport));
+  renderingEngine?.renderViewports([viewport.id]);
+  window.requestAnimationFrame(() => {
+    viewport.render();
+    updateMprCounter(viewport);
+  });
 }
 
 function stopMprCine() {
-  if (mprCineTimer) window.clearInterval(mprCineTimer);
+  mprCinePlaying = false;
+  if (mprCineTimer) window.clearTimeout(mprCineTimer);
   mprCineTimer = null;
+}
+
+function startMprCine() {
+  stopMprCine();
+  mprCinePlaying = true;
+
+  const tick = () => {
+    if (!mprCinePlaying || !active) return;
+    const viewport = activeViewport();
+    if (!viewport) return;
+    let count;
+    let index;
+    try {
+      const info = utilities.getVolumeViewportScrollInfo(viewport, volumeId, false);
+      count = info.numScrollSteps + 1;
+      index = info.currentStepIndex;
+    } catch (error) {
+      count = viewport.getNumberOfSlices?.();
+      index = viewport.getCurrentImageIdIndex?.();
+    }
+    const delta = Number.isFinite(count) && Number.isFinite(index) && index >= count - 1
+      ? -(count - 1)
+      : 1;
+    scrollViewport(viewport, delta);
+    const fps = Math.max(1, Number(document.getElementById('cine-velocidad')?.value || 5));
+    mprCineTimer = window.setTimeout(() => window.requestAnimationFrame(tick), 1000 / fps);
+  };
+
+  tick();
+}
+
+function configureToolGroup() {
+  [PanTool, WindowLevelTool, ZoomTool, LengthTool, AngleTool, RectangleROITool].forEach(toolClass => {
+    try {
+      addTool(toolClass);
+    } catch (error) {
+      if (!String(error).toLowerCase().includes('already')) throw error;
+    }
+  });
+
+  toolGroup = ToolGroupManager.getToolGroup(toolGroupId)
+    || ToolGroupManager.createToolGroup(toolGroupId);
+  Object.values(TOOL_NAMES).forEach(toolName => {
+    if (!toolGroup.hasTool?.(toolName)) toolGroup.addTool(toolName);
+  });
+  VIEWPORTS.forEach(([viewportId]) => toolGroup.addViewport(viewportId, renderingEngineId));
 }
 
 function applyPreset(center, width) {
@@ -166,6 +244,7 @@ async function startMpr() {
   try {
     await coreInit();
     await dicomImageLoaderInit({ maxWebWorkers: Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2)) });
+    await toolsInit();
 
     const root = document.querySelector('.dicom-wrap');
     const response = await fetch(root.dataset.manifestUrl, { credentials: 'same-origin' });
@@ -180,7 +259,7 @@ async function startMpr() {
 
     const imageIds = series.instancias.map(instance => `wadouri:${absoluteUrl(instance.dicom_url)}`);
     volumeId = `cornerstoneStreamingImageVolume:loreto-${manifest.estudio.id}-${series.id}`;
-    renderingEngine = new RenderingEngine(`LORETO_ENGINE_${manifest.estudio.id}`);
+    renderingEngine = new RenderingEngine(renderingEngineId);
     renderingEngine.setViewports(VIEWPORTS.map(([viewportId, elementId, orientation]) => ({
       viewportId,
       element: document.getElementById(elementId),
@@ -191,6 +270,7 @@ async function startMpr() {
     const volume = await volumeLoader.createAndCacheVolume(volumeId, { imageIds });
     await setVolumesForViewports(renderingEngine, [{ volumeId }], VIEWPORTS.map(([id]) => id));
     volume.load();
+    configureToolGroup();
 
     VIEWPORTS.forEach(([id, elementId]) => {
       const viewport = renderingEngine.getViewport(id);
@@ -252,14 +332,12 @@ document.getElementById('cine-pausar').onclick = event => {
 };
 document.getElementById('cine-reproducir').onclick = event => {
   if (!active) return previousCinePlay?.call(event.currentTarget, event);
-  stopMprCine();
-  const fps = Math.max(1, Number(document.getElementById('cine-velocidad')?.value || 5));
-  mprCineTimer = window.setInterval(() => scrollViewport(activeViewport(), 1), 1000 / fps);
+  startMprCine();
 };
 document.querySelectorAll('.tool-button').forEach(button => {
   button.addEventListener('click', () => {
     if (!active) return;
-    if (button.dataset.tool === 'pan' || button.dataset.tool === 'wl') setTool(button.dataset.tool);
+    setTool(button.dataset.tool);
   });
 });
 document.getElementById('zoom-mas')?.addEventListener('click', () => {
@@ -282,6 +360,24 @@ document.getElementById('restablecer')?.addEventListener('click', () => {
     viewport.resetProperties?.();
     viewport.render();
   });
+});
+document.getElementById('borrar-mediciones')?.addEventListener('click', () => {
+  if (!active) return;
+  annotation.state.removeAllAnnotations();
+  renderingEngine?.renderViewports(VIEWPORTS.map(([id]) => id));
+  const result = document.getElementById('measurement-result');
+  if (result) result.textContent = 'MPR · Mediciones eliminadas.';
+});
+document.getElementById('rotar')?.addEventListener('click', () => {
+  if (!active) return;
+  const viewport = activeViewport();
+  const camera = viewport?.getCamera?.();
+  if (!camera?.viewPlaneNormal || !camera?.viewUp) return;
+  const [nx, ny, nz] = camera.viewPlaneNormal;
+  const [ux, uy, uz] = camera.viewUp;
+  const newViewUp = [ny * uz - nz * uy, nz * ux - nx * uz, nx * uy - ny * ux];
+  viewport.setCamera({ viewUp: newViewUp });
+  viewport.render();
 });
 document.getElementById('invertir')?.addEventListener('click', () => {
   if (!active) return;
