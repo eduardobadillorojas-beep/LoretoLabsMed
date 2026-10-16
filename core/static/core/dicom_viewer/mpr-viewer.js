@@ -1,67 +1,62 @@
-import { O, i as D, a as H, b as j, R as W, V as X, c as Y, s as K, P as M, W as P, Z as V, L as _, A as F, d as z, C as v, e as J, g as Q, f as ee, t as te, E as ne, M as re, h as oe, j as x, k as ie } from "./chunks/VideoRedactionTool-PF0Cw2kQ.js";
-const l = [
-  ["LORETO_AXIAL", "mpr-axial", O.AXIAL],
-  ["LORETO_CORONAL", "mpr-coronal", O.CORONAL],
-  ["LORETO_SAGITAL", "mpr-sagital", O.SAGITTAL]
+import { O as h, i as U, a as Z, b as H, R as j, V as D, c as W, s as X, P as M, W as V, Z as k, L as P, A as _, d as F, C as L, e as Y, g as K, f as J, t as Q, M as ee, h as te, j as S, k as ne } from "./chunks/VideoRedactionTool-BdY107HU.js";
+const c = [
+  ["LORETO_AXIAL", "mpr-axial", h.AXIAL],
+  ["LORETO_CORONAL", "mpr-coronal", h.CORONAL],
+  ["LORETO_SAGITAL", "mpr-sagital", h.SAGITTAL]
 ];
-let T = !1, i = !1, s = null, p = null, B = null, w = l[0][0];
-const A = /* @__PURE__ */ new Set();
-let L = null, C = !1, u = null, y = null;
-const G = "LORETO_MPR_ENGINE", R = "LORETO_MPR_TOOLS", E = {
+let O = !1, i = !1, a = null, p = null, T = null, w = c[0][0];
+const B = /* @__PURE__ */ new Set();
+let y = null, C = !1, u = null;
+const z = "LORETO_MPR_ENGINE", A = "LORETO_MPR_TOOLS", E = {
   pan: M.toolName,
-  wl: P.toolName,
-  zoom: V.toolName,
-  distancia: _.toolName,
-  angulo: F.toolName,
-  roi: z.toolName,
-  cruces: v.toolName
-}, ae = {
+  wl: V.toolName,
+  zoom: k.toolName,
+  distancia: P.toolName,
+  angulo: _.toolName,
+  roi: F.toolName,
+  cruces: L.toolName
+}, re = {
   LORETO_AXIAL: { label: "AXIAL", top: "S", bottom: "I" },
   LORETO_CORONAL: { label: "CORONAL", top: "S", bottom: "I" },
   LORETO_SAGITAL: { label: "SAGITAL", top: "S", bottom: "I" }
 };
-function $(e) {
+function G(e) {
   return new URL(e, window.location.origin).href;
 }
-function k(e, t = !1) {
+function N(e, t = !1) {
   const n = document.getElementById("mpr-loading");
   n && (n.hidden = !1, n.textContent = e, n.style.color = t ? "#fecaca" : "#d8e9f3");
 }
-function se(e) {
+function oe(e) {
   const t = document.getElementById("descargar-original")?.href;
   return e.series.find(
-    (n) => n.instancias.some((r) => $(r.dicom_url) === t)
+    (n) => n.instancias.some((r) => G(r.dicom_url) === t)
   ) || e.series.find((n) => n.apta_para_volumen);
 }
-function S(e) {
-  w = e, l.forEach(([a, c]) => {
-    document.getElementById(c)?.parentElement?.classList.toggle("selected", a === e);
+function R(e) {
+  w = e, c.forEach(([s, l]) => {
+    document.getElementById(l)?.parentElement?.classList.toggle("selected", s === e);
   });
-  const t = ae[e], n = document.getElementById("mpr-slider-plane"), r = document.getElementById("mpr-slider-top"), o = document.getElementById("mpr-slider-bottom");
-  n && (n.textContent = t?.label || "PLANO"), r && (r.textContent = t?.top || ""), o && (o.textContent = t?.bottom || ""), Z();
+  const t = re[e], n = document.getElementById("mpr-slider-plane"), r = document.getElementById("mpr-slider-top"), o = document.getElementById("mpr-slider-bottom");
+  n && (n.textContent = t?.label || "PLANO"), r && (r.textContent = t?.top || ""), o && (o.textContent = t?.bottom || ""), q();
 }
 function m() {
-  return s?.getViewport(w);
+  return a?.getViewport(w);
 }
-function q(e = m()) {
-  !i || !s || (y && window.cancelAnimationFrame(y), y = window.requestAnimationFrame(() => {
-    y = null, s.renderViewports(l.map(([t]) => t)), Z(e);
-  }));
-}
-function U(e) {
+function $(e) {
   if (!Object.hasOwn(E, e) || !u) return;
-  const t = B === e;
+  const t = T === e;
   if (Object.values(E).forEach((o) => {
     try {
       u.setToolDisabled(o);
-    } catch (a) {
-      console.debug("Herramienta desactivada:", o, a);
+    } catch (s) {
+      console.debug("Herramienta desactivada:", o, s);
     }
-  }), t ? B = null : (u.setToolEnabled(E[e]), u.setToolActive(E[e], {
-    bindings: [{ mouseButton: re.Primary }]
-  }), B = e), e !== "cruces")
+  }), t ? T = null : (u.setToolEnabled(E[e]), u.setToolActive(E[e], {
+    bindings: [{ mouseButton: ee.Primary }]
+  }), T = e), e !== "cruces")
     try {
-      u.setToolEnabled(v.toolName);
+      u.setToolEnabled(L.toolName);
     } catch (o) {
       console.debug("Cruces MPR enlazadas:", o);
     }
@@ -82,44 +77,42 @@ function U(e) {
     r.textContent = t ? "MPR · Herramienta desactivada. Usa la rueda para navegar o selecciona otra herramienta." : `MPR · Herramienta activa: ${n[e]}. ${o}`;
   }
 }
-function ce(e, t, n) {
-  const r = () => S(e);
-  new Set([n, n.parentElement].filter(Boolean)).forEach((a) => {
-    a.addEventListener("pointerenter", r, !0), a.addEventListener("pointerdown", r, !0), a.addEventListener("mousedown", r, !0), a.addEventListener("touchstart", r, { capture: !0, passive: !0 }), a.addEventListener("click", r, !0);
-  }), n.addEventListener(ne.CAMERA_MODIFIED, () => {
-    q(t);
-  }), n.addEventListener("wheel", (a) => {
-    if (a.preventDefault(), S(e), a.ctrlKey) {
-      const c = t.getZoom();
-      t.setZoom(Math.max(0.2, Math.min(12, c * (a.deltaY < 0 ? 1.12 : 0.89))));
+function ie(e, t, n) {
+  const r = () => R(e);
+  n.addEventListener("pointerenter", r, !0), n.addEventListener("pointerdown", r, !0), n.parentElement?.addEventListener("pointerenter", r, !0), n.parentElement?.addEventListener("pointerdown", r, !0), n.addEventListener("wheel", (o) => {
+    if (o.preventDefault(), R(e), o.ctrlKey) {
+      const s = t.getZoom();
+      t.setZoom(Math.max(0.2, Math.min(12, s * (o.deltaY < 0 ? 1.12 : 0.89))));
     } else
-      I(t, a.deltaY > 0 ? 1 : -1);
+      I(t, o.deltaY > 0 ? 1 : -1);
     t.render();
   }, { passive: !1 }), n.addEventListener("dblclick", () => {
     t.resetCamera(), t.render();
   });
 }
-function Z(e = m()) {
+function q(e = m()) {
   if (!e) return;
   let t, n;
   try {
-    const g = x(e, p, !1);
+    const g = S(e, p, !1);
     t = g.currentStepIndex, n = g.numScrollSteps + 1;
   } catch {
     t = e.getCurrentImageIdIndex?.(), n = e.getNumberOfSlices?.();
   }
   const r = document.getElementById("contador-imagen");
   r && (r.textContent = Number.isFinite(t) && Number.isFinite(n) ? `MPR · Corte ${t + 1} de ${n}` : "MPR · Plano activo");
-  const o = document.getElementById("slice-slider"), a = document.getElementById("mpr-slice-slider"), c = document.getElementById("slice-slider-value");
-  Number.isFinite(t) && Number.isFinite(n) && (o && (o.max = String(n), o.value = String(t + 1)), c && (c.textContent = `${t + 1}/${n}`), a && (a.max = String(n), a.value = String(t + 1)));
+  const o = document.getElementById("slice-slider"), s = document.getElementById("mpr-slice-slider"), l = document.getElementById("slice-slider-value");
+  Number.isFinite(t) && Number.isFinite(n) && (o && (o.max = String(n), o.value = String(t + 1)), l && (l.textContent = `${t + 1}/${n}`), s && (s.max = String(n), s.value = String(t + 1)));
 }
 function I(e, t) {
-  e && (oe(e, { delta: t, volumeId: p, scrollSlabs: !0 }), q(e));
+  e && (te(e, { delta: t, volumeId: p, scrollSlabs: !0 }), a?.renderViewports(c.map(([n]) => n)), window.requestAnimationFrame(() => {
+    a?.renderViewports(c.map(([n]) => n)), q(e);
+  }));
 }
 function f() {
-  C = !1, L && window.clearTimeout(L), L = null;
+  C = !1, y && window.clearTimeout(y), y = null;
 }
-function le() {
+function ae() {
   f(), C = !0;
   const e = () => {
     if (!C || !i) return;
@@ -127,27 +120,27 @@ function le() {
     if (!t) return;
     let n, r;
     try {
-      const c = x(t, p, !1);
-      n = c.numScrollSteps + 1, r = c.currentStepIndex;
+      const l = S(t, p, !1);
+      n = l.numScrollSteps + 1, r = l.currentStepIndex;
     } catch {
       n = t.getNumberOfSlices?.(), r = t.getCurrentImageIdIndex?.();
     }
     const o = Number.isFinite(n) && Number.isFinite(r) && r >= n - 1 ? -(n - 1) : 1;
     I(t, o);
-    const a = Math.max(1, Number(document.getElementById("cine-velocidad")?.value || 5));
-    L = window.setTimeout(() => window.requestAnimationFrame(e), 1e3 / a);
+    const s = Math.max(1, Number(document.getElementById("cine-velocidad")?.value || 5));
+    y = window.setTimeout(() => window.requestAnimationFrame(e), 1e3 / s);
   };
   e();
 }
-function de() {
-  [M, P, V, _, F, z, v].forEach((e) => {
+function se() {
+  [M, V, k, P, _, F, L].forEach((e) => {
     try {
-      J(e);
+      Y(e);
     } catch (t) {
       if (!String(t).toLowerCase().includes("already")) throw t;
     }
-  }), u = Q(R) || ee(R), Object.values(E).forEach((e) => {
-    u.hasTool?.(e) || (e === v.toolName ? u.addTool(e, {
+  }), u = K(A) || J(A), Object.values(E).forEach((e) => {
+    u.hasTool?.(e) || (e === L.toolName ? u.addTool(e, {
       configuration: {
         getReferenceLineColor: (t) => ({
           LORETO_AXIAL: "rgb(239,68,68)",
@@ -159,7 +152,7 @@ function de() {
         getReferenceLineSlabThicknessControlsOn: () => !1
       }
     }) : u.addTool(e));
-  }), l.forEach(([e]) => u.addViewport(e, G)), te.setToolGroupToolStyles(R, {
+  }), c.forEach(([e]) => u.addViewport(e, z)), Q.setToolGroupToolStyles(A, {
     global: {
       color: "rgb(34,211,238)",
       colorHighlighted: "rgb(250,204,21)",
@@ -174,72 +167,72 @@ function de() {
     }
   });
 }
-function N(e, t) {
-  if (!i || !s || !Number.isFinite(e) || !Number.isFinite(t)) return;
+function x(e, t) {
+  if (!i || !a || !Number.isFinite(e) || !Number.isFinite(t)) return;
   const n = { lower: e - t / 2, upper: e + t / 2 };
-  l.forEach(([r]) => {
-    const o = s.getViewport(r);
+  c.forEach(([r]) => {
+    const o = a.getViewport(r);
     o.setProperties({ voiRange: n }), o.render();
   });
 }
-async function ue() {
-  if (!T) {
-    T = !0, k("Leyendo geometría y píxeles DICOM…");
+async function ce() {
+  if (!O) {
+    O = !0, N("Leyendo geometría y píxeles DICOM…");
     try {
-      await D(), await H({ maxWebWorkers: Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2)) }), await j();
+      await U(), await Z({ maxWebWorkers: Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2)) }), await H();
       const e = document.querySelector(".dicom-wrap"), t = await fetch(e.dataset.manifestUrl, { credentials: "same-origin" });
       if (!t.ok) throw new Error(`El manifiesto respondió ${t.status}.`);
-      const n = await t.json(), r = se(n);
+      const n = await t.json(), r = oe(n);
       if (!r) throw new Error("Este estudio no contiene una serie volumétrica compatible.");
       if (!r.apta_para_volumen)
         throw new Error("La serie no contiene posición y orientación suficientes para MPR.");
       if (r.instancias.length < 3) throw new Error("Se necesitan por lo menos tres cortes para reconstruir un volumen.");
-      const o = r.instancias.map((d) => `wadouri:${$(d.dicom_url)}`);
-      p = `cornerstoneStreamingImageVolume:loreto-${n.estudio.id}-${r.id}`, s = new W(G), s.setViewports(l.map(([d, h, b]) => ({
+      const o = r.instancias.map((d) => `wadouri:${G(d.dicom_url)}`);
+      p = `cornerstoneStreamingImageVolume:loreto-${n.estudio.id}-${r.id}`, a = new j(z), a.setViewports(c.map(([d, v, b]) => ({
         viewportId: d,
-        element: document.getElementById(h),
-        type: X.ORTHOGRAPHIC,
+        element: document.getElementById(v),
+        type: D.ORTHOGRAPHIC,
         defaultOptions: { orientation: b, background: [0, 0, 0] }
       })));
-      const a = await Y(p, { imageIds: o });
-      await K(s, [{ volumeId: p }], l.map(([d]) => d)), a.load(), de(), l.forEach(([d, h]) => {
-        const b = s.getViewport(d);
-        b.resetCamera(), ce(d, b, document.getElementById(h));
-      }), s.renderViewports(l.map(([d]) => d)), document.getElementById("mpr-loading").hidden = !0, S(l[0][0]), U("wl");
-      const c = Number(document.getElementById("window-center")?.value || r.instancias[0]?.window_center), g = Number(document.getElementById("window-width")?.value || r.instancias[0]?.window_width);
-      N(c, g);
+      const s = await W(p, { imageIds: o });
+      await X(a, [{ volumeId: p }], c.map(([d]) => d)), s.load(), se(), c.forEach(([d, v]) => {
+        const b = a.getViewport(d);
+        b.resetCamera(), ie(d, b, document.getElementById(v));
+      }), a.renderViewports(c.map(([d]) => d)), document.getElementById("mpr-loading").hidden = !0, R(c[0][0]), $("wl");
+      const l = Number(document.getElementById("window-center")?.value || r.instancias[0]?.window_center), g = Number(document.getElementById("window-width")?.value || r.instancias[0]?.window_width);
+      x(l, g);
     } catch (e) {
-      T = !1, console.error("Loreto One MPR:", e), k(`No fue posible crear la reconstrucción: ${e.message}`, !0);
+      O = !1, console.error("Loreto One MPR:", e), N(`No fue posible crear la reconstrucción: ${e.message}`, !0);
     }
   }
 }
-function me() {
+function le() {
   const e = document.getElementById("mpr-grid"), t = document.getElementById("viewer-stage"), n = document.getElementById("activar-mpr");
-  i = !i, i || f(), e.hidden = !i, t.hidden = i, n.classList.toggle("active", i), n.textContent = i ? "Vista convencional" : "MPR 3 planos", document.querySelector(".viewer-shell")?.classList.toggle("mpr-active", i), i && ue().then(() => {
-    s?.resize(!0, !1), s?.renderViewports(l.map(([r]) => r));
+  i = !i, i || f(), e.hidden = !i, t.hidden = i, n.classList.toggle("active", i), n.textContent = i ? "Vista convencional" : "MPR 3 planos", document.querySelector(".viewer-shell")?.classList.toggle("mpr-active", i), i && ce().then(() => {
+    a?.resize(!0, !1), a?.renderViewports(c.map(([r]) => r));
   });
 }
-document.getElementById("activar-mpr")?.addEventListener("click", me);
-const ge = document.getElementById("corte-anterior")?.onclick, pe = document.getElementById("corte-siguiente")?.onclick, fe = document.getElementById("cine-reproducir")?.onclick, Ee = document.getElementById("cine-pausar")?.onclick;
+document.getElementById("activar-mpr")?.addEventListener("click", le);
+const de = document.getElementById("corte-anterior")?.onclick, ue = document.getElementById("corte-siguiente")?.onclick, me = document.getElementById("cine-reproducir")?.onclick, ge = document.getElementById("cine-pausar")?.onclick;
 document.getElementById("corte-anterior").onclick = (e) => {
-  if (!i) return ge?.call(e.currentTarget, e);
+  if (!i) return de?.call(e.currentTarget, e);
   f(), I(m(), -1);
 };
 document.getElementById("corte-siguiente").onclick = (e) => {
-  if (!i) return pe?.call(e.currentTarget, e);
+  if (!i) return ue?.call(e.currentTarget, e);
   f(), I(m(), 1);
 };
 document.getElementById("cine-pausar").onclick = (e) => {
-  if (!i) return Ee?.call(e.currentTarget, e);
+  if (!i) return ge?.call(e.currentTarget, e);
   f();
 };
 document.getElementById("cine-reproducir").onclick = (e) => {
-  if (!i) return fe?.call(e.currentTarget, e);
-  le();
+  if (!i) return me?.call(e.currentTarget, e);
+  ae();
 };
 document.querySelectorAll(".tool-button").forEach((e) => {
   e.addEventListener("click", () => {
-    i && U(e.dataset.tool);
+    i && $(e.dataset.tool);
   });
 });
 document.getElementById("mpr-slice-slider")?.addEventListener("input", (e) => {
@@ -248,7 +241,7 @@ document.getElementById("mpr-slice-slider")?.addEventListener("input", (e) => {
   const t = m();
   if (t)
     try {
-      const n = x(t, p, !1), r = Number(e.currentTarget.value) - 1;
+      const n = S(t, p, !1), r = Number(e.currentTarget.value) - 1;
       I(t, r - n.currentStepIndex);
     } catch (n) {
       console.debug("Navegación vertical MPR:", n);
@@ -265,14 +258,14 @@ document.getElementById("zoom-menos")?.addEventListener("click", () => {
   e.setZoom(Math.max(0.2, e.getZoom() / 1.2)), e.render();
 });
 document.getElementById("restablecer")?.addEventListener("click", () => {
-  i && l.forEach(([e]) => {
-    const t = s.getViewport(e);
+  i && c.forEach(([e]) => {
+    const t = a.getViewport(e);
     t.resetCamera(), t.resetProperties?.(), t.render();
   });
 });
 document.getElementById("borrar-mediciones")?.addEventListener("click", () => {
   if (!i) return;
-  ie.removeAllAnnotations(), s?.renderViewports(l.map(([t]) => t));
+  ne.removeAllAnnotations(), a?.renderViewports(c.map(([t]) => t));
   const e = document.getElementById("measurement-result");
   e && (e.textContent = "MPR · Mediciones eliminadas.");
 });
@@ -280,20 +273,20 @@ document.getElementById("rotar")?.addEventListener("click", () => {
   if (!i) return;
   const e = m(), t = e?.getCamera?.();
   if (!t?.viewPlaneNormal || !t?.viewUp) return;
-  const [n, r, o] = t.viewPlaneNormal, [a, c, g] = t.viewUp, d = [r * g - o * c, o * a - n * g, n * c - r * a];
+  const [n, r, o] = t.viewPlaneNormal, [s, l, g] = t.viewUp, d = [r * g - o * l, o * s - n * g, n * l - r * s];
   e.setCamera({ viewUp: d }), e.render();
 });
 document.getElementById("invertir")?.addEventListener("click", () => {
   if (!i) return;
-  const e = m(), t = !A.has(w);
-  e.setProperties({ invert: t }), t ? A.add(w) : A.delete(w), e.render();
+  const e = m(), t = !B.has(w);
+  e.setProperties({ invert: t }), t ? B.add(w) : B.delete(w), e.render();
 });
 document.querySelectorAll(".preset").forEach((e) => {
-  e.addEventListener("click", () => N(Number(e.dataset.wc), Number(e.dataset.ww)));
+  e.addEventListener("click", () => x(Number(e.dataset.wc), Number(e.dataset.ww)));
 });
 document.getElementById("aplicar-ventana")?.addEventListener("click", () => {
-  N(Number(document.getElementById("window-center").value), Number(document.getElementById("window-width").value));
+  x(Number(document.getElementById("window-center").value), Number(document.getElementById("window-width").value));
 });
 window.addEventListener("resize", () => {
-  !i || !s || (s.resize(!0, !1), s.renderViewports(l.map(([e]) => e)));
+  !i || !a || (a.resize(!0, !1), a.renderViewports(c.map(([e]) => e)));
 });
