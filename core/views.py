@@ -53,7 +53,7 @@ import pydicom
 import numpy as np
 from PIL import Image as PILImage
 from pydicom.errors import InvalidDicomError
-from pydicom.pixels import apply_modality_lut
+from pydicom.pixels import apply_modality_lut, pixel_array
 
 from .instituciones_sesion import membresia_activa, membresias_disponibles
 
@@ -4052,16 +4052,27 @@ def entrega_digital_imagen(request, token, instancia_id):
         institucion=entrega.institucion,
     )
     try:
+        frame_solicitado = max(0, int(request.GET.get('frame', 0)))
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
-            dataset = pydicom.dcmread(archivo)
-            pixeles = dataset.pixel_array
-        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
-        frame = max(0, min(int(request.GET.get('frame', 0)), numero_frames - 1))
-        if numero_frames > 1:
-            pixeles = pixeles[frame]
+            dataset = pydicom.dcmread(
+                archivo,
+                stop_before_pixels=True,
+                force=False,
+            )
+            numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+            frame = min(frame_solicitado, numero_frames - 1)
+            archivo.seek(0)
+            pixeles = pixel_array(
+                archivo,
+                index=frame if numero_frames > 1 else None,
+            )
+
         muestras = int(getattr(dataset, 'SamplesPerPixel', 1) or 1)
         if muestras == 1:
-            pixeles = apply_modality_lut(pixeles, dataset).astype(np.float64)
+            pixeles = apply_modality_lut(pixeles, dataset).astype(
+                np.float32,
+                copy=False,
+            )
         minimo, maximo = float(np.nanmin(pixeles)), float(np.nanmax(pixeles))
         centro_dicom = getattr(dataset, 'WindowCenter', (minimo + maximo) / 2)
         ancho_dicom = getattr(dataset, 'WindowWidth', max(maximo - minimo, 1.0))
@@ -4073,7 +4084,7 @@ def entrega_digital_imagen(request, token, instancia_id):
         ancho = max(float(request.GET.get('ww', ancho_dicom)), 1.0)
         inferior = centro - ancho / 2
         imagen_8bits = (
-            np.clip((pixeles.astype(np.float64) - inferior) / ancho, 0, 1) * 255
+            np.clip((pixeles - inferior) / ancho, 0, 1) * 255
         ).astype(np.uint8)
         if muestras == 1:
             if valor_dicom(dataset, 'PhotometricInterpretation') == 'MONOCHROME1':
@@ -4091,6 +4102,7 @@ def entrega_digital_imagen(request, token, instancia_id):
         return HttpResponse('Imagen no disponible.', status=422)
 
 
+
 @require_POST
 def entrega_digital_medir(request, token, instancia_id):
     entrega = _obtener_entrega_vigente(token)
@@ -4106,11 +4118,18 @@ def entrega_digital_medir(request, token, instancia_id):
         datos = json.loads(request.body.decode('utf-8'))
         herramienta = datos.get('herramienta')
         puntos = datos.get('puntos') or []
-        frame = max(0, int(datos.get('frame', 0)))
+        frame_solicitado = max(0, int(datos.get('frame', 0)))
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
-            dataset = pydicom.dcmread(archivo)
+            dataset = pydicom.dcmread(
+                archivo,
+                stop_before_pixels=True,
+                force=False,
+            )
+
         filas = int(getattr(dataset, 'Rows', 0) or 0)
         columnas = int(getattr(dataset, 'Columns', 0) or 0)
+        if not filas or not columnas:
+            return JsonResponse({'error': 'El DICOM no contiene dimensiones válidas.'}, status=422)
         espaciado = getattr(dataset, 'PixelSpacing', None) or getattr(
             dataset, 'ImagerPixelSpacing', None
         )
@@ -4124,7 +4143,8 @@ def entrega_digital_medir(request, token, instancia_id):
             )
 
         if herramienta == 'distancia' and len(puntos) == 2:
-            x1, y1 = punto(0); x2, y2 = punto(1)
+            x1, y1 = punto(0)
+            x2, y2 = punto(1)
             if fila_mm is not None and columna_mm is not None:
                 valor = (((x2-x1)*columna_mm)**2 + ((y2-y1)*fila_mm)**2) ** .5
                 return JsonResponse({'valor': valor, 'unidad': 'mm', 'calibrada': True})
@@ -4135,17 +4155,23 @@ def entrega_digital_medir(request, token, instancia_id):
         if herramienta == 'roi' and len(puntos) == 2:
             if int(getattr(dataset, 'SamplesPerPixel', 1) or 1) != 1:
                 return JsonResponse({'error': 'La ROI requiere una imagen monocromática.'}, status=422)
-            pixeles = dataset.pixel_array
             total_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
-            if total_frames > 1:
-                pixeles = pixeles[min(frame, total_frames - 1)]
-            x1, y1 = punto(0); x2, y2 = punto(1)
+            frame = min(frame_solicitado, total_frames - 1)
+            with instancia.archivo_estudio.archivo.open('rb') as archivo:
+                pixeles = pixel_array(
+                    archivo,
+                    index=frame if total_frames > 1 else None,
+                )
+            x1, y1 = punto(0)
+            x2, y2 = punto(1)
             izquierda, derecha = sorted((int(round(x1)), int(round(x2))))
             arriba, abajo = sorted((int(round(y1)), int(round(y2))))
-            valores = apply_modality_lut(pixeles, dataset).astype(np.float64)[
-                arriba:max(abajo + 1, arriba + 1),
-                izquierda:max(derecha + 1, izquierda + 1),
-            ]
+            derecha = min(columnas, max(derecha + 1, izquierda + 1))
+            abajo = min(filas, max(abajo + 1, arriba + 1))
+            roi = pixeles[arriba:abajo, izquierda:derecha]
+            valores = apply_modality_lut(roi, dataset).astype(np.float32, copy=False)
+            if valores.size == 0:
+                return JsonResponse({'error': 'La ROI no contiene píxeles.'}, status=422)
             modalidad = valor_dicom(dataset, 'Modality').upper()
             es_hu = modalidad == 'CT' and hasattr(dataset, 'RescaleSlope')
             return JsonResponse({
@@ -4157,6 +4183,7 @@ def entrega_digital_medir(request, token, instancia_id):
     except Exception as exc:
         logger.exception('Error en medición pública DICOM. %s', exc)
         return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
+
 
 
 def entrega_digital_manifiesto(request, token):
@@ -4542,36 +4569,42 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
     )
 
     try:
+        frame_solicitado = max(0, int(request.GET.get('frame', 0)))
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
-            dataset = pydicom.dcmread(archivo)
-            pixeles = dataset.pixel_array
-
-        numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
-        frame = int(request.GET.get('frame', 0))
-        frame = max(0, min(frame, numero_frames - 1))
-        if numero_frames > 1:
-            pixeles = pixeles[frame]
+            dataset = pydicom.dcmread(
+                archivo,
+                stop_before_pixels=True,
+                force=False,
+            )
+            numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
+            frame = min(frame_solicitado, numero_frames - 1)
+            archivo.seek(0)
+            pixeles = pixel_array(
+                archivo,
+                index=frame if numero_frames > 1 else None,
+            )
 
         muestras = int(getattr(dataset, 'SamplesPerPixel', 1) or 1)
         if muestras == 1:
-            pixeles = apply_modality_lut(pixeles, dataset).astype(np.float64)
+            pixeles = apply_modality_lut(pixeles, dataset).astype(
+                np.float32,
+                copy=False,
+            )
 
         minimo = float(np.nanmin(pixeles))
         maximo = float(np.nanmax(pixeles))
         centro_predeterminado = (minimo + maximo) / 2
         ancho_predeterminado = max(maximo - minimo, 1.0)
-
         centro_dicom = getattr(dataset, 'WindowCenter', centro_predeterminado)
         ancho_dicom = getattr(dataset, 'WindowWidth', ancho_predeterminado)
         if hasattr(centro_dicom, '__iter__') and not isinstance(centro_dicom, str):
             centro_dicom = centro_dicom[0]
         if hasattr(ancho_dicom, '__iter__') and not isinstance(ancho_dicom, str):
             ancho_dicom = ancho_dicom[0]
-
         centro = float(request.GET.get('wc', centro_dicom))
         ancho = max(float(request.GET.get('ww', ancho_dicom)), 1.0)
         inferior = centro - ancho / 2
-        imagen_8bits = np.clip((pixeles.astype(np.float64) - inferior) / ancho, 0, 1)
+        imagen_8bits = np.clip((pixeles - inferior) / ancho, 0, 1)
         imagen_8bits = (imagen_8bits * 255).astype(np.uint8)
 
         if muestras == 1:
@@ -4582,8 +4615,6 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
             imagen = PILImage.fromarray(imagen_8bits)
 
         salida = BytesIO()
-        # La compresión baja reduce considerablemente el uso de CPU durante
-        # cine y navegación rápida por series, sin alterar los píxeles.
         imagen.save(salida, format='PNG', optimize=False, compress_level=1)
         respuesta = HttpResponse(salida.getvalue(), content_type='image/png')
         respuesta['Cache-Control'] = 'private, max-age=900'
@@ -4604,6 +4635,7 @@ def imagen_instancia_dicom(request, estudio_id, instancia_id):
         )
 
 
+
 @login_required
 @require_POST
 def medir_instancia_dicom(request, estudio_id, instancia_id):
@@ -4622,10 +4654,14 @@ def medir_instancia_dicom(request, estudio_id, instancia_id):
         datos = json.loads(request.body.decode('utf-8'))
         herramienta = datos.get('herramienta')
         puntos = datos.get('puntos') or []
-        frame = max(0, int(datos.get('frame', 0)))
+        frame_solicitado = max(0, int(datos.get('frame', 0)))
 
         with instancia.archivo_estudio.archivo.open('rb') as archivo:
-            dataset = pydicom.dcmread(archivo)
+            dataset = pydicom.dcmread(
+                archivo,
+                stop_before_pixels=True,
+                force=False,
+            )
 
         filas = int(getattr(dataset, 'Rows', 0) or 0)
         columnas = int(getattr(dataset, 'Columns', 0) or 0)
@@ -4657,20 +4693,21 @@ def medir_instancia_dicom(request, estudio_id, instancia_id):
                     {'error': 'La ROI cuantitativa HU requiere una imagen monocromática.'},
                     status=422,
                 )
-
-            pixeles = dataset.pixel_array
             numero_frames = int(getattr(dataset, 'NumberOfFrames', 1) or 1)
-            frame = min(frame, numero_frames - 1)
-            if numero_frames > 1:
-                pixeles = pixeles[frame]
+            frame = min(frame_solicitado, numero_frames - 1)
+            with instancia.archivo_estudio.archivo.open('rb') as archivo:
+                pixeles = pixel_array(
+                    archivo,
+                    index=frame if numero_frames > 1 else None,
+                )
             x1, y1 = punto(0)
             x2, y2 = punto(1)
             izquierda, derecha = sorted((int(round(x1)), int(round(x2))))
             arriba, abajo = sorted((int(round(y1)), int(round(y2))))
             derecha = min(columnas, max(derecha + 1, izquierda + 1))
             abajo = min(filas, max(abajo + 1, arriba + 1))
-
-            valores = apply_modality_lut(pixeles, dataset).astype(np.float64)[arriba:abajo, izquierda:derecha]
+            roi = pixeles[arriba:abajo, izquierda:derecha]
+            valores = apply_modality_lut(roi, dataset).astype(np.float32, copy=False)
             if valores.size == 0:
                 return JsonResponse({'error': 'La ROI no contiene píxeles.'}, status=422)
 
@@ -4699,6 +4736,7 @@ def medir_instancia_dicom(request, estudio_id, instancia_id):
     except Exception as exc:
         logger.exception('Error al medir DICOM. instancia_id=%s error=%s', instancia.id, str(exc))
         return JsonResponse({'error': 'No fue posible calcular la medición.'}, status=422)
+
 
 # =========================================================
 # PRE-REPORTE TÉCNICO
